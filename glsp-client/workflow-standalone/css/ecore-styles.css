@@ -1,0 +1,201 @@
+/* ========================================
+   SVG MARKER DEFINITIONS
+   ======================================== */
+
+/* SVG Marker Definitions for different arrow types */
+.sprotty-svg defs {
+
+    /* Simple arrow for references */
+    marker#arrowhead {
+        markerWidth: 10;
+        markerHeight: 10;
+        refX: 9;
+        refY: 3;
+        orient: auto;
+        markerUnits: strokeWidth;
+    }
+
+    marker#arrowhead path {
+        d: M0, 0 L0, 6 L9, 3 z;
+        fill: #666;
+    }
+
+    /* Hollow triangle for inheritance */
+    marker#inheritance-arrow {
+        markerWidth: 12;
+        markerHeight: 12;
+        refX: 11;
+        refY: 6;
+        orient: auto;
+        markerUnits: strokeWidth;
+    }
+
+    marker#inheritance-arrow path {
+        d: M0, 0 L0, 12 L11, 6 z;
+        fill: white;
+        stroke: #8B4513;
+        stroke-width: 1;
+    }
+
+    /* Filled diamond for containment */
+    marker#containment-arrow {
+        markerWidth: 12;
+        markerHeight: 12;
+        refX: 11;
+        refY: 6;
+        orient: auto;
+        markerUnits: strokeWidth;
+    }
+
+    marker#containment-arrow path {
+        d: M0, 6 L6, 0 L12, 6 L6, 12 z;
+        fill: #0066CC;
+    }
+}
+
+
+/* Ecore Class styling - Regular (concrete) classes */
+.ecore-class .sprotty-node {
+    fill: #e8f4fd !important;
+    stroke: #4a90e2 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Abstract Class styling */
+.ecore-class.abstract .sprotty-node {
+    fill: #fff2cc !important;
+    stroke: #ffc60cd0 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for abstract classes */
+.ecore-class.abstract text {
+    font-style: italic !important;
+}
+
+/* Ecore Interface styling */
+.ecore-class.interface .sprotty-node {
+    fill: #d5e8d4 !important;
+    stroke: #82b366 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for interfaces */
+.ecore-class.interface text {
+    font-style: italic !important;
+}
+
+/* Ecore DataType styling */
+.ecore-datatype .sprotty-node {
+    fill: #fff2cc !important;
+    stroke: #d6b656 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Enum styling */
+.ecore-enum .sprotty-node {
+    fill: #e1d5e7 !important;
+    stroke: #9673a6 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Instance styling */
+.ecore-instance .sprotty-node {
+    fill: #f0f8ff !important;
+    stroke: #87ceeb !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Ensure proper spacing and prevent overlaps */
+.sprotty-node {
+    margin: 10px !important;
+}
+
+/* Fix text positioning in compartments */
+.sprotty-comp {
+    padding: 5px !important;
+}
+
+.sprotty-label {
+    font-size: 12px !important;
+    font-family: Arial, sans-serif !important;
+}
+
+/* Default edge styling - ensure all edges are visible */
+.sprotty-edge {
+    stroke: #333 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge>path {
+    stroke: #333 !important;
+    stroke-width: 2px !important;
+    marker-end: url(#arrowhead) !important;
+}
+
+/* ========================================
+   EDGE STYLES - Different relationship types
+   ======================================== */
+
+/* Reference edges (regular associations) */
+.sprotty-edge.ecore-reference {
+    stroke: #666 !important;
+    stroke-width: 1.5px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-reference>path {
+    stroke: #666 !important;
+    marker-end: url(#arrowhead) !important;
+}
+
+/* Inheritance edges (generalization) - brown with hollow triangle arrow */
+.sprotty-edge.ecore-inheritance {
+    stroke: #8B4513 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-inheritance>path {
+    stroke: #8B4513 !important;
+    marker-end: url(#inheritance-arrow) !important;
+}
+
+/* Containment edges (composition) - blue with filled diamond arrow */
+.sprotty-edge.ecore-containment {
+    stroke: #0066CC !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-containment>path {
+    stroke: #0066CC !important;
+    marker-end: url(#containment-arrow) !important;
+}
+
+/* Hover effects for edges */
+.sprotty-edge.ecore-reference:hover>path {
+    stroke: #FF6B6B !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-inheritance:hover>path {
+    stroke: #D2691E !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-containment:hover>path {
+    stroke: #1E90FF !important;
+    stroke-width: 3px !important;
+}
+
+/* Edge labels styling */
+.sprotty-edge>text {
+    fill: #333 !important;
+    font-size: 11px !important;
+    font-family: Arial, sans-serif !important;
+}

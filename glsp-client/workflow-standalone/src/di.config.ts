@@ -29,6 +29,7 @@ import {
 import { Container } from 'inversify';
 import { makeLoggerMiddleware } from 'inversify-logger-middleware';
 import '../css/diagram.css';
+import '../css/ecore-styles.css';
 import { getParameters } from './url-parameters';
 export default function createContainer(options: IDiagramOptions): Container {
     const parameters = getParameters();

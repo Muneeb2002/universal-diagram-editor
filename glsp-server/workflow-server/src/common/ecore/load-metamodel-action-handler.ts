@@ -38,8 +38,8 @@ export class LoadMetamodelActionHandler implements ActionHandler {
         console.log('LoadMetamodelActionHandler.execute()', action);
 
         try {
-            // Parse as JSON metamodel (since we removed TypeScript support)
-            const ecoreModel = JSON.parse(action.content);
+            // Use reliable parser for JSON parsing with validation
+            const ecoreModel = await this.ecoreParser.parseEcoreJson(action.content);
 
             console.log('Parsed Ecore model:', ecoreModel);
 

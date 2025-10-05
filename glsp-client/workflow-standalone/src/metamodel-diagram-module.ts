@@ -11,42 +11,59 @@
 import {
     configureDefaultModelElements,
     configureModelElement,
-    overrideModelElement,
-    FeatureModule,
-    GNode,
-    GEdge,
-    GLabel,
-    GCompartment,
-    GGraph,
-    RoundedCornerNodeView,
-    GLabelView,
-    GCompartmentView,
-    GLSPProjectionView,
-    GEdgeView,
-    DefaultTypes,
-    TYPES,
-    DEFAULT_ALIGNABLE_ELEMENT_FILTER,
-    helperLineModule,
-    gridModule,
-    debugModule,
-    initializeDiagramContainer,
     ContainerConfiguration,
-    editLabelFeature
+    debugModule,
+    DEFAULT_ALIGNABLE_ELEMENT_FILTER,
+    DefaultTypes,
+    editLabelFeature,
+    FeatureModule,
+    GCompartment,
+    GCompartmentView,
+    GEdge,
+    GEdgeView,
+    GGraph,
+    GLabel,
+    GLabelView,
+    GLSPProjectionView,
+    GNode,
+    gridModule,
+    helperLineModule,
+    initializeDiagramContainer,
+    overrideModelElement,
+    TYPES
 } from '@eclipse-glsp/client';
 import { Container } from 'inversify';
+import { EcoreClassNodeView, EcoreDataTypeNodeView, EcoreEnumNodeView, EcoreInstanceNodeView } from './ecore-views';
+import { EcoreEdgeView } from './ecore-edge-views';
 
 // Define Ecore-specific model elements
 export class EcoreClassNode extends GNode {
     static readonly TYPE = 'ecore:class';
 }
 
+export class EcoreDataTypeNode extends GNode {
+    static readonly TYPE = 'ecore:datatype';
+}
+
+export class EcoreEnumNode extends GNode {
+    static readonly TYPE = 'ecore:enum';
+}
+
 export class EcoreReferenceEdge extends GEdge {
     static readonly TYPE = 'edge:ecore-reference';
 }
 
+export class EcoreInheritanceEdge extends GEdge {
+    static readonly TYPE = 'edge:ecore-inheritance';
+}
+
+export class EcoreContainmentEdge extends GEdge {
+    static readonly TYPE = 'edge:ecore-containment';
+}
+
 // Define instance model elements
 export class EcoreInstanceNode extends GNode {
-    // Type is dynamic: inst:ClassName
+    static readonly TYPE = 'ecore:instance';
 }
 
 export class EcoreInstanceEdge extends GEdge {
@@ -58,16 +75,22 @@ export const metamodelDiagramModule = new FeatureModule(
         const context = { bind, unbind, isBound, rebind };
         configureDefaultModelElements(context);
 
-        // Configure Ecore metamodel elements
-        configureModelElement(context, 'ecore:class', EcoreClassNode, RoundedCornerNodeView);
-        configureModelElement(context, 'edge:ecore-reference', EcoreReferenceEdge, GEdgeView);
+        // Configure Ecore metamodel elements with custom views
+        configureModelElement(context, 'ecore:class', EcoreClassNode, EcoreClassNodeView);
+        configureModelElement(context, 'ecore:datatype', EcoreDataTypeNode, EcoreDataTypeNodeView);
+        configureModelElement(context, 'ecore:enum', EcoreEnumNode, EcoreEnumNodeView);
 
-        // Configure Ecore instance elements
-        configureModelElement(context, 'ecore:instance', EcoreInstanceNode, RoundedCornerNodeView);
-        configureModelElement(context, 'edge:inst-reference', EcoreInstanceEdge, GEdgeView);
+        // Configure edges with custom arrow markers
+        configureModelElement(context, 'edge:ecore-reference', EcoreReferenceEdge, EcoreEdgeView);
+        configureModelElement(context, 'edge:ecore-inheritance', EcoreInheritanceEdge, EcoreEdgeView);
+        configureModelElement(context, 'edge:ecore-containment', EcoreContainmentEdge, EcoreEdgeView);
+
+        // Configure Ecore instance elements with custom views
+        configureModelElement(context, 'ecore:instance', EcoreInstanceNode, EcoreInstanceNodeView);
+        configureModelElement(context, 'edge:inst-reference', EcoreInstanceEdge, EcoreEdgeView);
 
         // Configure generic elements
-        configureModelElement(context, 'edge', GEdge, GEdgeView);
+        configureModelElement(context, 'edge', GEdge, EcoreEdgeView);
         configureModelElement(context, 'graph', GGraph, GLSPProjectionView);
 
         // Configure labels and compartments

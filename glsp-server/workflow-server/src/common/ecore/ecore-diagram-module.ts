@@ -62,7 +62,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
 
     protected override configure(bind: interfaces.Bind, unbind: interfaces.Unbind, isBound: interfaces.IsBound, rebind: interfaces.Rebind): void {
         super.configure(bind, unbind, isBound, rebind);
-        
+
         // Bind core services as singletons
         bind(EcoreParser).toSelf().inSingletonScope();
         bind(MetamodelRegistry).toSelf().inSingletonScope();

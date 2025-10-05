@@ -56,10 +56,22 @@ export class EcoreModelStorage implements SourceModelStorage {
                 this.modelState.set('modelType', 'ecore');
             } else {
                 // Fall back to JSON loading for non-ecore files
-                const model = this.loadFromFile(sourceUri);
-                this.modelState.set('sourceModel', model);
+                const jsonObject = this.loadFromFile(sourceUri);
+
+                try {
+                    // Try to parse as Ecore JSON with validation
+                    const ecoreModel = await this.ecoreParser.parseEcoreJson(JSON.stringify(jsonObject));
+                    this.modelState.set('ecoreModel', ecoreModel);
+                    this.modelState.set('modelType', 'ecore');
+                    console.log('Detected and parsed Ecore model from JSON file');
+                } catch (ecoreError) {
+                    // It's not an Ecore model, store as generic JSON
+                    this.modelState.set('sourceModel', jsonObject);
+                    this.modelState.set('modelType', 'json');
+                    console.log('Stored as generic JSON model (not Ecore)');
+                }
+
                 this.modelState.set('sourceUri', sourceUri);
-                this.modelState.set('modelType', 'json');
             }
         } catch (error) {
             throw new Error(`Failed to load model from ${sourceUri}: ${error}`);
