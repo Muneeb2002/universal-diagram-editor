@@ -1,0 +1,111 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run current test file",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/mocha",
+      "args": ["--config", "${workspaceFolder}/.mocharc", "${relativeFile}"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    },
+    {
+      "name": "Run server-node tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/mocha",
+      "args": [
+        "--config",
+        "${workspaceFolder}/.mocharc",
+        "${workspaceFolder}/packages/server/src/**/*.spec.ts"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    },
+    {
+      "name": "Run graph tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/mocha",
+      "args": [
+        "--config",
+        "${workspaceFolder}/.mocharc",
+        "${workspaceFolder}/packages/graph/src/**/*.spec.ts"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    },
+    {
+      "name": "Run layout-elk tests",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/node_modules/.bin/mocha",
+      "args": [
+        "--config",
+        "${workspaceRoot}/.mocharc",
+        "${workspaceRoot}/packages/layout-elk/src/**/*.spec.ts"
+      ],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Workflow Example Server",
+      "program": "${workspaceFolder}/examples/workflow-server-bundled/wf-glsp-server-node.js",
+      "args": ["--port", "5007"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/examples/workflow-server-bundled/*.js",
+        "${workspaceRoot}/node_modules/@eclipse-glsp/*/lib/**/*.js",
+        "${workspaceRoot}/examples/workflow-server/*/lib/**/*.js",
+        "${workspaceRoot}/packages/**/*/lib/**/*.js"
+      ],
+      "sourceMapPathOverrides": {
+        "webpack://@eclipse-glsp-examples/workflow-server/(.+)": "${workspaceFolder}/examples/workflow-server/$1"
+      },
+      "smartStep": true,
+      "internalConsoleOptions": "openOnSessionStart",
+      "outputCapture": "std"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Debug Workflow Example Server (Websocket)",
+      "program": "${workspaceFolder}/examples/workflow-server-bundled/wf-glsp-server-node.js",
+      "args": ["--webSocket", "--port", "8081"],
+      "env": {
+        "NODE_ENV": "development"
+      },
+      "sourceMaps": true,
+      "outFiles": [
+        "${workspaceRoot}/examples/workflow-server-bundled/*.js",
+        "${workspaceRoot}/node_modules/@eclipse-glsp/*/lib/**/*.js",
+        "${workspaceRoot}/examples/workflow-server/*/lib/**/*.js",
+        "${workspaceRoot}/packages/**/*/lib/**/*.js"
+      ],
+      "sourceMapPathOverrides": {
+        "webpack://@eclipse-glsp-examples/workflow-server/(.+)": "${workspaceFolder}/examples/workflow-server/$1"
+      },
+      "smartStep": true,
+      "internalConsoleOptions": "openOnSessionStart",
+      "outputCapture": "std"
+    }
+  ]
+}

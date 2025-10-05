@@ -1,0 +1,35 @@
+{
+  "name": "parent",
+  "version": "2.6.0-next",
+  "private": true,
+  "workspaces": [
+    "packages/*",
+    "workflow-server",
+    "workflow-server-bundled"
+  ],
+  "scripts": {
+    "build": "yarn compile",
+    "clean": "lerna run clean && rimraf coverage .nyc_output",
+    "compile": "tsc -b",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "generate:index": "lerna run generate:index && yarn lint:fix",
+    "lint": "eslint --ext .ts,.tsx .",
+    "lint:fix": "yarn lint --fix",
+    "test": "lerna run test --no-bail",
+    "test:coverage": "lerna run test:coverage",
+    "watch": "tsc -b -w --preserveWatchOutput"
+  },
+  "devDependencies": {
+    "@eclipse-glsp/dev": "next",
+    "@types/node": "20.x",
+    "concurrently": "^8.2.2",
+    "lerna": "^7.0.0",
+    "mocha-ctrf-json-reporter": "0.0.9",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=20",
+    "yarn": ">=1.7.0 <2"
+  }
+}

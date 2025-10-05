@@ -1,0 +1,53 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run current test",
+      "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+      "args": ["--config", "${workspaceRoot}/.mocharc", "--timeout", "0", "${file}"],
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen",
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      }
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run tests",
+      "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+      "args": [
+        "--config",
+        "${workspaceRoot}/.mocharc",
+        "--timeout",
+        "0",
+        "${workspaceFolder}/packages/client/src/**/*.spec.ts"
+      ],
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    },
+    {
+      "type": "node",
+      "request": "launch",
+      "name": "Run tests (protocol)",
+      "program": "${workspaceFolder}/node_modules/mocha/bin/_mocha",
+      "args": [
+        "--config",
+        "${workspaceRoot}/.mocharc",
+        "--timeout",
+        "0",
+        "${workspaceFolder}/packages/protocol/src/**/*.spec.ts"
+      ],
+      "env": {
+        "TS_NODE_PROJECT": "${workspaceFolder}/tsconfig.json"
+      },
+      "console": "integratedTerminal",
+      "internalConsoleOptions": "neverOpen"
+    }
+  ]
+}

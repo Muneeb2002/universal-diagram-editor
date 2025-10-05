@@ -1,0 +1,19 @@
+{
+  "extends": "@eclipse-glsp/ts-config/mocha",
+  "include": [],
+  "compilerOptions": {
+    "composite": true,
+    "resolveJsonModule": true
+  },
+  "references": [
+    {
+      "path": "./packages/protocol"
+    },
+    {
+      "path": "./packages/glsp-sprotty"
+    },
+    {
+      "path": "./packages/client"
+    }
+  ]
+}

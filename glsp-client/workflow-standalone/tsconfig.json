@@ -1,0 +1,15 @@
+{
+  "extends": "../tsconfig.json",
+  "compilerOptions": {
+    "composite": true,
+    "rootDir": "src",
+    "resolveJsonModule": true,
+    "outDir": "lib"
+  },
+  "include": ["src", "lib", "css", "app"],
+  "references": [
+    {
+      "path": "../packages/client"
+    }
+  ]
+}
