@@ -22,7 +22,7 @@ export class EcoreToolbar {
         this.toolbar = document.createElement('div');
         this.toolbar.style.cssText = `
             position: fixed;
-            top: 50px;
+            bottom: 10px;
             right: 10px;
             z-index: 1000;
             background-color: #f0f0f0;

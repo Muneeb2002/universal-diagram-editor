@@ -16,7 +16,6 @@ import {
     ModelState,
     ArgsUtil
 } from '@eclipse-glsp/server';
-import { EcoreModel, EClass, isEClass } from './ecore-types';
 
 @injectable()
 export class DynamicCreateNodeHandler extends GModelCreateNodeOperationHandler {
@@ -24,98 +23,70 @@ export class DynamicCreateNodeHandler extends GModelCreateNodeOperationHandler {
     protected override modelState: ModelState;
 
     override get label(): string {
-        return 'Create Node';
+        return 'Create Metamodel Element';
     }
 
     override get elementTypeIds(): string[] {
-        const modelType = this.modelState.get('modelType') as string;
-
-        if (modelType === 'ecore') {
-            return this.getEcoreElementTypeIds();
-        } else {
-            return this.getWorkflowElementTypeIds();
-        }
+        // Always return Ecore metamodeling element types
+        return this.getEcoreElementTypeIds();
     }
 
     private getEcoreElementTypeIds(): string[] {
-        const ecoreModel = this.modelState.get('ecoreModel') as EcoreModel;
-        if (!ecoreModel) {
-            return [];
-        }
-
-        const typeIds: string[] = [];
-        ecoreModel.ePackages.forEach(pkg => {
-            pkg.eClassifiers.forEach(classifier => {
-                if (isEClass(classifier)) {
-                    typeIds.push(`ecore:${classifier.name}`);
-                }
-            });
-        });
-        return typeIds;
-    }
-
-    private getWorkflowElementTypeIds(): string[] {
-        // Return existing workflow element type IDs
+        // Return Ecore metamodeling element types
         return [
-            'task:manual',
-            'task:automated',
-            'activityNode:fork',
-            'activityNode:join',
-            'activityNode:decision',
-            'activityNode:merge',
-            'category'
+            'ecore:class',
+            'ecore:datatype',
+            'ecore:enum',
+            'ecore:attribute',
+            'ecore:reference',
+            'ecore:package'
         ];
     }
 
+
     override createNode(operation: CreateNodeOperation): GNode {
         const elementTypeId = operation.elementTypeId;
-        const modelType = this.modelState.get('modelType') as string;
-
-        if (modelType === 'ecore') {
-            return this.createEcoreNode(elementTypeId, operation);
-        } else {
-            return this.createWorkflowNode(elementTypeId, operation);
-        }
+        // Always create Ecore metamodeling elements
+        return this.createEcoreNode(elementTypeId, operation);
     }
 
     private createEcoreNode(elementTypeId: string, operation: CreateNodeOperation): GNode {
-        const eClassName = elementTypeId.replace('ecore:', '');
-        const ecoreModel = this.modelState.get('ecoreModel') as EcoreModel;
-
-        if (!ecoreModel) {
-            throw new Error('No Ecore model found');
-        }
-
-        // Find the EClass
-        let eClass: EClass | undefined;
-        for (const pkg of ecoreModel.ePackages) {
-            eClass = pkg.eClassifiers.find(c => isEClass(c) && c.name === eClassName) as EClass;
-            if (eClass) break;
-        }
-
-        if (!eClass) {
-            throw new Error(`EClass ${eClassName} not found`);
-        }
-
+        const elementType = elementTypeId.replace('ecore:', '');
+        
         const node = new GNode();
         node.type = elementTypeId;
-        node.id = this.generateId(eClassName);
+        node.id = this.generateId(elementType);
         node.layout = 'vbox';
         node.args = ArgsUtil.cornerRadius(5);
-        node.cssClasses = ['ecore-class'];
+        
+        // Set appropriate CSS classes based on element type
+        switch (elementType) {
+            case 'class':
+                node.cssClasses = ['ecore-class'];
+                break;
+            case 'datatype':
+                node.cssClasses = ['ecore-datatype'];
+                break;
+            case 'enum':
+                node.cssClasses = ['ecore-enum'];
+                break;
+            case 'attribute':
+                node.cssClasses = ['ecore-attribute'];
+                break;
+            case 'reference':
+                node.cssClasses = ['ecore-reference'];
+                break;
+            case 'package':
+                node.cssClasses = ['ecore-package'];
+                break;
+            default:
+                node.cssClasses = ['ecore-element'];
+        }
+        
         node.position = operation.location || { x: 0, y: 0 };
         return node;
     }
 
-    private createWorkflowNode(elementTypeId: string, operation: CreateNodeOperation): GNode {
-        // Delegate to existing workflow node creation logic
-        // This is a placeholder - in practice you'd delegate to the existing handlers
-        const node = new GNode();
-        node.type = elementTypeId;
-        node.id = this.generateId(elementTypeId);
-        node.position = operation.location || { x: 0, y: 0 };
-        return node;
-    }
 
     private generateId(prefix: string): string {
         return `${prefix}_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;

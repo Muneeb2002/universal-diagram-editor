@@ -47,7 +47,7 @@ export class EcoreFilePicker {
         button.textContent = 'Load JSON Metamodel';
         button.style.cssText = `
             position: fixed;
-            top: 10px;
+            bottom: 200px;
             right: 10px;
             z-index: 1000;
             padding: 10px 15px;

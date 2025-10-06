@@ -16,7 +16,8 @@
 import { injectable, interfaces } from 'inversify';
 import {
     GModelDiagramModule, BindingTarget, SourceModelStorage, DiagramConfiguration,
-    GModelFactory, OperationHandlerConstructor, InstanceMultiBinding
+    GModelFactory, OperationHandlerConstructor, InstanceMultiBinding,
+    ToolPaletteItemProvider
 } from '@eclipse-glsp/server';
 import { GModelStorage } from '@eclipse-glsp/server/node';
 import { CreateAutomatedTaskHandler } from './handler/create-automated-task-handler';
@@ -35,6 +36,7 @@ import { DynamicEcoreGModelFactory } from './ecore/dynamic-ecore-gmodel-factory'
 import { DynamicCreateNodeHandler } from './ecore/dynamic-create-node-handler';
 import { EcoreParser } from './ecore/ecore-parser';
 import { UnifiedModelStorage } from './unified-model-storage';
+import { EcoreToolPaletteItemProvider } from './ecore/ecore-tool-palette-item-provider';
 
 /**
  * Unified diagram module that supports both workflow and Ecore diagrams
@@ -74,6 +76,10 @@ export class UnifiedDiagramModule extends GModelDiagramModule {
 
         // Add Ecore operation handlers
         binding.add(DynamicCreateNodeHandler);
+    }
+
+    protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {
+        return EcoreToolPaletteItemProvider;
     }
 
     protected override configure(bind: interfaces.Bind, unbind: interfaces.Unbind, isBound: interfaces.IsBound, rebind: interfaces.Rebind): void {

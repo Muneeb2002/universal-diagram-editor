@@ -8,27 +8,29 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { injectable, interfaces } from 'inversify';
 import {
-    GModelDiagramModule,
+    ActionHandlerConstructor,
     BindingTarget,
-    SourceModelStorage,
     DiagramConfiguration,
+    GModelDiagramModule,
     GModelFactory,
-    OperationHandlerConstructor,
     InstanceMultiBinding,
-    ActionHandlerConstructor
+    OperationHandlerConstructor,
+    SourceModelStorage,
+    ToolPaletteItemProvider
 } from '@eclipse-glsp/server';
-import { EcoreModelStorage } from './ecore-model-storage';
+import { injectable, interfaces } from 'inversify';
+import { CreateInstanceActionHandler } from './create-instance-action-handler';
+import { DynamicCreateNodeHandler } from './dynamic-create-node-handler';
 import { DynamicEcoreDiagramConfiguration } from './dynamic-ecore-diagram-configuration';
 import { DynamicEcoreGModelFactory } from './dynamic-ecore-gmodel-factory';
-import { DynamicCreateNodeHandler } from './dynamic-create-node-handler';
+import { EcoreModelStorage } from './ecore-model-storage';
 import { EcoreParser } from './ecore-parser';
-import { MetamodelRegistry } from './metamodel-registry';
+import { EcoreToolPaletteItemProvider } from './ecore-tool-palette-item-provider';
 import { InstanceModelStorage } from './instance-model-storage';
 import { LoadMetamodelActionHandler } from './load-metamodel-action-handler';
+import { MetamodelRegistry } from './metamodel-registry';
 import { SwitchModeActionHandler } from './switch-mode-action-handler';
-import { CreateInstanceActionHandler } from './create-instance-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -58,6 +60,10 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(LoadMetamodelActionHandler);
         binding.add(SwitchModeActionHandler);
         binding.add(CreateInstanceActionHandler);
+    }
+
+    protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {
+        return EcoreToolPaletteItemProvider;
     }
 
     protected override configure(bind: interfaces.Bind, unbind: interfaces.Unbind, isBound: interfaces.IsBound, rebind: interfaces.Rebind): void {
