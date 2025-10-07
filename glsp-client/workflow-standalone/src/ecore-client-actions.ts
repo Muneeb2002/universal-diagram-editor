@@ -8,6 +8,8 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
+import { Action } from '@eclipse-glsp/protocol';
+
 /**
  * Client-side action type definitions for Ecore metamodel operations.
  * These should match the server-side action definitions.
@@ -53,6 +55,16 @@ export interface CreateInstanceReferenceAction {
     referenceName: string;
 }
 
+// Metamodel editing actions
+export interface RenameClassAction {
+    kind: 'renameClass';
+    oldClassName: string;
+    newClassName: string;
+}
+
+
+
+
 // Helper functions to create actions
 export function createLoadMetamodelAction(
     content: string,
@@ -84,3 +96,43 @@ export function createCreateInstanceAction(
         position
     };
 }
+
+// Helper functions for metamodel editing actions
+export function createRenameClassAction(
+    oldClassName: string,
+    newClassName: string
+): RenameClassAction {
+    return {
+        kind: 'renameClass',
+        oldClassName,
+        newClassName
+    };
+}
+
+
+export interface SaveMetamodelAction extends Action {
+    kind: typeof SaveMetamodelAction.KIND;
+    filename?: string;
+    format?: 'json' | 'ecore';
+}
+
+export namespace SaveMetamodelAction {
+    export const KIND = 'saveMetamodel';
+
+    export function is(object: any): object is SaveMetamodelAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(filename?: string, format: 'json' | 'ecore' = 'json'): SaveMetamodelAction {
+        return {
+            kind: KIND,
+            filename,
+            format
+        };
+    }
+}
+
+export function createSaveMetamodelAction(filename?: string, format: 'json' | 'ecore' = 'json'): SaveMetamodelAction {
+    return SaveMetamodelAction.create(filename, format);
+}
+

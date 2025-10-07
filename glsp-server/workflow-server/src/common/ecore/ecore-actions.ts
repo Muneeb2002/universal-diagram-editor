@@ -172,3 +172,53 @@ export namespace CreateInstanceReferenceAction {
         };
     }
 }
+
+
+
+
+/**
+ * Action to rename a class in a metamodel.
+ */
+export interface RenameClassAction extends Action {
+    kind: typeof RenameClassAction.KIND;
+    oldClassName: string;
+    newClassName: string;
+}
+
+export namespace RenameClassAction {
+    export const KIND = 'renameClass';
+
+    export function is(object: any): object is RenameClassAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'oldClassName') && hasStringProp(object, 'newClassName');
+    }
+
+    export function create(oldClassName: string, newClassName: string): RenameClassAction {
+        return {
+            kind: KIND,
+            oldClassName,
+            newClassName
+        };
+    }
+}
+
+export interface SaveMetamodelAction extends Action {
+    kind: typeof SaveMetamodelAction.KIND;
+    filename?: string;
+    format?: 'json' | 'ecore';
+}
+
+export namespace SaveMetamodelAction {
+    export const KIND = 'saveMetamodel';
+
+    export function is(object: any): object is SaveMetamodelAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(filename?: string, format: 'json' | 'ecore' = 'json'): SaveMetamodelAction {
+        return {
+            kind: KIND,
+            filename,
+            format
+        };
+    }
+}

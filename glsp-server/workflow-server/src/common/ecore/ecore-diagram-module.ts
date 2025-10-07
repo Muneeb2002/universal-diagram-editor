@@ -31,6 +31,7 @@ import { InstanceModelStorage } from './instance-model-storage';
 import { LoadMetamodelActionHandler } from './load-metamodel-action-handler';
 import { MetamodelRegistry } from './metamodel-registry';
 import { SwitchModeActionHandler } from './switch-mode-action-handler';
+import { EditMetamodelActionHandler } from './edit-metamodel-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -60,6 +61,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(LoadMetamodelActionHandler);
         binding.add(SwitchModeActionHandler);
         binding.add(CreateInstanceActionHandler);
+        binding.add(EditMetamodelActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

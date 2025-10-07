@@ -29,6 +29,7 @@ import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
 import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
+import { EcoreContextMenu, ClassInfo } from './ecore-context-menu';
 import { createLoadMetamodelAction } from './ecore-client-actions';
 const host = GLSP_SERVER_HOST;
 const port = GLSP_SERVER_PORT;
@@ -48,6 +49,7 @@ wsProvider.listen({ onConnection: initialize, onReconnect: reconnect, logger: co
 // Initialize file picker
 const filePicker = new EcoreFilePicker();
 const toolbar = new EcoreToolbar();
+const contextMenu = new EcoreContextMenu();
 
 filePicker.onFileSelected = async (filename: string, content: string) => {
     if (actionDispatcher) {
@@ -78,8 +80,12 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     container = createContainer({ clientId, diagramType, glspClientProvider: async () => glspClient });
     actionDispatcher = container.get(GLSPActionDispatcher);
     
-    // Set action dispatcher for toolbar
+    // Set action dispatcher for toolbar and context menu
     toolbar.setActionDispatcher(actionDispatcher);
+    contextMenu.setActionDispatcher(actionDispatcher);
+    
+    // Set up context menu for class elements
+    setupContextMenu();
     
     const diagramLoader = container.get(DiagramLoader);
     await diagramLoader.load({ requestModelOptions: { isReconnecting } });
@@ -95,6 +101,47 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
         actionDispatcher.dispatchAll([StatusAction.create(message, { severity, timeout }), MessageAction.create(message, { severity })]);
         return;
     }
+}
+
+function setupContextMenu(): void {
+    // Listen for clicks on edit buttons in the diagram
+    document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement;
+        
+        // Check if the clicked element is an edit button or its parent
+        const editButton = target.closest('.edit-button') || 
+                          (target.classList.contains('edit-button-bg') ? target.parentElement : null);
+        
+        if (editButton) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Find the parent class element
+            const classElement = editButton.closest('.ecore-class');
+            if (!classElement) return;
+            
+            // Get class information from the element
+            // Use the node ID which is set to the class name, but strip the sprotty_ prefix
+            const rawId = classElement.id || classElement.getAttribute('data-class-name') || 'UnknownClass';
+            const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+            
+            // Check if it's abstract or interface
+            const isAbstract = classElement.classList.contains('abstract');
+            const isInterface = classElement.classList.contains('interface');
+            
+            // Create class info object
+            const classInfo: ClassInfo = {
+                className: className,
+                isAbstract: isAbstract,
+                isInterface: isInterface,
+                attributes: [], // TODO: Get from metamodel
+                references: []  // TODO: Get from metamodel
+            };
+            
+            // Show context menu
+            contextMenu.show(event, classInfo);
+        }
+    });
 }
 
 async function reconnect(connectionProvider: MessageConnection): Promise<void> {

@@ -1,0 +1,144 @@
+{
+  "ePackages": [
+    {
+      "name": "pn",
+      "nsURI": "https://www.example.org/pn/simple",
+      "nsPrefix": "pn",
+      "eClassifiers": [
+        {
+          "name": "Object",
+          "abstract": true,
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Node",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Object"
+            }
+          ]
+        },
+        {
+          "name": "Transitionsita",
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Place",
+          "eAttributes": [],
+          "eReferences": [
+            {
+              "name": "tokens",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Tokensito"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Tokensito",
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Arc",
+          "eAttributes": [],
+          "eReferences": [
+            {
+              "name": "source",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false,
+              "container": false
+            },
+            {
+              "name": "target",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false,
+              "container": false
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Object"
+            }
+          ]
+        },
+        {
+          "name": "PetriNet",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "objects",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Object"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        }
+      ]
+    }
+  ]
+}

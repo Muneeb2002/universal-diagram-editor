@@ -70,6 +70,27 @@ export class EcoreClassNodeView extends RectangularNodeView {
                     ry="5"
                 />
                 {context.renderChildren(node)}
+                {/* Edit button in top-right corner */}
+                <g class-edit-button={true} class-edit-button-visible={node.hoverFeedback || node.selected}>
+                    <rect
+                        x={Math.max(0, node.size.width) - 20}
+                        y="2"
+                        width="16"
+                        height="16"
+                        rx="2"
+                        ry="2"
+                        class-edit-button-bg={true}
+                    />
+                    <text
+                        x={Math.max(0, node.size.width) - 12}
+                        y="12"
+                        class-edit-button-icon={true}
+                        text-anchor="middle"
+                        dominant-baseline="middle"
+                    >
+                        ✎
+                    </text>
+                </g>
             </g>
         );
 

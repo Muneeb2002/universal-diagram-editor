@@ -4,7 +4,9 @@
     "composite": true,
     "rootDir": "src",
     "resolveJsonModule": true,
-    "outDir": "lib"
+    "outDir": "lib",
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true
   },
   "include": ["src", "lib", "css", "app"],
   "references": [

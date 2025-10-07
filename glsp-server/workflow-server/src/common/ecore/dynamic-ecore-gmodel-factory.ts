@@ -330,19 +330,24 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     }
 
     private createClassNameLabel(eClass: any): GLabel {
-        let labelText = eClass.get('name');
+        const className = eClass.get('name');
+        console.log('Creating class name label for class:', className);
+        
+        let labelText = className;
 
         // Add stereotypes for different class types
         if (eClass.get('interface')) {
-            labelText = `<<interface>> ${eClass.get('name')}`;
+            labelText = `<<interface>> ${className}`;
         } else if (eClass.get('abstract')) {
-            labelText = `<<abstract>> ${eClass.get('name')}`;
+            labelText = `<<abstract>> ${className}`;
         }
 
         const label = new GLabel();
         label.type = 'label:heading';
-        label.id = `${eClass.get('name')}_classname`;
+        label.id = `${className}_classname`;
         label.text = labelText;
+        
+        console.log('Created label with ID:', label.id, 'and text:', label.text);
         return label;
     }
 

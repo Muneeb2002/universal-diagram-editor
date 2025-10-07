@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createSwitchModeAction, createCreateInstanceAction } from './ecore-client-actions';
+import { createSwitchModeAction, createCreateInstanceAction, createSaveMetamodelAction } from './ecore-client-actions';
 
 export class EcoreToolbar {
     private toolbar: HTMLDivElement;
@@ -87,6 +87,26 @@ export class EcoreToolbar {
         instanceSection.appendChild(createButton);
 
         this.toolbar.appendChild(instanceSection);
+
+        // Create separator
+        const separator2 = document.createElement('hr');
+        separator2.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
+        this.toolbar.appendChild(separator2);
+
+        // Create save section
+        const saveSection = document.createElement('div');
+        saveSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
+
+        const saveLabel = document.createElement('span');
+        saveLabel.textContent = 'Save Metamodel:';
+        saveLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
+        saveSection.appendChild(saveLabel);
+
+        const saveButton = this.createButton('💾 Save as JSON', () => this.saveMetamodel('json'));
+        saveButton.style.width = '100%';
+        saveSection.appendChild(saveButton);
+
+        this.toolbar.appendChild(saveSection);
     }
 
     private createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -195,6 +215,35 @@ export class EcoreToolbar {
             alert('Error creating instance: ' + error);
         }
     }
+
+    private async saveMetamodel(format: 'json' | 'ecore'): Promise<void> {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not set');
+            return;
+        }
+
+        try {
+            // Prompt user for filename
+            const defaultFilename = format === 'json' ? 'metamodel.json' : 'metamodel.ecore';
+            const filename = prompt(`Enter filename for saving metamodel:`, defaultFilename);
+            
+            if (!filename) {
+                return; // User cancelled
+            }
+
+            const action = createSaveMetamodelAction(filename, format);
+            await this.actionDispatcher.dispatch(action);
+
+            // For now, we'll show a success message
+            // In a full implementation, you'd listen for a response action
+            console.log(`Metamodel save requested for ${filename}`);
+            alert(`Metamodel save requested for ${filename}. Check server logs for the JSON content.`);
+        } catch (error) {
+            console.error('Error saving metamodel:', error);
+            alert('Error saving metamodel: ' + error);
+        }
+    }
+
 
     public getElement(): HTMLDivElement {
         return this.toolbar;
