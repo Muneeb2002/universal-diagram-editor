@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { injectable } from 'inversify';
-import { EcoreModel, EPackage, EClass, isEClass } from './ecore-types';
+import { EcoreModel, isEClass } from './ecore-types';
 
 /**
  * Registry for storing and managing loaded Ecore metamodels.
@@ -122,15 +122,17 @@ export class MetamodelRegistry {
      * @param className The name of the class to find
      * @returns The EClass or undefined if not found
      */
-    findEClass(className: string): EClass | undefined {
+    findEClass(className: string): any | undefined {
         const activeMetamodel = this.getActiveMetamodel();
         if (!activeMetamodel) {
             return undefined;
         }
 
         for (const pkg of activeMetamodel.ePackages) {
-            for (const classifier of pkg.eClassifiers) {
-                if (isEClass(classifier) && classifier.name === className) {
+            const classifiers = pkg.get('eClassifiers') as any;
+            for (let i = 0; i < classifiers.size; i++) {
+                const classifier = classifiers.get(i);
+                if (isEClass(classifier) && classifier.get('name') === className) {
                     return classifier;
                 }
             }
@@ -145,15 +147,17 @@ export class MetamodelRegistry {
      * @param className The name of the class to find
      * @returns The EClass or undefined if not found
      */
-    findEClassInMetamodel(metamodelKey: string, className: string): EClass | undefined {
+    findEClassInMetamodel(metamodelKey: string, className: string): any | undefined {
         const metamodel = this.getMetamodel(metamodelKey);
         if (!metamodel) {
             return undefined;
         }
 
         for (const pkg of metamodel.ePackages) {
-            for (const classifier of pkg.eClassifiers) {
-                if (isEClass(classifier) && classifier.name === className) {
+            const classifiers = pkg.get('eClassifiers') as any;
+            for (let i = 0; i < classifiers.size; i++) {
+                const classifier = classifiers.get(i);
+                if (isEClass(classifier) && classifier.get('name') === className) {
                     return classifier;
                 }
             }
@@ -166,19 +170,19 @@ export class MetamodelRegistry {
      * Gets all EClasses from the active metamodel.
      * @returns Array of all EClasses
      */
-    getAllEClasses(): EClass[] {
+    getAllEClasses(): any[] {
         const activeMetamodel = this.getActiveMetamodel();
         if (!activeMetamodel) {
             return [];
         }
 
-        const eClasses: EClass[] = [];
+        const eClasses: any[] = [];
         for (const pkg of activeMetamodel.ePackages) {
-            for (const classifier of pkg.eClassifiers) {
+            (pkg.get('eClassifiers') as any).forEach((classifier: any) => {
                 if (isEClass(classifier)) {
                     eClasses.push(classifier);
                 }
-            }
+            });
         }
 
         return eClasses;
@@ -188,7 +192,7 @@ export class MetamodelRegistry {
      * Gets all packages from the active metamodel.
      * @returns Array of all packages
      */
-    getAllPackages(): EPackage[] {
+    getAllPackages(): any[] {
         const activeMetamodel = this.getActiveMetamodel();
         if (!activeMetamodel) {
             return [];

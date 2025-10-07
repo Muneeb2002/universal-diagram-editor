@@ -8,81 +8,44 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
+/**
+ * Re-export types from ecore-ts library
+ * This provides the complete Ecore metamodel implementation
+ */
+
+// Re-export all from ecore-ts
+export * from 'ecore-ts';
+
+// Additional convenience types for our implementation
 export interface EcoreModel {
-    ePackages: EPackage[];
+    ePackages: any[]; // Using any[] since ecore-ts instances are complex
 }
 
-export interface EPackage {
-    name: string;
-    nsURI: string;
-    nsPrefix: string;
-    eClassifiers: EClassifier[];
+// Type guards using ecore-ts instances
+export function isEClass(classifier: any): boolean {
+    return classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EClass';
 }
 
-export interface EClassifier {
-    name: string;
+export function isEDataType(classifier: any): boolean {
+    return classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EDataType';
 }
 
-export interface EClass extends EClassifier {
-    eAttributes: EAttribute[];
-    eReferences: EReference[];
-    eSuperTypes: EClass[];
-    abstract: boolean;
-    interface: boolean;
+export function isEEnum(classifier: any): boolean {
+    return classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EEnum';
 }
 
-export interface EAttribute {
-    name: string;
-    eType: EDataType;
-    lowerBound: number;
-    upperBound: number;
-    unique: boolean;
-    ordered: boolean;
+export function isEAttribute(feature: any): boolean {
+    return feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EAttribute';
 }
 
-export interface EReference {
-    name: string;
-    eType: EClass;
-    eContainingClass: EClass;
-    containment: boolean;
-    container: boolean;
-    opposite?: EReference;
-    lowerBound: number;
-    upperBound: number;
+export function isEReference(feature: any): boolean {
+    return feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EReference';
 }
 
-export interface EDataType extends EClassifier {
-    instanceClassName: string;
-}
-
-export interface EEnum extends EClassifier {
-    eLiterals: EEnumLiteral[];
-}
-
-export interface EEnumLiteral {
-    name: string;
-    value: number;
-}
-
-export interface EOperation extends EClassifier {
-    eParameters: EParameter[];
-    eType: EClassifier;
-}
-
-export interface EParameter {
-    name: string;
-    eType: EClassifier;
-}
-
-export function isEClass(classifier: EClassifier): classifier is EClass {
-    return 'eAttributes' in classifier && 'eReferences' in classifier;
-}
-
-export function isEDataType(classifier: EClassifier): classifier is EDataType {
-    return 'instanceClassName' in classifier;
-}
-
-export function isEEnum(classifier: EClassifier): classifier is EEnum {
-    return 'eLiterals' in classifier;
+export function isEStructuralFeature(element: any): boolean {
+    return element && element.eClass && element.eClass.values && 
+           (element.eClass.values.name === 'EStructuralFeature' || 
+            element.eClass.values.name === 'EAttribute' || 
+            element.eClass.values.name === 'EReference');
 }
 

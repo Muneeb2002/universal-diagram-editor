@@ -11,7 +11,7 @@
 import { injectable, inject } from 'inversify';
 import { EcoreInstance, InstanceModel, InstanceFactory } from './instance-model-types';
 import { MetamodelRegistry } from './metamodel-registry';
-import { EClass } from './ecore-types';
+import { isEAttribute, isEReference } from './ecore-types';
 
 /**
  * Storage and management for Ecore instance models.
@@ -126,8 +126,9 @@ export class InstanceModelStorage {
      * @param instance The instance to initialize
      * @param eClass The EClass definition
      */
-    private initializeAttributes(instance: EcoreInstance, eClass: EClass): void {
-        for (const attr of eClass.eAttributes) {
+    private initializeAttributes(instance: EcoreInstance, eClass: any): void {
+        const attributes = eClass.eStructuralFeatures.filter(isEAttribute);
+        for (const attr of attributes) {
             // Set default values based on type
             let defaultValue: any = null;
 
@@ -146,7 +147,8 @@ export class InstanceModelStorage {
         }
 
         // Initialize references as empty
-        for (const ref of eClass.eReferences) {
+        const references = eClass.eStructuralFeatures.filter(isEReference);
+        for (const ref of references) {
             if (ref.upperBound === 1) {
                 instance.references.set(ref.name, '');
             } else {
@@ -186,7 +188,8 @@ export class InstanceModelStorage {
         }
 
         // Validate attribute exists
-        const attr = eClass.eAttributes.find(a => a.name === attributeName);
+        const attributes = eClass.eStructuralFeatures.filter(isEAttribute);
+        const attr = attributes.find((a: any) => a.name === attributeName);
         if (!attr) {
             throw new Error(`Attribute '${attributeName}' not found in class '${instance.eClassName}'`);
         }
@@ -220,7 +223,8 @@ export class InstanceModelStorage {
         }
 
         // Validate reference exists
-        const ref = eClass.eReferences.find(r => r.name === referenceName);
+        const references = eClass.eStructuralFeatures.filter(isEReference);
+        const ref = references.find((r: any) => r.name === referenceName);
         if (!ref) {
             throw new Error(`Reference '${referenceName}' not found in class '${sourceInstance.eClassName}'`);
         }

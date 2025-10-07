@@ -237,14 +237,10 @@
     xml2js "^0.6.2"
 
 "@eclipse-glsp/cli@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/cli/-/cli-2.6.0-next.185.tgz"
-  integrity sha512-BI/nCNAaj+nhUhfyznlqHeh7xRYsYcjLG9MgueYHM8hLEtSbtQEJ4/EDfvOmwUVH1VG4/7OjQc0/d7GQMmVbgw==
+  version "2.6.0-next.185+9e4723e"
 
 "@eclipse-glsp/config-test@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/config-test/-/config-test-2.6.0-next.185.tgz"
-  integrity sha512-E82Ua6uN4AJTn/guP1kcV0Br5CJe+nmIvWaiYxO9iDv0i8O4f0jVSxATr7P1nozvFfMSNX9jGedhaxAkXflYmQ==
+  version "2.6.0-next.185+9e4723e"
   dependencies:
     "@eclipse-glsp/mocha-config" "2.6.0-next.185+9e4723e"
     "@eclipse-glsp/nyc-config" "2.6.0-next.185+9e4723e"
@@ -262,9 +258,7 @@
     ts-node "^10.9.1"
 
 "@eclipse-glsp/config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/config/-/config-2.6.0-next.185.tgz"
-  integrity sha512-kvMfEvLZNMLBXh4P5xMtUibGvcYORWp9zX7vqM+ZUG4wcaOSf9XR9mK1RmqI/PNmzVWEhsKrOg0s0CDXi8cxVQ==
+  version "2.6.0-next.185+9e4723e"
   dependencies:
     "@eclipse-glsp/eslint-config" "2.6.0-next.185+9e4723e"
     "@eclipse-glsp/prettier-config" "2.6.0-next.185+9e4723e"
@@ -283,18 +277,14 @@
     rimraf "^5.0.5"
 
 "@eclipse-glsp/dev@next":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/dev/-/dev-2.6.0-next.185.tgz"
-  integrity sha512-NrYFjxG0rlnmCxqFXD8NbhXA0Gm0bd0msLdUHqUlCoFwC4wIsIX8akE3mLtncQvWAv6aegAda7/zvAresTHLtg==
+  version "2.6.0-next.185+9e4723e"
   dependencies:
     "@eclipse-glsp/cli" "2.6.0-next.185+9e4723e"
     "@eclipse-glsp/config" "2.6.0-next.185+9e4723e"
     "@eclipse-glsp/config-test" "2.6.0-next.185+9e4723e"
 
 "@eclipse-glsp/eslint-config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/eslint-config/-/eslint-config-2.6.0-next.185.tgz"
-  integrity sha512-dqZ7fD+kIelX1YBd9GyEEiecMWqYbWo6Ne8NlRlOAo6Wp8UpIfZNR306WsrsMO5upMOJorJ+EDiuSgWCFrUe5g==
+  version "2.6.0-next.185+9e4723e"
 
 "@eclipse-glsp/graph@2.6.0-next", "@eclipse-glsp/graph@file:/Users/abigail/Desktop/MasterThesis/glsp-client-server-editor/glsp-server/packages/graph":
   version "2.6.0-next"
@@ -310,19 +300,13 @@
     elkjs "^0.10.1"
 
 "@eclipse-glsp/mocha-config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/mocha-config/-/mocha-config-2.6.0-next.185.tgz"
-  integrity sha512-ylg6IXSdWLp+CH0Cm0zm5D1ihbZnI41IG4hgimsrg+Zg4dMiCIi8t8Bf8ctADjfKU9Y5qQVVBASBfRu/8ypMFg==
+  version "2.6.0-next.185+9e4723e"
 
 "@eclipse-glsp/nyc-config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/nyc-config/-/nyc-config-2.6.0-next.185.tgz"
-  integrity sha512-ImH0DG2Kj7F5pJo9A8CSGaZIozfjWJB8zKZN/BahiKEbEHKgUNJIT0lTsbSoQAFdHimyBMb2RptmwwdbStIOOg==
+  version "2.6.0-next.185+9e4723e"
 
 "@eclipse-glsp/prettier-config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/prettier-config/-/prettier-config-2.6.0-next.185.tgz"
-  integrity sha512-x0zASeNQIGkxjh17A24NqaoJI6i21oK4BK/0X+SMO2f5cytJvNtcp3nOsQ+rJxhIxRdvkTjW9E0Vw9US4uzyfQ==
+  version "2.6.0-next.185+9e4723e"
   dependencies:
     prettier-plugin-packagejson "~2.4.6"
 
@@ -350,9 +334,7 @@
     ws "^8.12.1"
 
 "@eclipse-glsp/ts-config@2.6.0-next.185+9e4723e":
-  version "2.6.0-next.185"
-  resolved "https://registry.npmjs.org/@eclipse-glsp/ts-config/-/ts-config-2.6.0-next.185.tgz"
-  integrity sha512-P4UD3TVEMENeMA5Ypmi6JxLm0q58e7G7cmrupySB+jnCmNHAjCSaLTEFkqwcBHu/qE4jxttcDl4AWUHt10DAng==
+  version "2.6.0-next.185+9e4723e"
 
 "@eslint-community/eslint-utils@^4.2.0", "@eslint-community/eslint-utils@^4.4.0":
   version "4.4.0"
@@ -2463,6 +2445,14 @@ eastasianwidth@^0.2.0:
   resolved "https://registry.npmjs.org/eastasianwidth/-/eastasianwidth-0.2.0.tgz"
   integrity sha512-I88TYZWc9XiYHRQ4/3c5rjjfgkjhLyW2luGIheGERbNQ6OY7yTybanSpDXZa8y7VUP9YmDcYa+eyq4ca7iLqWA==
 
+ecore-ts@^0.17.8:
+  version "0.17.8"
+  resolved "https://registry.npmjs.org/ecore-ts/-/ecore-ts-0.17.8.tgz"
+  integrity sha512-oy+QegrWOEoSmboLdiuOhHi495JwBj0ZsVljhzFQa9SzGSjhWK8W1IbGTW8Q6Bk+ZecFrIDfwQLXDxxx0/sehQ==
+  dependencies:
+    lodash-es "^4.17.21"
+    sax "^1.4.1"
+
 ejs@^3.1.7:
   version "3.1.10"
   resolved "https://registry.npmjs.org/ejs/-/ejs-3.1.10.tgz"
@@ -4407,6 +4397,11 @@ locate-path@^6.0.0:
   dependencies:
     p-locate "^5.0.0"
 
+lodash-es@^4.17.21:
+  version "4.17.21"
+  resolved "https://registry.npmjs.org/lodash-es/-/lodash-es-4.17.21.tgz"
+  integrity sha512-mKnC+QJ9pWVzv+C4/U3rRsHapFfHvQFoFB92e52xeyGMcX6/OlIl78je1u8vePzYZSkkogMPJ2yjxxsb89cxyw==
+
 lodash.flattendeep@^4.4.0:
   version "4.4.0"
   resolved "https://registry.npmjs.org/lodash.flattendeep/-/lodash.flattendeep-4.4.0.tgz"
@@ -6054,7 +6049,7 @@ safe-stable-stringify@^2.3.1:
   resolved "https://registry.npmjs.org/safer-buffer/-/safer-buffer-2.1.2.tgz"
   integrity sha512-YZo3K82SD7Riyi0E1EQPojLz7kpepnSQI9IyPbHHg1XXXevb5dJI7tpyN2ADxGcQbHG7vcyRHk0cbwqcQriUtg==
 
-sax@>=0.6.0:
+sax@^1.4.1, sax@>=0.6.0:
   version "1.4.1"
   resolved "https://registry.npmjs.org/sax/-/sax-1.4.1.tgz"
   integrity sha512-+aWOz7yVScEGoKNd4PA10LZ8sk0A/z5+nXQG5giUO5rprX9jgYsTdov9qCchZiPIZezbZH+jRut8nPodFAX4Jg==

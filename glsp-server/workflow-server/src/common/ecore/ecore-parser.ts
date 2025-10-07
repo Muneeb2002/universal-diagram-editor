@@ -10,7 +10,7 @@
 
 import { injectable } from 'inversify';
 import { parseString } from 'xml2js';
-import { EcoreModel, EPackage, EClass, EAttribute, EReference, EDataType, EEnum } from './ecore-types';
+import { EcoreModel, EPackage, EClass, EAttribute, EReference, EDataType, EEnum, EString, EBoolean, EInt, EDouble } from './ecore-types';
 
 /**
  * Ecore Parser with reliable JSON parsing and XML support
@@ -206,100 +206,248 @@ export class EcoreParser {
     }
 
     /**
-     * Convert JSON package to EPackage format
+     * Convert JSON package to EPackage format using ecore-ts
      */
-    private convertJsonToEPackage(pkg: any): EPackage {
-        return {
+    private convertJsonToEPackage(pkg: any): any {
+        const epackage = EPackage.create({
             name: pkg.name || '',
             nsURI: pkg.nsURI || '',
-            nsPrefix: pkg.nsPrefix || '',
-            eClassifiers: pkg.eClassifiers ? pkg.eClassifiers.map((c: any) => this.convertJsonToEClassifier(c)) : []
-        };
+            nsPrefix: pkg.nsPrefix || ''
+        });
+
+        // First pass: create all classifiers
+        const classifierMap = new Map<string, any>();
+        if (pkg.eClassifiers && Array.isArray(pkg.eClassifiers)) {
+            pkg.eClassifiers.forEach((classifier: any) => {
+                const eclassifier = this.convertJsonToEClassifier(classifier, classifierMap);
+                if (eclassifier) {
+                    classifierMap.set(classifier.name, eclassifier);
+                    (epackage as any).get('eClassifiers').add(eclassifier);
+                }
+            });
+        }
+
+        // Second pass: resolve type references
+        if (pkg.eClassifiers && Array.isArray(pkg.eClassifiers)) {
+            pkg.eClassifiers.forEach((classifier: any) => {
+                const eclassifier = classifierMap.get(classifier.name);
+                if (eclassifier) {
+                    this.resolveTypeReferences(eclassifier, classifier, classifierMap);
+                }
+            });
+        }
+
+        return epackage;
     }
 
     /**
-     * Convert JSON classifier to EClassifier format
+     * Convert JSON classifier to EClassifier format using ecore-ts
      */
-    private convertJsonToEClassifier(classifier: any): any {
-        const normalized: any = {
-            name: classifier.name || '',
-            abstract: classifier.abstract === true,
-            interface: classifier.interface === true
-        };
+    private convertJsonToEClassifier(classifier: any, classifierMap?: Map<string, any>): any {
+        // Determine if this is an EClass, EDataType, or EEnum
+        if (classifier.eAttributes || classifier.eReferences || classifier.eSuperTypes || classifier.abstract !== undefined || classifier.interface !== undefined) {
+            // This is an EClass
+            const eclass = EClass.create({
+                name: classifier.name || '',
+                abstract: classifier.abstract === true,
+                interface: classifier.interface === true
+            });
 
-        // Add type-specific properties
-        if (classifier.eAttributes) {
-            normalized.eAttributes = classifier.eAttributes.map((attr: any) => this.convertJsonToEAttribute(attr));
+            // Add super types (without resolution for now, will resolve in second pass)
+            if (classifier.eSuperTypes && Array.isArray(classifier.eSuperTypes)) {
+                classifier.eSuperTypes.forEach((superType: any) => {
+                    console.log(`Super type: ${superType.name}`);
+                    // Store original super type name for later resolution
+                    if (!(eclass as any)._originalSuperTypes) {
+                        (eclass as any)._originalSuperTypes = [];
+                    }
+                    (eclass as any)._originalSuperTypes.push(superType.name);
+                });
+            }
+
+            // Add structural features (attributes and references) without type resolution
+            if (classifier.eAttributes && Array.isArray(classifier.eAttributes)) {
+                classifier.eAttributes.forEach((attr: any) => {
+                    const eattribute = this.convertJsonToEAttribute(attr, false);
+                    if (eattribute) {
+                        (eclass as any).get('eStructuralFeatures').add(eattribute);
+                    }
+                });
+            }
+
+            if (classifier.eReferences && Array.isArray(classifier.eReferences)) {
+                classifier.eReferences.forEach((ref: any) => {
+                    const ereference = this.convertJsonToEReference(ref, false);
+                    if (ereference) {
+                        (eclass as any).get('eStructuralFeatures').add(ereference);
+                    }
+                });
+            }
+
+            return eclass;
+        } else if (classifier.eLiterals) {
+            // This is an EEnum
+            const eenum = EEnum.create({
+                name: classifier.name || ''
+            });
+
+            // Add enum literals
+            if (classifier.eLiterals && Array.isArray(classifier.eLiterals)) {
+                classifier.eLiterals.forEach((literal: any) => {
+                    const eenumLiteral = this.convertJsonToEEnumLiteral(literal);
+                    if (eenumLiteral) {
+                        (eenum as any).get('eLiterals').add(eenumLiteral);
+                    }
+                });
+            }
+
+            return eenum;
+        } else {
+            // This is an EDataType
+            return EDataType.create({
+                name: classifier.name || '',
+                instanceClassName: classifier.instanceClassName || 'java.lang.String'
+            });
         }
-
-        if (classifier.eReferences) {
-            normalized.eReferences = classifier.eReferences.map((ref: any) => this.convertJsonToEReference(ref));
-        }
-
-        if (classifier.eSuperTypes) {
-            normalized.eSuperTypes = classifier.eSuperTypes.map((superType: any) => this.normalizeClassifierReference(superType));
-        }
-
-        if (classifier.instanceClassName) {
-            normalized.instanceClassName = classifier.instanceClassName;
-        }
-
-        if (classifier.eLiterals) {
-            normalized.eLiterals = classifier.eLiterals.map((literal: any) => ({
-                name: literal.name || ''
-            }));
-        }
-
-        return normalized;
     }
 
     /**
-     * Convert JSON attribute to EAttribute format
+     * Convert JSON attribute to EAttribute format using ecore-ts
      */
-    private convertJsonToEAttribute(attr: any): EAttribute {
-        return {
+    private convertJsonToEAttribute(attr: any, resolveTypes: boolean = true): any {
+        // Map type names to ecore-ts types
+        const eType = resolveTypes ? this.mapTypeNameToEcoreType(attr.eType?.name) : EString;
+        
+        const eattribute = EAttribute.create({
             name: attr.name || '',
-            eType: this.normalizeClassifierReference(attr.eType),
+            eType: eType,
             lowerBound: typeof attr.lowerBound === 'number' ? attr.lowerBound : 0,
             upperBound: typeof attr.upperBound === 'number' ? attr.upperBound : 1,
             unique: attr.unique !== false,
             ordered: attr.ordered !== false
-        };
-    }
+        });
 
-    /**
-     * Convert JSON reference to EReference format
-     */
-    private convertJsonToEReference(ref: any): EReference {
-        return {
-            name: ref.name || '',
-            eType: this.normalizeClassifierReference(ref.eType),
-            eContainingClass: ref.eContainingClass ? this.normalizeClassifierReference(ref.eContainingClass) : undefined,
-            containment: ref.containment === true,
-            container: ref.container === true,
-            lowerBound: typeof ref.lowerBound === 'number' ? ref.lowerBound : 0,
-            upperBound: typeof ref.upperBound === 'number' ? ref.upperBound : 1
-        };
-    }
-
-    /**
-     * Normalize classifier reference (handles both full objects and simple name references)
-     */
-    private normalizeClassifierReference(ref: any): any {
-        if (!ref || typeof ref !== 'object') {
-            return { name: 'Unknown' };
+        // Store original type name for later resolution
+        if (!resolveTypes && attr.eType?.name) {
+            (eattribute as any)._originalTypeName = attr.eType.name;
         }
 
-        return {
-            name: ref.name || 'Unknown',
-            // Include other properties if they exist
-            ...(ref.instanceClassName && { instanceClassName: ref.instanceClassName }),
-            ...(ref.eAttributes && { eAttributes: ref.eAttributes }),
-            ...(ref.eReferences && { eReferences: ref.eReferences }),
-            ...(ref.eSuperTypes && { eSuperTypes: ref.eSuperTypes }),
-            ...(ref.abstract !== undefined && { abstract: ref.abstract }),
-            ...(ref.interface !== undefined && { interface: ref.interface })
-        };
+        return eattribute;
+    }
+
+    /**
+     * Convert JSON reference to EReference format using ecore-ts
+     */
+    private convertJsonToEReference(ref: any, resolveTypes: boolean = true): any {
+        // Map type names to ecore-ts types
+        const eType = resolveTypes ? this.mapTypeNameToEcoreType(ref.eType?.name) : EString;
+        
+        const ereference = EReference.create({
+            name: ref.name || '',
+            eType: eType,
+            lowerBound: typeof ref.lowerBound === 'number' ? ref.lowerBound : 0,
+            upperBound: typeof ref.upperBound === 'number' ? ref.upperBound : 1,
+            unique: ref.unique !== false,
+            ordered: ref.ordered !== false,
+            containment: ref.containment === true,
+            container: ref.container === true,
+            resolveProxies: ref.resolveProxies !== false
+        });
+
+        // Store original type name for later resolution
+        if (!resolveTypes && ref.eType?.name) {
+            (ereference as any)._originalTypeName = ref.eType.name;
+        }
+
+        return ereference;
+    }
+
+    /**
+     * Convert JSON enum literal to EEnumLiteral format using ecore-ts
+     */
+    private convertJsonToEEnumLiteral(literal: any): any {
+        const { EEnumLiteral } = require('ecore-ts');
+        return EEnumLiteral.create({
+            name: literal.name || '',
+            value: literal.value || 0,
+            literal: literal.literal || literal.name || ''
+        });
+    }
+
+    /**
+     * Resolve type references to actual classifier instances
+     */
+    private resolveTypeReferences(eclassifier: any, originalClassifier: any, classifierMap: Map<string, any>): void {
+        if (!eclassifier) return;
+
+        // Resolve super types
+        const originalSuperTypes = (eclassifier as any)._originalSuperTypes;
+        if (originalSuperTypes && Array.isArray(originalSuperTypes)) {
+            originalSuperTypes.forEach((superTypeName: string) => {
+                const targetClassifier = classifierMap.get(superTypeName);
+                if (targetClassifier) {
+                    // Add the resolved super type
+                    eclassifier.get('eSuperTypes').add(targetClassifier);
+                    console.log(`Resolved super type: ${eclassifier.get('name')} -> ${superTypeName}`);
+                } else {
+                    console.log(`Could not resolve super type: ${superTypeName}`);
+                }
+            });
+            // Clean up the temporary property
+            delete (eclassifier as any)._originalSuperTypes;
+        }
+
+        // Resolve structural feature types
+        const structuralFeatures = eclassifier.get('eStructuralFeatures');
+        structuralFeatures.forEach((feature: any) => {
+            const originalTypeName = (feature as any)._originalTypeName;
+            if (originalTypeName) {
+                // Try to find the classifier in our map
+                const targetClassifier = classifierMap.get(originalTypeName);
+                if (targetClassifier) {
+                    // Set the resolved type
+                    feature.set('eType', targetClassifier);
+                    console.log(`Resolved type reference: ${feature.get('name')} -> ${originalTypeName}`);
+                } else {
+                    // Fall back to built-in type
+                    const builtinType = this.mapTypeNameToEcoreType(originalTypeName);
+                    feature.set('eType', builtinType);
+                    console.log(`Using built-in type for ${feature.get('name')}: ${originalTypeName}`);
+                }
+                // Clean up the temporary property
+                delete (feature as any)._originalTypeName;
+            }
+        });
+    }
+
+    /**
+     * Map type names to ecore-ts built-in types
+     */
+    private mapTypeNameToEcoreType(typeName?: string): any {
+        if (!typeName) {
+            return EString; // Default to String
+        }
+
+        switch (typeName.toLowerCase()) {
+            case 'estring':
+            case 'string':
+                return EString;
+            case 'eboolean':
+            case 'boolean':
+                return EBoolean;
+            case 'eint':
+            case 'int':
+            case 'integer':
+                return EInt;
+            case 'edouble':
+            case 'double':
+                return EDouble;
+            default:
+                // For custom types, we'll need to resolve them later
+                // For now, return a placeholder
+                console.log(`Unknown type: ${typeName}, using EString as fallback`);
+                return EString;
+        }
     }
 
     /**
@@ -338,8 +486,8 @@ export class EcoreParser {
     /**
      * Convert XML package to EPackage (maintains backward compatibility)
      */
-    private convertXmlToEPackage(pkgXml: any): EPackage {
-        const pkg: EPackage = {
+    private convertXmlToEPackage(pkgXml: any): any {
+        const pkg: any = {
             name: pkgXml.$.name || '',
             nsURI: pkgXml.$.nsURI || '',
             nsPrefix: pkgXml.$.nsPrefix || '',
@@ -381,8 +529,8 @@ export class EcoreParser {
     /**
      * Convert XML class to EClass (maintains backward compatibility)
      */
-    private convertXmlToEClass(classXml: any): EClass {
-        const eClass: EClass = {
+    private convertXmlToEClass(classXml: any): any {
+        const eClass: any = {
             name: classXml.$.name || '',
             eAttributes: [],
             eReferences: [],
@@ -446,7 +594,7 @@ export class EcoreParser {
     /**
      * Convert XML attribute to EAttribute (maintains backward compatibility)
      */
-    private convertXmlToEAttribute(attrXml: any): EAttribute {
+    private convertXmlToEAttribute(attrXml: any): any {
         return {
             name: attrXml.$.name || '',
             eType: {
@@ -463,7 +611,7 @@ export class EcoreParser {
     /**
      * Convert XML reference to EReference (maintains backward compatibility)
      */
-    private convertXmlToEReference(refXml: any): EReference {
+    private convertXmlToEReference(refXml: any): any {
         return {
             name: refXml.$.name || '',
             eType: {
@@ -492,7 +640,7 @@ export class EcoreParser {
     /**
      * Convert XML data type to EDataType (maintains backward compatibility)
      */
-    private convertXmlToEDataType(dataTypeXml: any): EDataType {
+    private convertXmlToEDataType(dataTypeXml: any): any {
         return {
             name: dataTypeXml.$.name || '',
             instanceClassName: dataTypeXml.$.instanceClassName || 'java.lang.Object'
@@ -502,8 +650,8 @@ export class EcoreParser {
     /**
      * Convert XML enum to EEnum (maintains backward compatibility)
      */
-    private convertXmlToEEnum(enumXml: any): EEnum {
-        const eEnum: EEnum = {
+    private convertXmlToEEnum(enumXml: any): any {
+        const eEnum: any = {
             name: enumXml.$.name || '',
             eLiterals: []
         };
