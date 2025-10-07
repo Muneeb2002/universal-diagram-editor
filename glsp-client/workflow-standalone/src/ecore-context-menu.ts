@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createRenameClassAction } from './ecore-client-actions';
+import { createRenameClassAction, createChangeClassTypeAction } from './ecore-client-actions';
 
 export interface ClassInfo {
     className: string;
@@ -228,8 +228,14 @@ export class EcoreContextMenu {
 
         console.log(`Changing class type to: ${type}`);
         
-        // TODO: Implement ChangeClassTypeAction on the server side
-        alert(`Class type change functionality needs to be implemented on the server side. Would change ${this.currentClass.className} to ${type}`);
+        try {
+            const action = createChangeClassTypeAction(this.currentClass.className, type as 'abstract' | 'concrete' | 'interface');
+            this.actionDispatcher.dispatch(action);
+            console.log(`Changed class ${this.currentClass.className} to type ${type}`);
+        } catch (error) {
+            console.error('Error changing class type:', error);
+            alert(`Error changing class type: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
 

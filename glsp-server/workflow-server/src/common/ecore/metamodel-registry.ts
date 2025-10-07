@@ -467,6 +467,41 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Changes the type of a class (abstract, concrete, interface).
+     */
+    changeClassType(className: string, classType: 'abstract' | 'concrete' | 'interface'): boolean {
+        const eClass = this.findEClass(className);
+        if (!eClass) {
+            throw new Error(`Class '${className}' not found in active metamodel`);
+        }
+
+        try {
+            // Update the class properties based on the new type
+            switch (classType) {
+                case 'abstract':
+                    eClass.set('abstract', true);
+                    eClass.set('interface', false);
+                    break;
+                case 'concrete':
+                    eClass.set('abstract', false);
+                    eClass.set('interface', false);
+                    break;
+                case 'interface':
+                    eClass.set('abstract', false);
+                    eClass.set('interface', true);
+                    break;
+                default:
+                    throw new Error(`Invalid class type: ${classType}`);
+            }
+
+            console.log(`Changed class '${className}' to type '${classType}'`);
+            return true;
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
      * Gets all attributes of a class.
      */
     getClassAttributes(className: string): any[] {

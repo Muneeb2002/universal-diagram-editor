@@ -15,7 +15,8 @@ import { SetModelAction } from '@eclipse-glsp/protocol';
 import { MetamodelRegistry } from './metamodel-registry';
 import { 
     RenameClassAction,
-    SaveMetamodelAction
+    SaveMetamodelAction,
+    ChangeClassTypeAction
 } from './ecore-actions';
 
 /**
@@ -25,7 +26,8 @@ import {
 export class EditMetamodelActionHandler implements ActionHandler {
     actionKinds = [
         RenameClassAction.KIND,
-        SaveMetamodelAction.KIND
+        SaveMetamodelAction.KIND,
+        ChangeClassTypeAction.KIND
     ];
 
     constructor() {
@@ -60,6 +62,9 @@ export class EditMetamodelActionHandler implements ActionHandler {
                     console.log(result.content);
                     console.log('=== END SAVED METAMODEL CONTENT ===');
                 }
+            } else if (ChangeClassTypeAction.is(action)) {
+                const result = await this.handleChangeClassType(action);
+                success = result.success;
             }
 
             // If successful, regenerate the model (except for save actions)
@@ -106,6 +111,21 @@ export class EditMetamodelActionHandler implements ActionHandler {
             return {
                 success: false,
                 message: `Failed to save metamodel: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleChangeClassType(action: ChangeClassTypeAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.changeClassType(action.className, action.classType);
+            return {
+                success: true,
+                message: `Successfully changed class '${action.className}' to type '${action.classType}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to change class type: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

@@ -62,6 +62,12 @@ export interface RenameClassAction {
     newClassName: string;
 }
 
+export interface ChangeClassTypeAction {
+    kind: 'changeClassType';
+    className: string;
+    classType: 'abstract' | 'concrete' | 'interface';
+}
+
 
 
 
@@ -106,6 +112,17 @@ export function createRenameClassAction(
         kind: 'renameClass',
         oldClassName,
         newClassName
+    };
+}
+
+export function createChangeClassTypeAction(
+    className: string,
+    classType: 'abstract' | 'concrete' | 'interface'
+): ChangeClassTypeAction {
+    return {
+        kind: 'changeClassType',
+        className,
+        classType
     };
 }
 
