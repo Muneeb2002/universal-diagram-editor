@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createRenameClassAction, createChangeClassTypeAction } from './ecore-client-actions';
+import { createRenameClassAction, createChangeClassTypeAction, createDeleteClassAction } from './ecore-client-actions';
 
 export interface ClassInfo {
     className: string;
@@ -147,8 +147,10 @@ export class EcoreContextMenu {
         actionsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
 
         const editPropertiesBtn = this.createMenuItem('Edit Properties...', () => this.editProperties());
+        const deleteClassBtn = this.createMenuItem('Delete Class...', () => this.deleteClass());
 
         actionsContainer.appendChild(editPropertiesBtn);
+        actionsContainer.appendChild(deleteClassBtn);
         actionsSection.appendChild(actionsContainer);
 
         this.menu.appendChild(actionsSection);
@@ -248,6 +250,33 @@ export class EcoreContextMenu {
         alert(`Opening property editor for class: ${this.currentClass.className}\n\nThis would show the full React property editor with all attributes and references.`);
         
         // TODO: Integrate with the React property editor component
+    }
+
+    private deleteClass(): void {
+        if (!this.currentClass || !this.actionDispatcher) {
+            return;
+        }
+
+        const className = this.currentClass.className;
+        
+        // Show confirmation dialog with options
+        const message = `Are you sure you want to delete the class '${className}'?\n\n` +
+                       `This action will:\n` +
+                       `• Remove the class from the metamodel\n` +
+                       `• Remove all references to this class\n` +
+                       `• Update the entire Petri net structure\n\n` +
+                       `This action cannot be undone.`;
+        
+        if (confirm(message)) {
+            try {
+                const action = createDeleteClassAction(className, true); // Force delete to remove references
+                this.actionDispatcher.dispatch(action);
+                console.log(`Deleted class ${className}`);
+            } catch (error) {
+                console.error('Error deleting class:', error);
+                alert(`Error deleting class: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        }
     }
 
     public destroy(): void {

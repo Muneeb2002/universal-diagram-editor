@@ -68,6 +68,12 @@ export interface ChangeClassTypeAction {
     classType: 'abstract' | 'concrete' | 'interface';
 }
 
+export interface DeleteClassAction {
+    kind: 'deleteClass';
+    className: string;
+    force?: boolean;
+}
+
 
 
 
@@ -123,6 +129,17 @@ export function createChangeClassTypeAction(
         kind: 'changeClassType',
         className,
         classType
+    };
+}
+
+export function createDeleteClassAction(
+    className: string,
+    force = false
+): DeleteClassAction {
+    return {
+        kind: 'deleteClass',
+        className,
+        force
     };
 }
 

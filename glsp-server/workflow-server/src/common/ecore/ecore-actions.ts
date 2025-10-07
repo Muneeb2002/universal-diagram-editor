@@ -247,3 +247,28 @@ export namespace ChangeClassTypeAction {
         };
     }
 }
+
+/**
+ * Action to delete a class from the metamodel.
+ */
+export interface DeleteClassAction extends Action {
+    kind: typeof DeleteClassAction.KIND;
+    className: string;
+    force?: boolean; // If true, delete even if there are references (removes references too)
+}
+
+export namespace DeleteClassAction {
+    export const KIND = 'deleteClass';
+
+    export function is(object: any): object is DeleteClassAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'className');
+    }
+
+    export function create(className: string, force = false): DeleteClassAction {
+        return {
+            kind: KIND,
+            className,
+            force
+        };
+    }
+}

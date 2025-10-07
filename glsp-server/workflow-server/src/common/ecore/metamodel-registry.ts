@@ -502,6 +502,64 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Deletes a class from the metamodel and handles all references.
+     */
+    deleteClass(className: string, force = false): boolean {
+        const eClass = this.findEClass(className);
+        if (!eClass) {
+            throw new Error(`Class '${className}' not found in active metamodel`);
+        }
+
+        try {
+            // Find all references to this class
+            const referencesToClass = this.findAllReferencesToClass(className);
+            
+            if (referencesToClass.length > 0 && !force) {
+                const referenceList = referencesToClass.map(({class: refClass, reference}) => 
+                    `${refClass.get('name')}.${reference.get('name')}`
+                ).join(', ');
+                throw new Error(`Cannot delete class '${className}' because it is referenced by: ${referenceList}. Use force=true to delete anyway.`);
+            }
+
+            // If force is true, remove all references to this class
+            if (force && referencesToClass.length > 0) {
+                console.log(`Force deleting class '${className}' and removing ${referencesToClass.length} references`);
+                
+                for (const {class: refClass, reference} of referencesToClass) {
+                    // Remove the reference from the class
+                    const structuralFeatures = refClass.get('eStructuralFeatures') as any;
+                    if (structuralFeatures && structuralFeatures.remove) {
+                        structuralFeatures.remove(reference);
+                        console.log(`Removed reference '${reference.get('name')}' from class '${refClass.get('name')}'`);
+                    }
+                }
+            }
+
+            // Find the package containing this class and remove it
+            const activeMetamodel = this.getActiveMetamodel();
+            if (!activeMetamodel) {
+                throw new Error('No active metamodel found');
+            }
+
+            for (const pkg of activeMetamodel.ePackages) {
+                const eClassifiers = pkg.get('eClassifiers') as any;
+                if (eClassifiers && eClassifiers.remove) {
+                    // Try to remove the class from the package
+                    if (eClassifiers.contains && eClassifiers.contains(eClass)) {
+                        eClassifiers.remove(eClass);
+                        console.log(`Deleted class '${className}' from metamodel`);
+                        return true;
+                    }
+                }
+            }
+
+            throw new Error(`Could not remove class '${className}' from its package`);
+        } catch (error) {
+            throw error;
+        }
+    }
+
+    /**
      * Gets all attributes of a class.
      */
     getClassAttributes(className: string): any[] {

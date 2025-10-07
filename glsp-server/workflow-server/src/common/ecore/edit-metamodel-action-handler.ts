@@ -16,7 +16,8 @@ import { MetamodelRegistry } from './metamodel-registry';
 import { 
     RenameClassAction,
     SaveMetamodelAction,
-    ChangeClassTypeAction
+    ChangeClassTypeAction,
+    DeleteClassAction
 } from './ecore-actions';
 
 /**
@@ -27,7 +28,8 @@ export class EditMetamodelActionHandler implements ActionHandler {
     actionKinds = [
         RenameClassAction.KIND,
         SaveMetamodelAction.KIND,
-        ChangeClassTypeAction.KIND
+        ChangeClassTypeAction.KIND,
+        DeleteClassAction.KIND
     ];
 
     constructor() {
@@ -64,6 +66,9 @@ export class EditMetamodelActionHandler implements ActionHandler {
                 }
             } else if (ChangeClassTypeAction.is(action)) {
                 const result = await this.handleChangeClassType(action);
+                success = result.success;
+            } else if (DeleteClassAction.is(action)) {
+                const result = await this.handleDeleteClass(action);
                 success = result.success;
             }
 
@@ -126,6 +131,21 @@ export class EditMetamodelActionHandler implements ActionHandler {
             return {
                 success: false,
                 message: `Failed to change class type: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleDeleteClass(action: DeleteClassAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.deleteClass(action.className, action.force);
+            return {
+                success: true,
+                message: `Successfully deleted class '${action.className}'${action.force ? ' and all its references' : ''}`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to delete class: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }
