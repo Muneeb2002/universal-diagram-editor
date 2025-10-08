@@ -29,7 +29,7 @@ import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
 import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
-import { EcoreContextMenu, ClassInfo } from './ecore-context-menu';
+import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
 import { createLoadMetamodelAction } from './ecore-client-actions';
 const host = GLSP_SERVER_HOST;
 const port = GLSP_SERVER_PORT;
@@ -50,6 +50,7 @@ wsProvider.listen({ onConnection: initialize, onReconnect: reconnect, logger: co
 const filePicker = new EcoreFilePicker();
 const toolbar = new EcoreToolbar();
 const contextMenu = new EcoreContextMenu();
+const edgeContextMenu = new EcoreEdgeContextMenu();
 
 filePicker.onFileSelected = async (filename: string, content: string) => {
     if (actionDispatcher) {
@@ -80,9 +81,10 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     container = createContainer({ clientId, diagramType, glspClientProvider: async () => glspClient });
     actionDispatcher = container.get(GLSPActionDispatcher);
     
-    // Set action dispatcher for toolbar and context menu
+    // Set action dispatcher for toolbar and context menus
     toolbar.setActionDispatcher(actionDispatcher);
     contextMenu.setActionDispatcher(actionDispatcher);
+    edgeContextMenu.setActionDispatcher(actionDispatcher);
     
     // Set up context menu for class elements
     setupContextMenu();
@@ -142,9 +144,82 @@ function setupContextMenu(): void {
             contextMenu.show(event, classInfo);
         }
     });
+
+    // Listen for double-clicks on edges
+    document.addEventListener('dblclick', (event) => {
+        const target = event.target as HTMLElement;
+        
+        // Check if the clicked element is an edge
+        const edgeElement = target.closest('.sprotty-edge') || target.closest('[data-svg-metadata-type*="edge:"]');
+        
+        if (edgeElement) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Get edge information from the element
+            const edgeId = edgeElement.id || 'unknown-edge';
+            const edgeType = edgeElement.getAttribute('data-svg-metadata-type') || 'edge:ecore-reference';
+            
+            // Extract source and target IDs from the edge ID
+            // Edge IDs follow patterns like: "Place_inherits_Node", "Place_tokens", "Arc_source"
+            const { sourceId, targetId } = extractSourceAndTargetFromEdgeId(edgeId);
+            
+            // Create edge info object
+            const edgeInfo: EdgeInfo = {
+                edgeId: edgeId,
+                sourceId: sourceId,
+                targetId: targetId,
+                currentType: edgeType
+            };
+            
+            // Show edge context menu
+            edgeContextMenu.show(event, edgeInfo);
+        }
+    });
 }
 
 async function reconnect(connectionProvider: MessageConnection): Promise<void> {
     glspClient.stop();
     initialize(connectionProvider, true /* isReconnecting */);
+}
+
+function extractSourceAndTargetFromEdgeId(edgeId: string): { sourceId: string, targetId: string } {
+    // Remove sprotty_ prefix if present
+    const cleanEdgeId = edgeId.startsWith('sprotty_') ? edgeId.substring(8) : edgeId;
+    
+    // Handle different edge ID patterns
+    if (cleanEdgeId.includes('_inherits_')) {
+        // Inheritance: "Place_inherits_Node" -> sourceId: "Place", targetId: "Node"
+        const parts = cleanEdgeId.split('_inherits_');
+        return { sourceId: parts[0], targetId: parts[1] };
+    } else if (cleanEdgeId.includes('_')) {
+        // Reference/Containment: "Place_tokens" or "Arc_source" or "Arc_target"
+        const parts = cleanEdgeId.split('_');
+        const sourceId = parts[0];
+        
+        // For references like "Arc_source" and "Arc_target", we need to determine the target
+        // This is tricky without more context, so we'll use a heuristic
+        if (parts[1] === 'source' || parts[1] === 'target') {
+            // These are likely references to Node (based on the metamodel)
+            return { sourceId, targetId: 'Node' };
+        } else {
+            // For other cases like "Place_tokens", assume the reference name is the target type
+            // We'll need to map this to the actual target type
+            const referenceName = parts.slice(1).join('_');
+            
+            // Simple mapping based on common patterns
+            if (referenceName === 'tokens') {
+                return { sourceId, targetId: 'Token' };
+            } else if (referenceName === 'objects') {
+                return { sourceId, targetId: 'Object' };
+            } else {
+                // For other cases, try to infer from the reference name
+                const capitalized = referenceName.charAt(0).toUpperCase() + referenceName.slice(1);
+                return { sourceId, targetId: capitalized };
+            }
+        }
+    }
+    
+    // Fallback
+    return { sourceId: 'unknown-source', targetId: 'unknown-target' };
 }

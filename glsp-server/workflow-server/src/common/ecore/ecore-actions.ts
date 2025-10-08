@@ -272,3 +272,63 @@ export namespace DeleteClassAction {
         };
     }
 }
+
+/**
+ * Action to change the type of an edge.
+ */
+export interface ChangeEdgeTypeAction extends Action {
+    kind: typeof ChangeEdgeTypeAction.KIND;
+    edgeId: string;
+    newType: string;
+    sourceId: string;
+    targetId: string;
+    lowerBound?: number;
+    upperBound?: number;
+}
+
+export namespace ChangeEdgeTypeAction {
+    export const KIND = 'changeEdgeType';
+
+    export function is(object: any): object is ChangeEdgeTypeAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'edgeId') && 
+               hasStringProp(object, 'newType') &&
+               hasStringProp(object, 'sourceId') &&
+               hasStringProp(object, 'targetId');
+    }
+
+    export function create(edgeId: string, newType: string, sourceId: string, targetId: string, lowerBound?: number, upperBound?: number): ChangeEdgeTypeAction {
+        return {
+            kind: KIND,
+            edgeId,
+            newType,
+            sourceId,
+            targetId,
+            lowerBound,
+            upperBound
+        };
+    }
+}
+
+/**
+ * Action to delete an edge.
+ */
+export interface DeleteEdgeAction extends Action {
+    kind: typeof DeleteEdgeAction.KIND;
+    edgeId: string;
+}
+
+export namespace DeleteEdgeAction {
+    export const KIND = 'deleteEdge';
+
+    export function is(object: any): object is DeleteEdgeAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'edgeId');
+    }
+
+    export function create(edgeId: string): DeleteEdgeAction {
+        return {
+            kind: KIND,
+            edgeId
+        };
+    }
+}

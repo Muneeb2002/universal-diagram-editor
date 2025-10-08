@@ -170,3 +170,50 @@ export function createSaveMetamodelAction(filename?: string, format: 'json' | 'e
     return SaveMetamodelAction.create(filename, format);
 }
 
+// Edge Actions
+export interface ChangeEdgeTypeAction extends Action {
+    kind: 'changeEdgeType';
+    edgeId: string;
+    newType: string;
+    sourceId: string;
+    targetId: string;
+}
+
+export interface DeleteEdgeAction extends Action {
+    kind: 'deleteEdge';
+    edgeId: string;
+}
+
+export namespace ChangeEdgeTypeAction {
+    export const KIND = 'changeEdgeType';
+
+    export function create(edgeId: string, newType: string, sourceId: string, targetId: string): ChangeEdgeTypeAction {
+        return {
+            kind: KIND,
+            edgeId,
+            newType,
+            sourceId,
+            targetId
+        };
+    }
+}
+
+export namespace DeleteEdgeAction {
+    export const KIND = 'deleteEdge';
+
+    export function create(edgeId: string): DeleteEdgeAction {
+        return {
+            kind: KIND,
+            edgeId
+        };
+    }
+}
+
+export function createChangeEdgeTypeAction(edgeId: string, newType: string, sourceId: string, targetId: string): ChangeEdgeTypeAction {
+    return ChangeEdgeTypeAction.create(edgeId, newType, sourceId, targetId);
+}
+
+export function createDeleteEdgeAction(edgeId: string): DeleteEdgeAction {
+    return DeleteEdgeAction.create(edgeId);
+}
+

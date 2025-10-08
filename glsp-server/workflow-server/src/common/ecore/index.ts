@@ -22,4 +22,5 @@ export * from './ecore-actions';
 export * from './load-metamodel-action-handler';
 export * from './switch-mode-action-handler';
 export * from './create-instance-action-handler';
+export * from './edge-action-handlers';
 
