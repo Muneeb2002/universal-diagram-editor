@@ -61,11 +61,36 @@
 /* Fix text positioning in compartments */
 .sprotty-comp {
     padding: 5px !important;
+    fill: none !important;
+    stroke: none !important;
+}
+
+/* Ensure all compartment types have transparent backgrounds */
+.sprotty-comp[data-type="comp:header"] {
+    fill: none !important;
+    stroke: none !important;
+}
+
+.sprotty-comp[data-type="comp:attributes"] {
+    fill: none !important;
+    stroke: none !important;
+}
+
+.sprotty-comp[data-type="comp:references"] {
+    fill: none !important;
+    stroke: none !important;
 }
 
 .sprotty-label {
     font-size: 12px !important;
     font-family: Arial, sans-serif !important;
+}
+
+/* Compartment separator lines - UML style */
+.compartment-separator {
+    stroke: rgba(0, 0, 0, 0.4) !important;
+    stroke-width: 1px !important;
+    fill: none !important;
 }
 
 /* Default edge styling - ensure all edges are visible */

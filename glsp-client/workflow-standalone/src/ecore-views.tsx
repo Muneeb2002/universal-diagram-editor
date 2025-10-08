@@ -30,13 +30,16 @@ import { injectable } from 'inversify';
 import { VNode } from 'snabbdom';
 import {
     GNode,
+    GCompartment,
     Hoverable,
     Selectable,
     RenderingContext,
     RectangularNodeView,
+    ShapeView,
     svg,
     setAttr,
-    setClass
+    setClass,
+    Dimension
 } from '@eclipse-glsp/sprotty';
 
 /**
@@ -56,6 +59,34 @@ export class EcoreClassNodeView extends RectangularNodeView {
         const isAbstract = cssClasses.includes('abstract');
         const isInterface = cssClasses.includes('interface');
 
+        // Calculate compartment separator line positions
+        const nodeWidth = Math.max(0, node.size.width);
+        const nodeHeight = Math.max(0, node.size.height);
+        
+        // Find compartment children to determine separator positions
+        const compartments = node.children?.filter(child => child.type?.startsWith('comp:')) || [];
+        let separatorLines: VNode[] = [];
+        
+        if (compartments.length > 1) {
+            // Calculate positions for separator lines
+            let currentY = 0;
+            for (let i = 0; i < compartments.length - 1; i++) {
+                const compartment = compartments[i];
+                const compartmentHeight = (compartment as any).size?.height || 30; // Default height if not specified
+                currentY += compartmentHeight;
+                
+                separatorLines.push(
+                    <line
+                        class-compartment-separator={true}
+                        x1="0"
+                        y1={currentY}
+                        x2={nodeWidth}
+                        y2={currentY}
+                    />
+                );
+            }
+        }
+
         const vnode = (
             <g class-node={true} class-ecore-class={true} class-abstract={isAbstract} class-interface={isInterface}>
                 <rect
@@ -64,16 +95,18 @@ export class EcoreClassNodeView extends RectangularNodeView {
                     class-mouseover={node.hoverFeedback}
                     x="0"
                     y="0"
-                    width={Math.max(0, node.size.width)}
-                    height={Math.max(0, node.size.height)}
+                    width={nodeWidth}
+                    height={nodeHeight}
                     rx="5"
                     ry="5"
                 />
                 {context.renderChildren(node)}
+                {/* Compartment separator lines */}
+                {separatorLines}
                 {/* Edit button in top-right corner */}
                 <g class-edit-button={true} class-edit-button-visible={node.hoverFeedback || node.selected}>
                     <rect
-                        x={Math.max(0, node.size.width) - 20}
+                        x={nodeWidth - 20}
                         y="2"
                         width="16"
                         height="16"
@@ -82,7 +115,7 @@ export class EcoreClassNodeView extends RectangularNodeView {
                         class-edit-button-bg={true}
                     />
                     <text
-                        x={Math.max(0, node.size.width) - 12}
+                        x={nodeWidth - 12}
                         y="12"
                         class-edit-button-icon={true}
                         text-anchor="middle"
@@ -204,6 +237,42 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
 
         setAttr(vnode, 'data-svg-metadata-type', node.type);
         setClass(vnode, 'ecore-instance', true);
+        return vnode;
+    }
+}
+
+/**
+ * Custom view for Ecore compartments - sets data-type attribute for CSS styling
+ * This allows different styling for header, attributes, and references compartments
+ */
+@injectable()
+export class EcoreCompartmentView extends ShapeView {
+    override render(model: Readonly<GCompartment>, context: RenderingContext): VNode | undefined {
+        if (!this.isVisible(model, context)) {
+            return undefined;
+        }
+        
+        const rectSize = Dimension.isValid(model.size) ? model.size : Dimension.ZERO;
+        const rect = (
+            <rect 
+                class-sprotty-comp={true} 
+                x='0' 
+                y='0' 
+                width={rectSize.width} 
+                height={rectSize.height}
+            />
+        );
+        
+        // Set data-type attribute on the rect for CSS styling
+        setAttr(rect, 'data-type', model.type);
+        
+        const vnode = (
+            <g>
+                {rect}
+                {context.renderChildren(model)}
+            </g>
+        );
+        
         return vnode;
     }
 }

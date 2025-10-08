@@ -18,7 +18,6 @@ import {
     editLabelFeature,
     FeatureModule,
     GCompartment,
-    GCompartmentView,
     GEdge,
     GEdgeView,
     GGraph,
@@ -33,7 +32,7 @@ import {
     TYPES
 } from '@eclipse-glsp/client';
 import { Container } from 'inversify';
-import { EcoreClassNodeView, EcoreDataTypeNodeView, EcoreEnumNodeView, EcoreInstanceNodeView } from './ecore-views';
+import { EcoreClassNodeView, EcoreDataTypeNodeView, EcoreEnumNodeView, EcoreInstanceNodeView, EcoreCompartmentView } from './ecore-views';
 import { EcoreEdgeView } from './ecore-edge-views';
 
 // Define Ecore-specific model elements
@@ -96,9 +95,9 @@ export const metamodelDiagramModule = new FeatureModule(
         // Configure labels and compartments
         configureModelElement(context, 'label:heading', GLabel, GLabelView, { enable: [editLabelFeature] });
         configureModelElement(context, 'label:text', GLabel, GLabelView, { enable: [editLabelFeature] });
-        configureModelElement(context, 'comp:header', GCompartment, GCompartmentView);
-        configureModelElement(context, 'comp:attributes', GCompartment, GCompartmentView);
-        configureModelElement(context, 'comp:references', GCompartment, GCompartmentView);
+        configureModelElement(context, 'comp:header', GCompartment, EcoreCompartmentView);
+        configureModelElement(context, 'comp:attributes', GCompartment, EcoreCompartmentView);
+        configureModelElement(context, 'comp:references', GCompartment, EcoreCompartmentView);
 
         // Override default elements
         overrideModelElement(context, DefaultTypes.EDGE, GEdge, GEdgeView);

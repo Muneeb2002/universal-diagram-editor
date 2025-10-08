@@ -231,36 +231,27 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         headerCompartment.id = `${eClass.get('name')}_header`;
         headerCompartment.type = 'comp:header';
         headerCompartment.layout = 'hbox';
+        headerCompartment.layoutOptions = { paddingTop: 8, paddingBottom: 8, paddingLeft: 10, paddingRight: 10 };
         headerCompartment.size = { width: 200, height: 30 }; // Explicit size
         headerCompartment.children.push(this.createClassNameLabel(eClass));
 
         node.children.push(headerCompartment);
 
-        // Add attributes compartment
+        // Add attributes compartment (only if there are attributes)
         const attributes = (eClass.get('eStructuralFeatures') as any).filter(isEAttribute);
         if (attributes.length > 0) {
             const attributesCompartment = new GCompartment();
             attributesCompartment.id = `${eClass.get('name')}_attributes`;
             attributesCompartment.type = 'comp:attributes';
             attributesCompartment.layout = 'vbox';
-            attributesCompartment.size = { width: 200, height: 50 }; // Explicit size
+            attributesCompartment.layoutOptions = { paddingTop: 8, paddingBottom: 8, paddingLeft: 10, paddingRight: 10 };
+            attributesCompartment.size = { width: 200, height: 50 };
             attributesCompartment.children.push(this.createAttributesLabel(eClass));
 
             node.children.push(attributesCompartment);
         }
 
-        // Add references compartment
-        const references = (eClass.get('eStructuralFeatures') as any).filter(isEReference);
-        if (references.length > 0) {
-            const referencesCompartment = new GCompartment();
-            referencesCompartment.id = `${eClass.get('name')}_references`;
-            referencesCompartment.type = 'comp:references';
-            referencesCompartment.layout = 'vbox';
-            referencesCompartment.size = { width: 200, height: 50 }; // Explicit size
-            referencesCompartment.children.push(this.createReferencesLabel(eClass));
-
-            node.children.push(referencesCompartment);
-        }
+        // References compartment removed - only showing attributes
 
         return node;
     }
@@ -357,7 +348,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             .map((attr: any) => {
                 const typeName = this.getTypeName(attr.get('eType'));
                 const multiplicity = this.getMultiplicityString(attr.get('lowerBound'), attr.get('upperBound'));
-                return `- ${attr.get('name')}: ${typeName}${multiplicity}`;
+                return `${attr.get('name')} : ${typeName}${multiplicity}`;
             })
             .join('\n');
 
@@ -365,24 +356,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         label.type = 'label:text';
         label.id = `${eClass.get('name')}_attributes_label`;
         label.text = attributesText;
-        return label;
-    }
-
-    private createReferencesLabel(eClass: any): GLabel {
-        const references = (eClass.get('eStructuralFeatures') as any).filter(isEReference);
-        const referencesText = references
-            .map((ref: any) => {
-                const typeName = this.getTypeName(ref.get('eType'));
-                const containment = ref.get('containment') ? ' (containment)' : '';
-                const multiplicity = this.getMultiplicityString(ref.get('lowerBound'), ref.get('upperBound'));
-                return `- ${ref.get('name')}: ${typeName}${multiplicity}${containment}`;
-            })
-            .join('\n');
-
-        const label = new GLabel();
-        label.type = 'label:text';
-        label.id = `${eClass.get('name')}_references_label`;
-        label.text = referencesText;
         return label;
     }
 
