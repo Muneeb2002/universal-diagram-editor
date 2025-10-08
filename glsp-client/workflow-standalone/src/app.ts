@@ -172,6 +172,8 @@ function setupContextMenu(): void {
                 currentType: edgeType
             };
             
+            console.log(`Edge info created: edgeId="${edgeId}", sourceId="${sourceId}", targetId="${targetId}"`);
+            
             // Show edge context menu
             edgeContextMenu.show(event, edgeInfo);
         }
@@ -207,15 +209,21 @@ function extractSourceAndTargetFromEdgeId(edgeId: string): { sourceId: string, t
             // We'll need to map this to the actual target type
             const referenceName = parts.slice(1).join('_');
             
-            // Simple mapping based on common patterns
+            // For containment/reference edges like "Node_places", we need to reverse the relationship
+            // "Node_places" means Node contains Place, so for inheritance: Place -> Node
             if (referenceName === 'tokens') {
-                return { sourceId, targetId: 'Token' };
+                // Place_tokens -> Place contains Token, so inheritance: Token -> Place
+                return { sourceId: 'Token', targetId: sourceId };
+            } else if (referenceName === 'places') {
+                // Node_places -> Node contains Place, so inheritance: Place -> Node
+                return { sourceId: 'Place', targetId: sourceId };
             } else if (referenceName === 'objects') {
-                return { sourceId, targetId: 'Object' };
+                // PetriNet_objects -> PetriNet contains Object, so inheritance: Object -> PetriNet
+                return { sourceId: 'Object', targetId: sourceId };
             } else {
                 // For other cases, try to infer from the reference name
                 const capitalized = referenceName.charAt(0).toUpperCase() + referenceName.slice(1);
-                return { sourceId, targetId: capitalized };
+                return { sourceId: capitalized, targetId: sourceId };
             }
         }
     }

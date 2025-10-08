@@ -125,6 +125,7 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
             }
 
             console.log(`Updating Ecore model for edge type change: ${sourceId} -> ${targetId} to ${newType}`);
+            console.log(`Available classes in model:`, (ecoreModel as any).ePackages?.map((pkg: any) => pkg.get?.('name') || pkg.name));
             
             // Find the source class in the Ecore model
             const sourceClass = this.findEClassByName(ecoreModel, sourceId);
@@ -132,6 +133,7 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
                 console.warn(`Source class not found: ${sourceId}`);
                 return;
             }
+            console.log(`Found source class: ${sourceClass.get('name')}`);
 
             // Find the target class in the Ecore model
             const targetClass = this.findEClassByName(ecoreModel, targetId);
@@ -139,13 +141,14 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
                 console.warn(`Target class not found: ${targetId}`);
                 return;
             }
+            console.log(`Found target class: ${targetClass.get('name')}`);
 
             const originalEdgeType = this.getOriginalEdgeType(edge);
             console.log(`Original edge type: ${originalEdgeType}, New edge type: ${newType}`);
 
             // Handle different edge type transitions
             if (newType === 'edge:ecore-inheritance') {
-                this.handleInheritanceChange(sourceClass, targetClass, originalEdgeType);
+                this.handleInheritanceChange(sourceClass, targetClass, originalEdgeType, edge);
             } else if (newType === 'edge:ecore-reference' || newType === 'edge:ecore-containment') {
                 this.handleReferenceChange(sourceClass, targetClass, newType, originalEdgeType, edge, action);
             }
@@ -156,22 +159,30 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
     }
 
     private getOriginalEdgeType(edge: GEdge): string {
-        // Determine original edge type based on current properties
-        if (edge.cssClasses?.includes('ecore-inheritance')) {
+        // Determine original edge type based on the metamodel state, not visual properties
+        // This is called before any changes are made, so we can check the actual model
+        
+        // For now, we'll use a simple heuristic based on the edge ID
+        // Inheritance edges have IDs like "Place_inherits_Node"
+        // Reference/containment edges have IDs like "Node_places"
+        const edgeId = edge.id;
+        if (edgeId.includes('_inherits_')) {
             return 'edge:ecore-inheritance';
-        } else if (edge.cssClasses?.includes('ecore-containment')) {
-            return 'edge:ecore-containment';
         } else {
-            return 'edge:ecore-reference';
+            return 'edge:ecore-containment'; // Assume containment for reference edges
         }
     }
 
-    private handleInheritanceChange(sourceClass: any, targetClass: any, originalType: string): void {
-        console.log(`Converting to inheritance: ${sourceClass.name} -> ${targetClass.name}`);
+    private handleInheritanceChange(sourceClass: any, targetClass: any, originalType: string, edge: GEdge): void {
+        console.log(`Converting to inheritance: ${sourceClass.get('name')} -> ${targetClass.get('name')}`);
         
         if (originalType !== 'edge:ecore-inheritance') {
-            // Remove any existing reference if converting from reference/containment
-            this.removeReferenceIfExists(sourceClass, targetClass.name);
+            // Remove any existing containment references when converting to inheritance
+            const sourceClassName = sourceClass.get('name');
+            const targetClassName = targetClass.get('name');
+            const referenceName = this.generateReferenceName(sourceClassName);
+            console.log(`Removing containment reference: ${referenceName} from target class ${targetClassName}`);
+            this.removeReferenceIfExists(targetClass, referenceName);
         }
 
         // Add to superTypes if not already present
@@ -181,24 +192,40 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
         
         // Check if inheritance already exists
         let hasInheritance = false;
-        for (const superType of superTypes || []) {
+        (superTypes as any).forEach((superType: any) => {
             if (superType.get('name') === targetClassName) {
                 hasInheritance = true;
-                break;
             }
-        }
+        });
         
         if (!hasInheritance) {
-            // Create new super type reference
+            // Use the same approach as with references - replace the entire collection
+            // since .add() might not work properly with ecore-ts collections
             const newSuperType = {
                 name: targetClassName,
                 get: function(prop: string): any {
                     return (this as any)[prop];
                 }
             };
+            
+            // Try to add first
             superTypes.add(newSuperType);
+            console.log(`After add() - superTypes size: ${superTypes.size()}`);
+            
+            // If add() didn't work, replace the collection
+            if (superTypes.size() === 0) {
+                console.log(`Add() failed, replacing collection`);
+                sourceClass.set('eSuperTypes', [newSuperType]);
+                const newSuperTypes = sourceClass.get('eSuperTypes');
+                const newSize = Array.isArray(newSuperTypes) ? newSuperTypes.length : newSuperTypes.size();
+                console.log(`After set() - superTypes size: ${newSize}`);
+            }
+            
             console.log(`Added inheritance: ${sourceClassName} inherits from ${targetClassName}`);
         }
+        
+        // Remove edge label for inheritance edges
+        this.removeEdgeLabel(edge);
     }
 
     private handleReferenceChange(sourceClass: any, targetClass: any, newType: string, originalType: string, edge: GEdge, action: ChangeEdgeTypeAction): void {
@@ -206,14 +233,24 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
         const targetClassName = targetClass.get('name');
         console.log(`Converting to reference/containment: ${sourceClassName} -> ${targetClassName} (${newType})`);
         
-        if (originalType === 'edge:ecore-inheritance') {
-            // Remove from superTypes if converting from inheritance
+        // Generate reference name for containment relationships
+        const referenceName = this.generateReferenceName(sourceClassName);
+        
+        if (newType === 'edge:ecore-containment') {
+            // Always remove inheritance when converting to containment
             this.removeInheritanceIfExists(sourceClass, targetClassName);
+        } else if (newType === 'edge:ecore-inheritance') {
+            // Remove containment reference when converting to inheritance
+            console.log(`Converting to inheritance: removing reference "${referenceName}" from target class "${targetClass.get('name')}"`);
+            this.removeReferenceIfExists(targetClass, referenceName);
+            // Add inheritance relationship
+            console.log(`Adding inheritance: ${sourceClass.get('name')} -> ${targetClass.get('name')}`);
+            this.addInheritanceIfNotExists(sourceClass, targetClass);
+            return; // Exit early for inheritance - no need to create reference
         }
 
         // For containment: we want the target class to contain the source class
         // So we create a reference on the target class pointing to the source class
-        const referenceName = this.generateReferenceName(sourceClassName);
         let reference = this.findEReferenceByName(targetClass, referenceName);
         
         if (!reference) {
@@ -246,18 +283,18 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
         this.updateOrCreateEdgeLabel(edge, referenceName, reference.get('lowerBound'), reference.get('upperBound'));
     }
 
-    private removeReferenceIfExists(sourceClass: any, targetClassName: string): void {
-        const eStructuralFeatures = sourceClass.get('eStructuralFeatures');
+    private removeReferenceIfExists(eClass: any, referenceName: string): void {
+        const eStructuralFeatures = eClass.get('eStructuralFeatures');
         if (!eStructuralFeatures) return;
+        
+        console.log(`Before removal - eStructuralFeatures size: ${eStructuralFeatures.size()}`);
         
         // Use forEach method on ecore-ts collection
         (eStructuralFeatures as any).forEach((feature: any) => {
-            const featureType = feature.get('eClass')?.get('name');
-            if (featureType === 'EReference') {
-                const refType = feature.get('eType');
-                if (refType && refType.get('name') === targetClassName) {
-                    eStructuralFeatures.remove(feature);
-                }
+            if (feature.get('name') === referenceName) {
+                console.log(`Found reference to remove: ${feature.get('name')}`);
+                eStructuralFeatures.remove(feature);
+                console.log(`After removal - eStructuralFeatures size: ${eStructuralFeatures.size()}`);
             }
         });
     }
@@ -272,6 +309,30 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
                 superTypes.remove(superType);
             }
         });
+    }
+
+    private addInheritanceIfNotExists(sourceClass: any, targetClass: any): void {
+        const superTypes = sourceClass.get('eSuperTypes');
+        if (!superTypes) return;
+        
+        console.log(`Before adding inheritance - superTypes size: ${superTypes.size()}`);
+        
+        // Check if inheritance already exists
+        let exists = false;
+        (superTypes as any).forEach((superType: any) => {
+            if (superType.get('name') === targetClass.get('name')) {
+                exists = true;
+            }
+        });
+        
+        // Add inheritance if it doesn't exist
+        if (!exists) {
+            console.log(`Adding inheritance: ${sourceClass.get('name')} -> ${targetClass.get('name')}`);
+            superTypes.add(targetClass);
+            console.log(`After adding inheritance - superTypes size: ${superTypes.size()}`);
+        } else {
+            console.log(`Inheritance already exists: ${sourceClass.get('name')} -> ${targetClass.get('name')}`);
+        }
     }
 
     private generateReferenceName(targetClassName: string): string {
@@ -377,6 +438,19 @@ export class ChangeEdgeTypeActionHandler implements ActionHandler {
             }
             
                 edge.children.push(newLabel);
+        }
+    }
+
+    private removeEdgeLabel(edge: GEdge): void {
+        // Remove any existing label
+        if (edge.children) {
+            const existingLabelIndex = edge.children.findIndex(child => 
+                child.type === 'label:text'
+            );
+            if (existingLabelIndex !== -1) {
+                edge.children.splice(existingLabelIndex, 1);
+                console.log(`Removed edge label from ${edge.id}`);
+            }
         }
     }
 
