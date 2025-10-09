@@ -30,7 +30,14 @@ import createContainer from './di.config';
 import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { createLoadMetamodelAction } from './ecore-client-actions';
+import { createLoadMetamodelAction, createCreateEClassAction } from './ecore-client-actions';
+
+// Global type declaration for the EClass creation dialog
+declare global {
+    interface Window {
+        showEClassCreationDialog?: () => void;
+    }
+}
 const host = GLSP_SERVER_HOST;
 const port = GLSP_SERVER_PORT;
 const id = 'ecore';
@@ -88,6 +95,9 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     
     // Set up context menu for class elements
     setupContextMenu();
+    
+    // Set up action handling for custom actions
+    setupCustomActionHandling();
     
     const diagramLoader = container.get(DiagramLoader);
     await diagramLoader.load({ requestModelOptions: { isReconnecting } });
@@ -230,4 +240,171 @@ function extractSourceAndTargetFromEdgeId(edgeId: string): { sourceId: string, t
     
     // Fallback
     return { sourceId: 'unknown-source', targetId: 'unknown-target' };
+}
+
+function setupCustomActionHandling(): void {
+    if (!actionDispatcher) {
+        console.error('Action dispatcher not available for custom action handling');
+        return;
+    }
+
+    // Set up a simple way to trigger the EClass creation dialog
+    // This is a simplified approach - in a full implementation you'd use proper action handlers
+    window.showEClassCreationDialog = showEClassCreationDialog;
+
+    // Listen for palette actions that should trigger dialogs
+    // This is a workaround - in a full implementation you'd use proper action handlers
+    const originalDispatch = actionDispatcher.dispatch.bind(actionDispatcher);
+    actionDispatcher.dispatch = async (action: any) => {
+        // Check if this is the trigger EClass creation action
+        if (action.kind === 'triggerEClassCreation') {
+            showEClassCreationDialog();
+            return Promise.resolve();
+        }
+        // Otherwise, dispatch normally
+        return originalDispatch(action);
+    };
+}
+
+function showEClassCreationDialog(): void {
+    // Create a simple dialog for EClass creation
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 300px;
+        font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Create EClass';
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    // Class name input
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Class Name:';
+    nameLabel.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold;';
+    dialog.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Enter class name';
+    nameInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+    dialog.appendChild(nameInput);
+
+    // Class type checkboxes
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Class Type:';
+    typeLabel.style.cssText = 'display: block; margin-bottom: 10px; font-weight: bold;';
+    dialog.appendChild(typeLabel);
+
+    const abstractCheckbox = document.createElement('input');
+    abstractCheckbox.type = 'checkbox';
+    abstractCheckbox.id = 'abstract-checkbox';
+    const abstractLabel = document.createElement('label');
+    abstractLabel.htmlFor = 'abstract-checkbox';
+    abstractLabel.textContent = 'Abstract';
+    abstractLabel.style.cssText = 'margin-right: 15px; cursor: pointer;';
+    dialog.appendChild(abstractCheckbox);
+    dialog.appendChild(abstractLabel);
+
+    const interfaceCheckbox = document.createElement('input');
+    interfaceCheckbox.type = 'checkbox';
+    interfaceCheckbox.id = 'interface-checkbox';
+    const interfaceLabel = document.createElement('label');
+    interfaceLabel.htmlFor = 'interface-checkbox';
+    interfaceLabel.textContent = 'Interface';
+    interfaceLabel.style.cssText = 'margin-right: 15px; cursor: pointer;';
+    dialog.appendChild(interfaceCheckbox);
+    dialog.appendChild(interfaceLabel);
+
+    const br = document.createElement('br');
+    dialog.appendChild(br);
+
+    // Attributes checkbox
+    const attributesCheckbox = document.createElement('input');
+    attributesCheckbox.type = 'checkbox';
+    attributesCheckbox.id = 'attributes-checkbox';
+    attributesCheckbox.checked = true; // Default to true
+    const attributesLabel = document.createElement('label');
+    attributesLabel.htmlFor = 'attributes-checkbox';
+    attributesLabel.textContent = 'Include default attributes';
+    attributesLabel.style.cssText = 'cursor: pointer;';
+    dialog.appendChild(attributesCheckbox);
+    dialog.appendChild(attributesLabel);
+
+    // Buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+    });
+
+    const createButton = document.createElement('button');
+    createButton.textContent = 'Create';
+    createButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
+    createButton.addEventListener('click', () => {
+        const className = nameInput.value.trim();
+        if (!className) {
+            alert('Please enter a class name');
+            return;
+        }
+
+        // Validate class name
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(className)) {
+            alert('Class name must start with a letter or underscore and contain only letters, numbers, and underscores.');
+            return;
+        }
+
+        const isAbstract = abstractCheckbox.checked;
+        const isInterface = interfaceCheckbox.checked;
+        const hasAttributes = attributesCheckbox.checked;
+
+        // Create the EClass
+        if (actionDispatcher) {
+            const action = createCreateEClassAction(className, isAbstract, isInterface, hasAttributes);
+            actionDispatcher.dispatch(action);
+        }
+
+        document.body.removeChild(dialog);
+    });
+
+    buttonContainer.appendChild(cancelButton);
+    buttonContainer.appendChild(createButton);
+    dialog.appendChild(buttonContainer);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+
+    // Focus the name input
+    nameInput.focus();
 }

@@ -332,3 +332,95 @@ export namespace DeleteEdgeAction {
         };
     }
 }
+
+/**
+ * Action to create a custom metamodel with a new EPackage.
+ */
+export interface CreateCustomMetamodelAction extends Action {
+    kind: typeof CreateCustomMetamodelAction.KIND;
+    packageName: string;
+    nsURI: string;
+    nsPrefix: string;
+}
+
+export namespace CreateCustomMetamodelAction {
+    export const KIND = 'createCustomMetamodel';
+
+    export function is(object: any): object is CreateCustomMetamodelAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'packageName') && 
+               hasStringProp(object, 'nsURI') && 
+               hasStringProp(object, 'nsPrefix');
+    }
+
+    export function create(packageName: string, nsURI: string, nsPrefix: string): CreateCustomMetamodelAction {
+        return {
+            kind: KIND,
+            packageName,
+            nsURI,
+            nsPrefix
+        };
+    }
+}
+
+/**
+ * Action to create a new EClass in the custom metamodel.
+ */
+export interface CreateEClassAction extends Action {
+    kind: typeof CreateEClassAction.KIND;
+    className: string;
+    isAbstract: boolean;
+    isInterface: boolean;
+    hasAttributes: boolean;
+    position?: { x: number; y: number };
+}
+
+export namespace CreateEClassAction {
+    export const KIND = 'createEClass';
+
+    export function is(object: any): object is CreateEClassAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'className') && 
+               hasBooleanProp(object, 'isAbstract') && 
+               hasBooleanProp(object, 'isInterface') && 
+               hasBooleanProp(object, 'hasAttributes');
+    }
+
+    export function create(
+        className: string, 
+        isAbstract: boolean, 
+        isInterface: boolean, 
+        hasAttributes: boolean,
+        position?: { x: number; y: number }
+    ): CreateEClassAction {
+        return {
+            kind: KIND,
+            className,
+            isAbstract,
+            isInterface,
+            hasAttributes,
+            position
+        };
+    }
+}
+
+/**
+ * Action to trigger EClass creation dialog on the client.
+ */
+export interface TriggerEClassCreationAction extends Action {
+    kind: typeof TriggerEClassCreationAction.KIND;
+}
+
+export namespace TriggerEClassCreationAction {
+    export const KIND = 'triggerEClassCreation';
+
+    export function is(object: any): object is TriggerEClassCreationAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(): TriggerEClassCreationAction {
+        return {
+            kind: KIND
+        };
+    }
+}

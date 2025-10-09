@@ -21,9 +21,37 @@ export interface EcoreModel {
     ePackages: any[]; // Using any[] since ecore-ts instances are complex
 }
 
-// Type guards using ecore-ts instances
+// Type guards using ecore-ts instances and custom objects
 export function isEClass(classifier: any): boolean {
-    return classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EClass';
+    // Check for real Ecore objects
+    if (classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EClass') {
+        return true;
+    }
+    
+    // Check for custom EClass objects (created by our custom metamodel creation)
+    // Custom EClass objects have name, abstract, interface properties and get/set methods
+    if (classifier && 
+        typeof classifier.name === 'string' && 
+        typeof classifier.abstract === 'boolean' && 
+        typeof classifier.interface === 'boolean' &&
+        typeof classifier.get === 'function' &&
+        typeof classifier.set === 'function') {
+        return true;
+    }
+    
+    // Check for JSON-loaded EClass objects (from metamodel files)
+    // JSON-loaded classes have name, abstract, interface properties but no get/set methods
+    if (classifier && 
+        typeof classifier.name === 'string' && 
+        typeof classifier.abstract === 'boolean' && 
+        typeof classifier.interface === 'boolean' &&
+        Array.isArray(classifier.eAttributes) &&
+        Array.isArray(classifier.eReferences) &&
+        Array.isArray(classifier.eSuperTypes)) {
+        return true;
+    }
+    
+    return false;
 }
 
 export function isEDataType(classifier: any): boolean {
@@ -35,7 +63,24 @@ export function isEEnum(classifier: any): boolean {
 }
 
 export function isEAttribute(feature: any): boolean {
-    return feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EAttribute';
+    // Check for real Ecore objects
+    if (feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EAttribute') {
+        return true;
+    }
+    
+    // Check for custom EAttribute objects (created by our custom metamodel creation)
+    // Custom EAttribute objects have name, eType, lowerBound, upperBound properties and get/set methods
+    if (feature && 
+        typeof feature.name === 'string' && 
+        feature.eType && 
+        typeof feature.lowerBound === 'number' && 
+        typeof feature.upperBound === 'number' &&
+        typeof feature.get === 'function' &&
+        typeof feature.set === 'function') {
+        return true;
+    }
+    
+    return false;
 }
 
 export function isEReference(feature: any): boolean {

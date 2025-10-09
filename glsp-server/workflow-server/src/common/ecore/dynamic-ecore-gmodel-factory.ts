@@ -466,25 +466,75 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
      * Creates edges for inheritance relationships (eSuperTypes)
      */
     private createEdgesFromInheritance(root: GModelRoot, ecoreModel: EcoreModel): void {
-        console.log('createEdgesFromInheritance() - Starting inheritance edge creation');
         let inheritanceCount = 0;
 
         ecoreModel.ePackages.forEach(pkg => {
-            console.log(`Processing package for inheritance: ${pkg.get('name')}`);
-            (pkg.get('eClassifiers') as any).forEach((classifier: any) => {
-                console.log(`Processing classifier for inheritance: ${classifier.get('name')}, isEClass: ${isEClass(classifier)}`);
+            // Handle both Ecore packages and JSON packages
+            let classifiers: any[];
+            
+            if (typeof pkg.get === 'function') {
+                classifiers = pkg.get('eClassifiers');
+            } else {
+                classifiers = pkg.eClassifiers;
+            }
+            
+            
+            classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
-                    const superTypes = classifier.get('eSuperTypes');
-                    console.log(`Class ${classifier.get('name')}: superTypes =`, superTypes);
-                    console.log(`Class ${classifier.get('name')}: superTypes.size() =`, superTypes ? superTypes.size() : 'undefined');
-                    if (superTypes && superTypes.size() > 0) {
-                        console.log(`Processing class ${classifier.get('name')} with ${superTypes.size()} super types`);
-                        superTypes.forEach((superType: any) => {
+                    // Get superTypes - handle both Ecore objects and JSON objects
+                    let superTypes: any;
+                    if (typeof classifier.get === 'function') {
+                        superTypes = classifier.get('eSuperTypes');
+                    } else {
+                        superTypes = classifier.eSuperTypes;
+                    }
+                    
+                    // Handle both Ecore collections (with .size() method) and plain arrays
+                    let superTypesArray: any[] = [];
+                    if (superTypes) {
+                        if (typeof superTypes.size === 'function') {
+                            // Ecore collection - iterate through it properly
+                            if (superTypes.size() > 0) {
+                                superTypesArray = [];
+                                // Use forEach if available, otherwise try Array.from
+                                if (typeof superTypes.forEach === 'function') {
+                                    superTypes.forEach((superType: any) => {
+                                        superTypesArray.push(superType);
+                                    });
+                                } else {
+                                    // Fallback to Array.from
+                                    superTypesArray = Array.from(superTypes);
+                                }
+                            }
+                        } else if (Array.isArray(superTypes)) {
+                            // Plain array (our custom objects)
+                            superTypesArray = superTypes;
+                        }
+                    }
+                    
+                    if (superTypesArray.length > 0) {
+                        // Filter out any invalid superType objects
+                        const validSuperTypes = superTypesArray.filter((superType: any) => {
+                            if (!superType) return false;
+                            
+                            // Handle Ecore objects (with .get() method)
+                            if (typeof superType.get === 'function') {
+                                return superType.get('name');
+                            }
+                            
+                            // Handle plain JSON objects (from loaded metamodels)
+                            if (typeof superType.name === 'string') {
+                                return superType.name;
+                            }
+                            
+                            return false;
+                        });
+                        
+                        validSuperTypes.forEach((superType: any) => {
                             const edge = this.createInheritanceEdge(classifier, superType);
                             if (edge) {
                                 root.children.push(edge);
                                 inheritanceCount++;
-                                console.log(`Created inheritance edge: ${edge.sourceId} -> ${edge.targetId}`);
                             }
                         });
                     }
@@ -492,26 +542,48 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             });
         });
 
-        console.log(`createEdgesFromInheritance() - Created ${inheritanceCount} inheritance edges`);
     }
 
     /**
      * Creates an inheritance edge between a subclass and its superclass
      */
     private createInheritanceEdge(subClass: any, superClass: any): GEdge | null {
-        if (!superClass.get('name')) {
-            console.log(`createInheritanceEdge: No superClass name for ${subClass.get('name')}`);
+        // Validate that both subClass and superClass exist
+        if (!subClass || !superClass) {
+            return null;
+        }
+
+        // Get class names - handle both Ecore objects and plain JSON objects
+        let subClassName: string;
+        let superClassName: string;
+
+        if (typeof subClass.get === 'function') {
+            subClassName = subClass.get('name');
+        } else if (typeof subClass.name === 'string') {
+            subClassName = subClass.name;
+        } else {
+            return null;
+        }
+
+        if (typeof superClass.get === 'function') {
+            superClassName = superClass.get('name');
+        } else if (typeof superClass.name === 'string') {
+            superClassName = superClass.name;
+        } else {
+            return null;
+        }
+
+        if (!subClassName || !superClassName) {
             return null;
         }
 
         const edge = new GEdge();
         edge.type = 'edge:ecore-inheritance';
-        edge.id = `${subClass.get('name')}_inherits_${this.getTypeName(superClass)}`;
-        edge.sourceId = subClass.get('name');
-        edge.targetId = this.getTypeName(superClass);
+        edge.id = `${subClassName}_inherits_${superClassName}`;
+        edge.sourceId = subClassName;
+        edge.targetId = superClassName;
         edge.cssClasses = ['ecore-inheritance'];
 
-        console.log(`Created inheritance edge: ${edge.sourceId} -> ${edge.targetId} (type: ${edge.type})`);
 
         return edge;
     }

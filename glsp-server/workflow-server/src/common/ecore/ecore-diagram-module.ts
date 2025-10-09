@@ -34,6 +34,8 @@ import { SwitchModeActionHandler } from './switch-mode-action-handler';
 import { EditMetamodelActionHandler } from './edit-metamodel-action-handler';
 import { ChangeEdgeTypeActionHandler, DeleteEdgeActionHandler } from './edge-action-handlers';
 import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
+import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-action-handler';
+import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -67,6 +69,8 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(EditMetamodelActionHandler);
         binding.add(ChangeEdgeTypeActionHandler);
         binding.add(DeleteEdgeActionHandler);
+        binding.add(CreateCustomMetamodelActionHandler);
+        binding.add(TriggerEClassCreationActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

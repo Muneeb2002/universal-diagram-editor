@@ -645,6 +645,130 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Creates a custom metamodel with a new EPackage.
+     */
+    createCustomMetamodel(packageName: string, nsURI: string, nsPrefix: string): { success: boolean; message?: string; metamodel?: any } {
+        try {
+            // Validate package name
+            this.validateName(packageName);
+
+            // Create a new Ecore model
+            const ecoreModel = {
+                ePackages: [] as any[]
+            };
+
+            // Create the EPackage with proper Ecore-like structure
+            const ePackage = {
+                name: packageName,
+                nsURI: nsURI,
+                nsPrefix: nsPrefix,
+                eClassifiers: [] as any[],
+                get: function(key: string) {
+                    return (this as any)[key];
+                }
+            };
+
+            // Add the package to the model
+            ecoreModel.ePackages.push(ePackage);
+
+            // Register the metamodel
+            const metamodelKey = nsURI; // Use nsURI as the key
+            this.registerMetamodel(metamodelKey, ecoreModel);
+
+            console.log(`Created custom metamodel: ${packageName} (${nsURI})`);
+
+            return {
+                success: true,
+                message: `Successfully created custom metamodel '${packageName}'`,
+                metamodel: ecoreModel
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to create custom metamodel: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
+     * Creates a new EClass in the active custom metamodel.
+     */
+    createEClass(className: string, isAbstract: boolean, isInterface: boolean, hasAttributes: boolean, position?: { x: number; y: number }): { success: boolean; message?: string } {
+        try {
+            const activeMetamodel = this.getActiveMetamodel();
+            if (!activeMetamodel) {
+                return {
+                    success: false,
+                    message: 'No active metamodel found. Please create a custom metamodel first.'
+                };
+            }
+
+            // Validate class name
+            this.validateName(className);
+
+            // Check if class already exists
+            const existingClass = this.findEClass(className);
+            if (existingClass) {
+                return {
+                    success: false,
+                    message: `Class '${className}' already exists in the metamodel`
+                };
+            }
+
+            // Create the EClass with proper Ecore-like structure
+            const eClass = {
+                name: className,
+                abstract: isAbstract,
+                interface: isInterface,
+                eStructuralFeatures: [] as any[],
+                eSuperTypes: [] as any[],
+                get: function(key: string) {
+                    return (this as any)[key];
+                },
+                set: function(key: string, value: any) {
+                    (this as any)[key] = value;
+                }
+            };
+
+            // Add default attribute if requested
+            if (hasAttributes) {
+                const defaultAttribute = {
+                    name: 'name',
+                    eType: { name: 'EString' },
+                    lowerBound: 0,
+                    upperBound: 1,
+                    unique: true,
+                    ordered: false,
+                    get: function(key: string) {
+                        return (this as any)[key];
+                    },
+                    set: function(key: string, value: any) {
+                        (this as any)[key] = value;
+                    }
+                };
+                eClass.eStructuralFeatures.push(defaultAttribute);
+            }
+
+            // Add the class to the first package
+            if (activeMetamodel.ePackages.length > 0) {
+                activeMetamodel.ePackages[0].eClassifiers.push(eClass);
+            }
+
+            console.log(`Created EClass: ${className} (abstract: ${isAbstract}, interface: ${isInterface})`);
+
+            return {
+                success: true,
+                message: `Successfully created EClass '${className}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to create EClass: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
      * Serialize metamodel to JSON, handling circular references.
      */
     private serializeMetamodelToJSON(metamodel: any): string {

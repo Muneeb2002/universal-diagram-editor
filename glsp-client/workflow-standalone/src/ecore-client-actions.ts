@@ -217,3 +217,50 @@ export function createDeleteEdgeAction(edgeId: string): DeleteEdgeAction {
     return DeleteEdgeAction.create(edgeId);
 }
 
+// Custom Metamodel Creation Actions
+export interface CreateCustomMetamodelAction {
+    kind: 'createCustomMetamodel';
+    packageName: string;
+    nsURI: string;
+    nsPrefix: string;
+}
+
+export interface CreateEClassAction {
+    kind: 'createEClass';
+    className: string;
+    isAbstract: boolean;
+    isInterface: boolean;
+    hasAttributes: boolean;
+    position?: { x: number; y: number };
+}
+
+export function createCreateCustomMetamodelAction(
+    packageName: string,
+    nsURI: string,
+    nsPrefix: string
+): CreateCustomMetamodelAction {
+    return {
+        kind: 'createCustomMetamodel',
+        packageName,
+        nsURI,
+        nsPrefix
+    };
+}
+
+export function createCreateEClassAction(
+    className: string,
+    isAbstract: boolean,
+    isInterface: boolean,
+    hasAttributes: boolean,
+    position?: { x: number; y: number }
+): CreateEClassAction {
+    return {
+        kind: 'createEClass',
+        className,
+        isAbstract,
+        isInterface,
+        hasAttributes,
+        position
+    };
+}
+

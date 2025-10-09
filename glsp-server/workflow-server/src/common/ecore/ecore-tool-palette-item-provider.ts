@@ -37,7 +37,7 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
 
         // Core Ecore metamodeling elements
         metamodelItems.push(
-            this.createNodePaletteItem('EClass', 'ecore:class', 'Create EClass'),
+            this.createEClassPaletteItem(),
             this.createNodePaletteItem('EDataType', 'ecore:datatype', 'Create EDataType'),
             this.createNodePaletteItem('EEnum', 'ecore:enum', 'Create EEnum'),
             this.createNodePaletteItem('EAttribute', 'ecore:attribute', 'Create EAttribute'),
@@ -91,6 +91,18 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
             actions: [TriggerEdgeCreationAction.create(elementTypeId)],
             icon: 'symbol-interface',
             sortString: label
+        };
+    }
+
+    private createEClassPaletteItem(): PaletteItem {
+        return {
+            id: 'palette-item-create-eclass',
+            label: 'EClass',
+            actions: [{
+                kind: 'triggerEClassCreation'
+            }],
+            icon: 'symbol-class',
+            sortString: 'EClass'
         };
     }
 }
