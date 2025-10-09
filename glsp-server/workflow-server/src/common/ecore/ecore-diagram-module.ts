@@ -33,6 +33,7 @@ import { MetamodelRegistry } from './metamodel-registry';
 import { SwitchModeActionHandler } from './switch-mode-action-handler';
 import { EditMetamodelActionHandler } from './edit-metamodel-action-handler';
 import { ChangeEdgeTypeActionHandler, DeleteEdgeActionHandler } from './edge-action-handlers';
+import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -55,6 +56,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
     protected override configureOperationHandlers(binding: InstanceMultiBinding<OperationHandlerConstructor>): void {
         super.configureOperationHandlers(binding);
         binding.add(DynamicCreateNodeHandler);
+        binding.add(EcoreDeleteOperationHandler);
     }
 
     protected override configureActionHandlers(binding: InstanceMultiBinding<ActionHandlerConstructor>): void {

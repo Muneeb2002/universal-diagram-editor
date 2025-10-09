@@ -467,9 +467,9 @@ export class MetamodelRegistry {
     }
 
     /**
-     * Changes the type of a class (abstract, concrete, interface).
+     * Changes the type of a class (abstract, concrete, interface, abstract-interface).
      */
-    changeClassType(className: string, classType: 'abstract' | 'concrete' | 'interface'): boolean {
+    changeClassType(className: string, classType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface'): boolean {
         const eClass = this.findEClass(className);
         if (!eClass) {
             throw new Error(`Class '${className}' not found in active metamodel`);
@@ -488,6 +488,10 @@ export class MetamodelRegistry {
                     break;
                 case 'interface':
                     eClass.set('abstract', false);
+                    eClass.set('interface', true);
+                    break;
+                case 'abstract-interface':
+                    eClass.set('abstract', true);
                     eClass.set('interface', true);
                     break;
                 default:

@@ -65,7 +65,7 @@ export interface RenameClassAction {
 export interface ChangeClassTypeAction {
     kind: 'changeClassType';
     className: string;
-    classType: 'abstract' | 'concrete' | 'interface';
+    classType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface';
 }
 
 export interface DeleteClassAction {
@@ -123,7 +123,7 @@ export function createRenameClassAction(
 
 export function createChangeClassTypeAction(
     className: string,
-    classType: 'abstract' | 'concrete' | 'interface'
+    classType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface'
 ): ChangeClassTypeAction {
     return {
         kind: 'changeClassType',

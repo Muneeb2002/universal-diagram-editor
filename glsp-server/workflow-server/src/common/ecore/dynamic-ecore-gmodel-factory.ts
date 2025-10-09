@@ -327,9 +327,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         let labelText = className;
 
         // Add stereotypes for different class types
-        if (eClass.get('interface')) {
+        const isInterface = eClass.get('interface');
+        const isAbstract = eClass.get('abstract');
+        
+        if (isInterface && isAbstract) {
+            labelText = `<<interface>><<abstract>> ${className}`;
+        } else if (isInterface) {
             labelText = `<<interface>> ${className}`;
-        } else if (eClass.get('abstract')) {
+        } else if (isAbstract) {
             labelText = `<<abstract>> ${className}`;
         }
 

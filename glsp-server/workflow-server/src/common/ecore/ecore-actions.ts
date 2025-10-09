@@ -224,12 +224,12 @@ export namespace SaveMetamodelAction {
 }
 
 /**
- * Action to change the type of a class (abstract, concrete, interface).
+ * Action to change the type of a class (abstract, concrete, interface, abstract-interface).
  */
 export interface ChangeClassTypeAction extends Action {
     kind: typeof ChangeClassTypeAction.KIND;
     className: string;
-    classType: 'abstract' | 'concrete' | 'interface';
+    classType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface';
 }
 
 export namespace ChangeClassTypeAction {
@@ -239,7 +239,7 @@ export namespace ChangeClassTypeAction {
         return Action.hasKind(object, KIND) && hasStringProp(object, 'className') && hasStringProp(object, 'classType');
     }
 
-    export function create(className: string, classType: 'abstract' | 'concrete' | 'interface'): ChangeClassTypeAction {
+    export function create(className: string, classType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface'): ChangeClassTypeAction {
         return {
             kind: KIND,
             className,

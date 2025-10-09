@@ -31,6 +31,19 @@
     font-style: italic !important;
 }
 
+/* Ecore Abstract Interface styling (both abstract and interface) - Purple */
+.ecore-class.abstract.interface .sprotty-node {
+    fill: #e6e6fa !important;
+    stroke: #9370db !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for abstract interfaces */
+.ecore-class.abstract.interface text {
+    font-style: italic !important;
+}
+
 /* Ecore DataType styling */
 .ecore-datatype .sprotty-node {
     fill: #fff2cc !important;

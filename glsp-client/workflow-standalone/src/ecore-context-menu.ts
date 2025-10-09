@@ -123,11 +123,9 @@ export class EcoreContextMenu {
         const typeContainer = document.createElement('div');
         typeContainer.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
 
-        const concreteOption = this.createRadioOption('concrete', 'Concrete', !this.currentClass.isAbstract && !this.currentClass.isInterface);
-        const abstractOption = this.createRadioOption('abstract', 'Abstract', this.currentClass.isAbstract);
-        const interfaceOption = this.createRadioOption('interface', 'Interface', this.currentClass.isInterface);
+        const abstractOption = this.createCheckboxOption('abstract', 'Abstract', this.currentClass.isAbstract);
+        const interfaceOption = this.createCheckboxOption('interface', 'Interface', this.currentClass.isInterface);
 
-        typeContainer.appendChild(concreteOption);
         typeContainer.appendChild(abstractOption);
         typeContainer.appendChild(interfaceOption);
         typeSection.appendChild(typeContainer);
@@ -156,21 +154,21 @@ export class EcoreContextMenu {
         this.menu.appendChild(actionsSection);
     }
 
-    private createRadioOption(value: string, label: string, checked: boolean): HTMLLabelElement {
+    private createCheckboxOption(value: string, label: string, checked: boolean): HTMLLabelElement {
         const labelElement = document.createElement('label');
         labelElement.style.cssText = 'display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;';
         
-        const radio = document.createElement('input');
-        radio.type = 'radio';
-        radio.name = 'classType';
-        radio.value = value;
-        radio.checked = checked;
-        radio.addEventListener('change', () => this.changeClassType(value));
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.name = `classType_${value}`;
+        checkbox.value = value;
+        checkbox.checked = checked;
+        checkbox.addEventListener('change', () => this.handleClassTypeChange(value, checkbox.checked));
         
         const text = document.createElement('span');
         text.textContent = label;
         
-        labelElement.appendChild(radio);
+        labelElement.appendChild(checkbox);
         labelElement.appendChild(text);
         
         return labelElement;
@@ -223,22 +221,47 @@ export class EcoreContextMenu {
         }
     }
 
-    private changeClassType(type: string): void {
+    private handleClassTypeChange(value: string, checked: boolean): void {
         if (!this.currentClass || !this.actionDispatcher) {
             return;
         }
 
-        console.log(`Changing class type to: ${type}`);
+        // Get current checkboxes
+        const abstractCheckbox = document.querySelector('input[name="classType_abstract"]') as HTMLInputElement;
+        const interfaceCheckbox = document.querySelector('input[name="classType_interface"]') as HTMLInputElement;
+
+        // Determine the new class type based on checkbox states
+        let newType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface';
+        
+        const abstractChecked = abstractCheckbox?.checked || false;
+        const interfaceChecked = interfaceCheckbox?.checked || false;
+        
+        if (abstractChecked && interfaceChecked) {
+            // Both are checked - abstract interface (purple)
+            newType = 'abstract-interface';
+        } else if (abstractChecked) {
+            // Only abstract is checked
+            newType = 'abstract';
+        } else if (interfaceChecked) {
+            // Only interface is checked
+            newType = 'interface';
+        } else {
+            // Neither is checked, default to concrete
+            newType = 'concrete';
+        }
+
+        console.log(`Changing class type to: ${newType}`);
         
         try {
-            const action = createChangeClassTypeAction(this.currentClass.className, type as 'abstract' | 'concrete' | 'interface');
+            const action = createChangeClassTypeAction(this.currentClass.className, newType);
             this.actionDispatcher.dispatch(action);
-            console.log(`Changed class ${this.currentClass.className} to type ${type}`);
+            console.log(`Changed class ${this.currentClass.className} to type ${newType}`);
         } catch (error) {
             console.error('Error changing class type:', error);
             alert(`Error changing class type: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
+
 
 
     private editProperties(): void {
