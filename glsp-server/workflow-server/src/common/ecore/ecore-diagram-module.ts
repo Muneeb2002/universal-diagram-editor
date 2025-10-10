@@ -36,6 +36,8 @@ import { ChangeEdgeTypeActionHandler, DeleteEdgeActionHandler } from './edge-act
 import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
 import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-action-handler';
 import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
+import { EcoreEdgeCreationHandler } from './ecore-edge-creation-handler';
+import { EcoreCreateEdgeActionHandler } from './ecore-create-edge-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -59,6 +61,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         super.configureOperationHandlers(binding);
         binding.add(DynamicCreateNodeHandler);
         binding.add(EcoreDeleteOperationHandler);
+        binding.add(EcoreEdgeCreationHandler);
     }
 
     protected override configureActionHandlers(binding: InstanceMultiBinding<ActionHandlerConstructor>): void {
@@ -71,6 +74,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(DeleteEdgeActionHandler);
         binding.add(CreateCustomMetamodelActionHandler);
         binding.add(TriggerEClassCreationActionHandler);
+        binding.add(EcoreCreateEdgeActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

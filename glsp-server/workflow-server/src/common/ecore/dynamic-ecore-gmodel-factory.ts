@@ -401,22 +401,55 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     }
 
     private createEdgesFromEReferences(root: GModelRoot, ecoreModel: EcoreModel): void {
-        console.log('createEdgesFromEReferences() - Starting edge creation');
         let edgeCount = 0;
 
+        console.log('createEdgesFromEReferences() - Starting edge creation');
+
         ecoreModel.ePackages.forEach(pkg => {
-            console.log(`Processing package: ${pkg.get('name')}`);
-            (pkg.get('eClassifiers') as any).forEach((classifier: any) => {
-                console.log(`Processing classifier: ${classifier.get('name')}, isEClass: ${isEClass(classifier)}`);
+            // Handle both Ecore packages and JSON packages
+            let classifiers: any[];
+            let packageName: string;
+            
+            if (typeof pkg.get === 'function') {
+                packageName = pkg.get('name');
+                classifiers = pkg.get('eClassifiers');
+            } else {
+                packageName = pkg.name;
+                classifiers = pkg.eClassifiers;
+            }
+            
+            console.log(`Processing package: ${packageName} with ${classifiers.length} classifiers`);
+            
+            classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
-                    const references = (classifier.get('eStructuralFeatures') as any).filter(isEReference);
-                    console.log(`Processing class ${classifier.get('name')} with ${references.length} references`);
+                    let className: string;
+                    if (typeof classifier.get === 'function') {
+                        className = classifier.get('name');
+                    } else {
+                        className = classifier.name;
+                    }
+                    
+                    // Handle both Ecore objects and JSON objects
+                    let references: any[];
+                    if (typeof classifier.get === 'function') {
+                        const allFeatures = classifier.get('eStructuralFeatures') || [];
+                        references = allFeatures.filter(isEReference);
+                        console.log(`Class ${className} has ${allFeatures.length} structural features, ${references.length} are references`);
+                    } else {
+                        references = (classifier.eReferences || []).filter(isEReference);
+                        console.log(`Class ${className} has ${references.length} references`);
+                    }
+                    
                     references.forEach((eRef: any) => {
+                        const refName = typeof eRef.get === 'function' ? eRef.get('name') : eRef.name;
+                        const containment = typeof eRef.get === 'function' ? eRef.get('containment') : eRef.containment;
+                        console.log(`Processing reference: ${refName} (containment: ${containment})`);
+                        
                         const edge = this.createEdgeForEReference(eRef, classifier);
                         if (edge) {
                             root.children.push(edge);
                             edgeCount++;
-                            console.log(`Created ${edge.type} edge: ${edge.sourceId} -> ${edge.targetId}`);
+                            console.log(`Created edge: ${edge.sourceId} -> ${edge.targetId} (${edge.type})`);
                         }
                     });
                 }
@@ -429,8 +462,16 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     private createEdgeForEReference(eRef: any, sourceClass: any): GEdge | null {
         const edge = new GEdge();
 
+        // Get values - handle both Ecore objects and JSON objects
+        const containment = typeof eRef.get === 'function' ? eRef.get('containment') : eRef.containment;
+        const refName = typeof eRef.get === 'function' ? eRef.get('name') : eRef.name;
+        const eType = typeof eRef.get === 'function' ? eRef.get('eType') : eRef.eType;
+        const lowerBound = typeof eRef.get === 'function' ? eRef.get('lowerBound') : eRef.lowerBound;
+        const upperBound = typeof eRef.get === 'function' ? eRef.get('upperBound') : eRef.upperBound;
+        const sourceClassName = typeof sourceClass.get === 'function' ? sourceClass.get('name') : sourceClass.name;
+
         // Determine edge type based on containment
-        if (eRef.get('containment')) {
+        if (containment) {
             edge.type = 'edge:ecore-containment';
             edge.cssClasses = ['ecore-containment'];
         } else {
@@ -438,19 +479,13 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             edge.cssClasses = ['ecore-reference'];
         }
 
-        edge.id = `${sourceClass.get('name')}_${eRef.get('name')}`;
-        edge.sourceId = sourceClass.get('name');
-        edge.targetId = this.getTypeName(eRef.get('eType'));
-
-        console.log(`Creating edge: ${edge.sourceId} -> ${edge.targetId} (${edge.type})`);
-        console.log(`eRef.eType:`, eRef.get('eType'));
-        console.log(`Resolved targetId: ${edge.targetId}`);
+        edge.id = `${sourceClassName}_${refName}`;
+        edge.sourceId = sourceClassName;
+        edge.targetId = this.getTypeName(eType);
 
         // Add label with reference name and multiplicity
-        const multiplicity = this.getMultiplicityString(eRef.get('lowerBound'), eRef.get('upperBound'));
-        const labelText = multiplicity !== '[1]' ? `${multiplicity} ${eRef.get('name')}` : eRef.get('name');
-
-        console.log(`Creating edge label: "${labelText}" for edge ${edge.id}`);
+        const multiplicity = this.getMultiplicityString(lowerBound, upperBound);
+        const labelText = multiplicity !== '[1]' ? `${multiplicity} ${refName}` : refName;
 
         const label = new GLabel();
         label.type = 'label:text';

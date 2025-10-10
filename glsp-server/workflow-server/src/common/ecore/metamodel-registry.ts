@@ -247,6 +247,132 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Adds an inheritance relationship between two classes.
+     * @param subClassName The name of the subclass
+     * @param superClassName The name of the superclass
+     */
+    addInheritance(subClassName: string, superClassName: string): void {
+        const subClass = this.findEClass(subClassName);
+        const superClass = this.findEClass(superClassName);
+        
+        if (!subClass) {
+            throw new Error(`Subclass '${subClassName}' not found in active metamodel`);
+        }
+        
+        if (!superClass) {
+            throw new Error(`Superclass '${superClassName}' not found in active metamodel`);
+        }
+
+        // Get current super types
+        let superTypes: any;
+        if (typeof subClass.get === 'function') {
+            superTypes = subClass.get('eSuperTypes');
+        } else {
+            superTypes = subClass.eSuperTypes;
+        }
+
+        // Check if inheritance already exists
+        const alreadyExists = Array.isArray(superTypes) 
+            ? superTypes.some((st: any) => {
+                const stName = typeof st.get === 'function' ? st.get('name') : st.name;
+                return stName === superClassName;
+            })
+            : false;
+
+        if (alreadyExists) {
+            throw new Error(`Inheritance relationship from '${subClassName}' to '${superClassName}' already exists`);
+        }
+
+        // Add the superclass to the subclass's eSuperTypes
+        if (typeof subClass.set === 'function') {
+            const currentSuperTypes = Array.isArray(superTypes) ? [...superTypes] : [];
+            currentSuperTypes.push(superClass);
+            subClass.set('eSuperTypes', currentSuperTypes);
+        } else {
+            if (!Array.isArray(subClass.eSuperTypes)) {
+                subClass.eSuperTypes = [];
+            }
+            subClass.eSuperTypes.push(superClass);
+        }
+    }
+
+    /**
+     * Adds a containment reference from source class to target class.
+     * @param sourceClassName The name of the source class
+     * @param targetClassName The name of the target class
+     * @param referenceName The name of the reference
+     */
+    addContainmentReference(sourceClassName: string, targetClassName: string, referenceName: string): void {
+        this.addReference(sourceClassName, targetClassName, referenceName, true);
+    }
+
+    /**
+     * Adds a reference from source class to target class.
+     * @param sourceClassName The name of the source class
+     * @param targetClassName The name of the target class
+     * @param referenceName The name of the reference
+     * @param isContainment Whether this is a containment reference
+     */
+    addReference(sourceClassName: string, targetClassName: string, referenceName: string, isContainment: boolean = false): void {
+        const sourceClass = this.findEClass(sourceClassName);
+        const targetClass = this.findEClass(targetClassName);
+        
+        if (!sourceClass) {
+            throw new Error(`Source class '${sourceClassName}' not found in active metamodel`);
+        }
+        
+        if (!targetClass) {
+            throw new Error(`Target class '${targetClassName}' not found in active metamodel`);
+        }
+
+        // Check if reference already exists
+        let references: any[];
+        if (typeof sourceClass.get === 'function') {
+            references = sourceClass.get('eStructuralFeatures') || [];
+        } else {
+            references = sourceClass.eReferences || [];
+        }
+
+        const existingRef = references.find((ref: any) => {
+            const refName = typeof ref.get === 'function' ? ref.get('name') : ref.name;
+            return refName === referenceName;
+        });
+
+        if (existingRef) {
+            throw new Error(`Reference '${referenceName}' already exists in class '${sourceClassName}'`);
+        }
+
+        // Create the reference
+        const eReference = {
+            name: referenceName,
+            eType: targetClass,
+            containment: isContainment,
+            lowerBound: 0,
+            upperBound: isContainment ? -1 : 1, // Containment is typically 0..* or 1..*, reference is typically 0..1 or 1..1
+            unique: true,
+            ordered: false,
+            get: function(key: string) {
+                return (this as any)[key];
+            },
+            set: function(key: string, value: any) {
+                (this as any)[key] = value;
+            }
+        };
+
+        // Add the reference to the source class
+        if (typeof sourceClass.set === 'function') {
+            const currentFeatures = Array.isArray(references) ? [...references] : [];
+            currentFeatures.push(eReference);
+            sourceClass.set('eStructuralFeatures', currentFeatures);
+        } else {
+            if (!Array.isArray(sourceClass.eReferences)) {
+                sourceClass.eReferences = [];
+            }
+            sourceClass.eReferences.push(eReference);
+        }
+    }
+
+    /**
      * Gets information about all registered metamodels.
      * @returns Array of metamodel info objects
      */

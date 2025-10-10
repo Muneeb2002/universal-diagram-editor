@@ -1,14 +1,4 @@
-/********************************************************************************
- * Copyright (c) 2024 Eclipse GLSP and others.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
- *
- * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
-
-import { Args, PaletteItem, TriggerNodeCreationAction, TriggerEdgeCreationAction } from '@eclipse-glsp/protocol';
+import { Args, PaletteItem, TriggerEdgeCreationAction } from '@eclipse-glsp/protocol';
 import { inject, injectable } from 'inversify';
 import { ToolPaletteItemProvider, ModelState } from '@eclipse-glsp/server';
 
@@ -35,17 +25,12 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
         const metamodelItems: PaletteItem[] = [];
         const relationshipItems: PaletteItem[] = [];
 
-        // Core Ecore metamodeling elements
+        // Only EClass for metamodel elements
         metamodelItems.push(
-            this.createEClassPaletteItem(),
-            this.createNodePaletteItem('EDataType', 'ecore:datatype', 'Create EDataType'),
-            this.createNodePaletteItem('EEnum', 'ecore:enum', 'Create EEnum'),
-            this.createNodePaletteItem('EAttribute', 'ecore:attribute', 'Create EAttribute'),
-            this.createNodePaletteItem('EReference', 'ecore:reference', 'Create EReference'),
-            this.createNodePaletteItem('EPackage', 'ecore:package', 'Create EPackage')
+            this.createEClassPaletteItem()
         );
 
-        // Relationship types for metamodeling
+        // All relationship types for metamodeling
         relationshipItems.push(
             this.createEdgePaletteItem('Inheritance', 'edge:ecore-inheritance', 'Create Inheritance'),
             this.createEdgePaletteItem('Reference', 'edge:ecore-reference', 'Create Reference'),
@@ -74,15 +59,6 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
 
 
 
-    private createNodePaletteItem(label: string, elementTypeId: string, actionLabel: string): PaletteItem {
-        return {
-            id: `palette-item-${elementTypeId}`,
-            label: label,
-            actions: [TriggerNodeCreationAction.create(elementTypeId)],
-            icon: 'symbol-property',
-            sortString: label
-        };
-    }
 
     private createEdgePaletteItem(label: string, elementTypeId: string, actionLabel: string): PaletteItem {
         return {

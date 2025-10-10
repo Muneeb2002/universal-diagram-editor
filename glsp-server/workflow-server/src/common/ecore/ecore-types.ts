@@ -70,13 +70,15 @@ export function isEAttribute(feature: any): boolean {
     
     // Check for custom EAttribute objects (created by our custom metamodel creation)
     // Custom EAttribute objects have name, eType, lowerBound, upperBound properties and get/set methods
+    // BUT they should NOT have a containment property (that's for references)
     if (feature && 
         typeof feature.name === 'string' && 
         feature.eType && 
         typeof feature.lowerBound === 'number' && 
         typeof feature.upperBound === 'number' &&
         typeof feature.get === 'function' &&
-        typeof feature.set === 'function') {
+        typeof feature.set === 'function' &&
+        !('containment' in feature)) {  // Exclude references which have containment property
         return true;
     }
     
@@ -84,7 +86,22 @@ export function isEAttribute(feature: any): boolean {
 }
 
 export function isEReference(feature: any): boolean {
-    return feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EReference';
+    // Check for real Ecore EReference objects
+    if (feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EReference') {
+        return true;
+    }
+    
+    // Check for custom EReference objects (created by our metamodel registry)
+    if (feature && 
+        typeof feature.name === 'string' && 
+        feature.eType && 
+        typeof feature.containment === 'boolean' &&
+        typeof feature.get === 'function' &&
+        typeof feature.set === 'function') {
+        return true;
+    }
+    
+    return false;
 }
 
 export function isEStructuralFeature(element: any): boolean {
