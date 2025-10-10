@@ -34,6 +34,7 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
         relationshipItems.push(
             this.createEdgePaletteItem('Inheritance', 'edge:ecore-inheritance', 'Create Inheritance'),
             this.createEdgePaletteItem('Reference', 'edge:ecore-reference', 'Create Reference'),
+            this.createEdgePaletteItem('Bidirectional', 'edge:ecore-bidirectional', 'Create Bidirectional Reference'),
             this.createEdgePaletteItem('Containment', 'edge:ecore-containment', 'Create Containment')
         );
 

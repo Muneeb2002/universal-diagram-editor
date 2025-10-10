@@ -37,7 +37,6 @@ export class EcoreEdgeView extends PolylineEdgeView {
         // Apply CSS classes for styling
         if (vnode?.data) {
             const cssClasses = (edge as any).cssClasses || [];
-            console.log(`EcoreEdgeView.render() - Applying CSS classes:`, cssClasses);
             cssClasses.forEach((cssClass: string) => {
                 vnode.data!.class = vnode.data!.class || {};
                 vnode.data!.class[cssClass] = true;

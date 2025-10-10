@@ -449,7 +449,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
                         if (edge) {
                             root.children.push(edge);
                             edgeCount++;
-                            console.log(`Created edge: ${edge.sourceId} -> ${edge.targetId} (${edge.type})`);
+                            console.log(`Created edge: ${edge.sourceId} -> ${edge.targetId} (${edge.type}) with CSS classes:`, edge.cssClasses);
                         }
                     });
                 }
@@ -469,11 +469,42 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const lowerBound = typeof eRef.get === 'function' ? eRef.get('lowerBound') : eRef.lowerBound;
         const upperBound = typeof eRef.get === 'function' ? eRef.get('upperBound') : eRef.upperBound;
         const sourceClassName = typeof sourceClass.get === 'function' ? sourceClass.get('name') : sourceClass.name;
-
-        // Determine edge type based on containment
+        
+        // Check for eOpposite to determine if this is a bidirectional reference
+        // Try multiple ways to access eOpposite
+        let eOpposite = null;
+        let isBidirectional = false;
+        
+        // Method 1: Try Ecore object method
+        if (typeof eRef.get === 'function') {
+            eOpposite = eRef.get('eOpposite');
+        } else {
+            // Method 2: Try direct property access
+            eOpposite = eRef.eOpposite;
+        }
+        
+        // Method 3: Try the stored _eOpposite (from parser)
+        if (!eOpposite && (eRef as any)._eOpposite) {
+            eOpposite = (eRef as any)._eOpposite;
+        }
+        
+        if (eOpposite) {
+            if (typeof eOpposite.get === 'function') {
+                // This is a resolved eOpposite object
+                isBidirectional = eOpposite.get('name') !== undefined;
+            } else if (typeof eOpposite === 'object' && eOpposite.name) {
+                // This is an unresolved eOpposite from JSON
+                isBidirectional = true;
+            }
+        }
+        
+        // Determine edge type based on containment and bidirectionality
         if (containment) {
             edge.type = 'edge:ecore-containment';
             edge.cssClasses = ['ecore-containment'];
+        } else if (isBidirectional) {
+            edge.type = 'edge:ecore-reference';
+            edge.cssClasses = ['ecore-reference', 'bidirectional'];
         } else {
             edge.type = 'edge:ecore-reference';
             edge.cssClasses = ['ecore-reference'];
@@ -485,7 +516,12 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         // Add label with reference name and multiplicity
         const multiplicity = this.getMultiplicityString(lowerBound, upperBound);
-        const labelText = multiplicity !== '[1]' ? `${multiplicity} ${refName}` : refName;
+        let labelText = multiplicity !== '[1]' ? `${multiplicity} ${refName}` : refName;
+        
+        // Add bidirectional indicator for bidirectional references
+        if (isBidirectional) {
+            labelText = `↔ ${labelText}`;
+        }
 
         const label = new GLabel();
         label.type = 'label:text';

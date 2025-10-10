@@ -20,7 +20,8 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
     override readonly elementTypeIds = [
         'edge:ecore-inheritance',
         'edge:ecore-containment', 
-        'edge:ecore-reference'
+        'edge:ecore-reference',
+        'edge:ecore-bidirectional'
     ];
 
     constructor() {
@@ -67,6 +68,8 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
                 return this.createContainmentEdge(sourceClassName, targetClassName);
             case 'edge:ecore-reference':
                 return this.createReferenceEdge(sourceClassName, targetClassName);
+            case 'edge:ecore-bidirectional':
+                return this.createBidirectionalReferenceEdge(sourceClassName, targetClassName);
             default:
                 console.error(`Unknown edge type: ${edgeType}, defaulting to containment`);
                 return this.createContainmentEdge(sourceClassName, targetClassName);
@@ -141,6 +144,39 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
         label.type = 'label:text';
         label.id = `${edge.id}_label`;
         label.text = `${targetClassName.toLowerCase()}`;
+        edge.children.push(label);
+
+        return edge;
+    }
+
+    private createBidirectionalReferenceEdge(sourceClassName: string, targetClassName: string): GEdge {
+        const edge = new GEdge();
+        edge.type = 'edge:ecore-reference';
+        edge.id = `${sourceClassName}_bidirectional_${targetClassName}`;
+        edge.sourceId = sourceClassName;
+        edge.targetId = targetClassName;
+        edge.cssClasses = ['ecore-reference', 'bidirectional'];
+
+        // Add bidirectional reference to the metamodel
+        try {
+            const sourceRefName = `${targetClassName.toLowerCase()}s`; // Plural for collection
+            const targetRefName = `${sourceClassName.toLowerCase()}s`; // Plural for collection
+            this.metamodelRegistry.addBidirectionalReference(
+                sourceClassName, 
+                targetClassName, 
+                sourceRefName, 
+                targetRefName
+            );
+            console.log(`Added bidirectional reference: ${sourceClassName} <-> ${targetClassName}`);
+        } catch (error) {
+            console.error(`Error adding bidirectional reference: ${error}`);
+        }
+
+        // Add label showing the bidirectional relationship
+        const label = new GLabel();
+        label.type = 'label:text';
+        label.id = `${edge.id}_label`;
+        label.text = `↔ ${targetClassName.toLowerCase()}s`;
         edge.children.push(label);
 
         return edge;

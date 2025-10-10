@@ -60,6 +60,10 @@ export class EcoreContainmentEdge extends GEdge {
     static readonly TYPE = 'edge:ecore-containment';
 }
 
+export class EcoreBidirectionalEdge extends GEdge {
+    static readonly TYPE = 'edge:ecore-bidirectional';
+}
+
 // Define instance model elements
 export class EcoreInstanceNode extends GNode {
     static readonly TYPE = 'ecore:instance';
@@ -83,6 +87,7 @@ export const metamodelDiagramModule = new FeatureModule(
         configureModelElement(context, 'edge:ecore-reference', EcoreReferenceEdge, EcoreEdgeView);
         configureModelElement(context, 'edge:ecore-inheritance', EcoreInheritanceEdge, EcoreEdgeView);
         configureModelElement(context, 'edge:ecore-containment', EcoreContainmentEdge, EcoreEdgeView);
+        configureModelElement(context, 'edge:ecore-bidirectional', EcoreBidirectionalEdge, EcoreEdgeView);
 
         // Configure Ecore instance elements with custom views
         configureModelElement(context, 'ecore:instance', EcoreInstanceNode, EcoreInstanceNodeView);

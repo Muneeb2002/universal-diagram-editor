@@ -45,6 +45,7 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
         mapping.set('label:heading', GLabel);
         mapping.set('label:text', GLabel);
         mapping.set('edge:ecore-reference', GEdge);
+        mapping.set('edge:ecore-bidirectional', GEdge);
         mapping.set('edge:inst-reference', GEdge);
 
         // Add dynamic instance type patterns - these will match any inst:* type
@@ -168,6 +169,15 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
             },
             {
                 elementTypeId: 'edge:ecore-inheritance',
+                dynamic: true,
+                sourceElementTypeIds: ['ecore:class'],
+                targetElementTypeIds: ['ecore:class'],
+                repositionable: true,
+                deletable: true,
+                routable: true
+            },
+            {
+                elementTypeId: 'edge:ecore-bidirectional',
                 dynamic: true,
                 sourceElementTypeIds: ['ecore:class'],
                 targetElementTypeIds: ['ecore:class'],

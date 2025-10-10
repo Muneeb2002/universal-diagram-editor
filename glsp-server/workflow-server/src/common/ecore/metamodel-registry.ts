@@ -373,6 +373,99 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Adds a bidirectional reference between two classes.
+     * @param sourceClassName The name of the source class
+     * @param targetClassName The name of the target class
+     * @param sourceRefName The name of the reference in the source class
+     * @param targetRefName The name of the reference in the target class
+     * @param isContainment Whether this is a containment reference
+     */
+    addBidirectionalReference(
+        sourceClassName: string, 
+        targetClassName: string, 
+        sourceRefName: string, 
+        targetRefName: string, 
+        isContainment: boolean = false
+    ): void {
+        const sourceClass = this.findEClass(sourceClassName);
+        const targetClass = this.findEClass(targetClassName);
+        
+        if (!sourceClass) {
+            throw new Error(`Source class '${sourceClassName}' not found in active metamodel`);
+        }
+        
+        if (!targetClass) {
+            throw new Error(`Target class '${targetClassName}' not found in active metamodel`);
+        }
+
+        // Create the source reference
+        const sourceReference: any = {
+            name: sourceRefName,
+            eType: targetClass,
+            containment: isContainment,
+            lowerBound: 0,
+            upperBound: isContainment ? -1 : 1,
+            unique: true,
+            ordered: false,
+            eOpposite: null, // Will be set after target reference is created
+            get: function(key: string) {
+                return (this as any)[key];
+            },
+            set: function(key: string, value: any) {
+                (this as any)[key] = value;
+            }
+        };
+
+        // Create the target reference
+        const targetReference: any = {
+            name: targetRefName,
+            eType: sourceClass,
+            containment: false, // Opposite is never containment
+            lowerBound: 0,
+            upperBound: -1, // Opposite is typically 0..*
+            unique: true,
+            ordered: false,
+            eOpposite: null, // Will be set after source reference is created
+            get: function(key: string) {
+                return (this as any)[key];
+            },
+            set: function(key: string, value: any) {
+                (this as any)[key] = value;
+            }
+        };
+
+        // Set the eOpposite relationships
+        sourceReference.eOpposite = targetReference;
+        targetReference.eOpposite = sourceReference;
+
+        // Add the source reference to the source class
+        if (typeof sourceClass.set === 'function') {
+            const currentFeatures = sourceClass.get('eStructuralFeatures') || [];
+            currentFeatures.push(sourceReference);
+            sourceClass.set('eStructuralFeatures', currentFeatures);
+        } else {
+            if (!Array.isArray(sourceClass.eReferences)) {
+                sourceClass.eReferences = [];
+            }
+            sourceClass.eReferences.push(sourceReference);
+        }
+
+        // Add the target reference to the target class
+        if (typeof targetClass.set === 'function') {
+            const currentFeatures = targetClass.get('eStructuralFeatures') || [];
+            currentFeatures.push(targetReference);
+            targetClass.set('eStructuralFeatures', currentFeatures);
+        } else {
+            if (!Array.isArray(targetClass.eReferences)) {
+                targetClass.eReferences = [];
+            }
+            targetClass.eReferences.push(targetReference);
+        }
+
+        console.log(`Added bidirectional reference: ${sourceClassName}.${sourceRefName} <-> ${targetClassName}.${targetRefName}`);
+    }
+
+    /**
      * Gets information about all registered metamodels.
      * @returns Array of metamodel info objects
      */

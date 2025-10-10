@@ -188,6 +188,13 @@ export class EcoreParser {
         if (typeof ref.upperBound !== 'number' || (ref.upperBound < -1 && ref.upperBound !== -1)) {
             throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: Invalid upperBound`);
         }
+
+        // Validate eOpposite if present
+        if (ref.eOpposite) {
+            if (!ref.eOpposite.name || typeof ref.eOpposite.name !== 'string') {
+                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: eOpposite must have a valid name`);
+            }
+        }
     }
 
     /**
@@ -236,6 +243,9 @@ export class EcoreParser {
                 }
             });
         }
+
+        // Third pass: resolve eOpposite relationships
+        this.resolveEOppositeRelationships(classifierMap);
 
         return epackage;
     }
@@ -359,7 +369,72 @@ export class EcoreParser {
             (ereference as any)._originalTypeName = ref.eType.name;
         }
 
+        // Store eOpposite information for later resolution
+        if (ref.eOpposite) {
+            (ereference as any)._eOpposite = {
+                name: ref.eOpposite.name
+            };
+        }
+
         return ereference;
+    }
+
+    /**
+     * Resolve eOpposite relationships between references
+     */
+    private resolveEOppositeRelationships(classifierMap: Map<string, any>): void {
+        const allReferences: Array<{ reference: any; sourceClass: any; sourceClassName: string }> = [];
+
+        // Collect all references with their source classes
+        classifierMap.forEach((eclass, className) => {
+            if (eclass && typeof eclass.get === 'function') {
+                const structuralFeatures = eclass.get('eStructuralFeatures');
+                if (structuralFeatures) {
+                    structuralFeatures.forEach((feature: any) => {
+                        if (feature && typeof feature.get === 'function' && feature.get('eClass') === eclass) {
+                            // This is a reference (not an attribute)
+                            const eOpposite = (feature as any)._eOpposite;
+                            if (eOpposite) {
+                                allReferences.push({
+                                    reference: feature,
+                                    sourceClass: eclass,
+                                    sourceClassName: className
+                                });
+                            }
+                        }
+                    });
+                }
+            }
+        });
+
+        // Resolve eOpposite relationships
+        allReferences.forEach(({ reference, sourceClass, sourceClassName }) => {
+            const eOpposite = (reference as any)._eOpposite;
+            if (eOpposite && eOpposite.name) {
+                // Find the target class
+                const targetClassName = reference.get('eType').get('name');
+                const targetClass = classifierMap.get(targetClassName);
+                
+                if (targetClass) {
+                    // Find the opposite reference in the target class
+                    const structuralFeatures = targetClass.get('eStructuralFeatures');
+                    if (structuralFeatures) {
+                        structuralFeatures.forEach((feature: any) => {
+                            if (feature && typeof feature.get === 'function' && 
+                                feature.get('name') === eOpposite.name &&
+                                feature.get('eClass') === targetClass) {
+                                
+                                // Set the eOpposite relationship
+                                reference.set('eOpposite', feature);
+                                feature.set('eOpposite', reference);
+                                
+                                console.log(`Resolved eOpposite: ${sourceClassName}.${reference.get('name')} <-> ${targetClassName}.${feature.get('name')}`);
+                            }
+                        });
+                    }
+                }
+            }
+        });
     }
 
     /**

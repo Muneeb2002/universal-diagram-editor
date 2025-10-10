@@ -133,6 +133,25 @@
     stroke: #666 !important;
 }
 
+/* Bidirectional reference edges - double line with arrows at both ends */
+.sprotty-edge.ecore-reference.bidirectional {
+    stroke: #9C27B0 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+    stroke-dasharray: 5,5 !important;
+}
+
+.sprotty-edge.ecore-reference.bidirectional>path {
+    stroke: #9C27B0 !important;
+}
+
+/* More specific selector for bidirectional edges */
+.sprotty-edge.ecore-reference.bidirectional path {
+    stroke: #9C27B0 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5,5 !important;
+}
+
 /* Inheritance edges (generalization) - brown with hollow triangle arrow */
 .sprotty-edge.ecore-inheritance {
     stroke: #8B4513 !important;
@@ -168,6 +187,11 @@
 
 .sprotty-edge.ecore-containment:hover>path {
     stroke: #1E90FF !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-reference.bidirectional:hover>path {
+    stroke: #E91E63 !important;
     stroke-width: 3px !important;
 }
 
