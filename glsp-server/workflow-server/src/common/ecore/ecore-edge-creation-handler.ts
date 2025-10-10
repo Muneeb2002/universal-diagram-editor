@@ -1,8 +1,9 @@
 import { injectable, inject } from 'inversify';
 import { GEdge, GModelElement, GLabel } from '@eclipse-glsp/graph';
 import { CreateEdgeOperation } from '@eclipse-glsp/protocol';
-import { GModelCreateEdgeOperationHandler, ModelState } from '@eclipse-glsp/server';
+import { GModelCreateEdgeOperationHandler, ModelState, ActionDispatcher } from '@eclipse-glsp/server';
 import { MetamodelRegistry } from './metamodel-registry';
+import { MultiplicityInputAction } from './ecore-server-actions';
 
 /**
  * Handler for creating Ecore edges (inheritance, containment, reference)
@@ -14,6 +15,9 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
 
     @inject(MetamodelRegistry)
     protected metamodelRegistry: MetamodelRegistry;
+
+    @inject(ActionDispatcher)
+    protected actionDispatcher: ActionDispatcher;
 
     override readonly label = 'Create Ecore Edge';
     
@@ -65,7 +69,7 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
             case 'edge:ecore-inheritance':
                 return this.createInheritanceEdge(sourceClassName, targetClassName);
             case 'edge:ecore-containment':
-                return this.createContainmentEdge(sourceClassName, targetClassName);
+                return this.createContainmentEdgeWithMultiplicity(sourceClassName, targetClassName, source.id, target.id);
             case 'edge:ecore-reference':
                 return this.createReferenceEdge(sourceClassName, targetClassName);
             case 'edge:ecore-bidirectional':
@@ -93,6 +97,27 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
         }
 
         return edge;
+    }
+
+    private createContainmentEdgeWithMultiplicity(sourceClassName: string, targetClassName: string, sourceElementId: string, targetElementId: string): GEdge | undefined {
+        console.log(`Triggering multiplicity dialog for containment edge: ${sourceClassName} -> ${targetClassName}`);
+        
+        // Dispatch action to show multiplicity dialog on client
+        const multiplicityAction = MultiplicityInputAction.create(
+            sourceClassName,
+            targetClassName,
+            'edge:ecore-containment',
+            sourceElementId,
+            targetElementId
+        );
+        
+        console.log('Dispatching MultiplicityInputAction:', multiplicityAction);
+        this.actionDispatcher.dispatch(multiplicityAction);
+        console.log('MultiplicityInputAction dispatched successfully');
+        
+        // Return undefined to prevent immediate edge creation
+        // The edge will be created after user provides multiplicity input
+        return undefined;
     }
 
     private createContainmentEdge(sourceClassName: string, targetClassName: string): GEdge {

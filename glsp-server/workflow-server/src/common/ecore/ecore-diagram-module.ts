@@ -38,6 +38,7 @@ import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-ac
 import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
 import { EcoreEdgeCreationHandler } from './ecore-edge-creation-handler';
 import { EcoreCreateEdgeActionHandler } from './ecore-create-edge-action-handler';
+import { MultiplicityInputResponseActionHandler } from './multiplicity-input-response-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -75,6 +76,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(CreateCustomMetamodelActionHandler);
         binding.add(TriggerEClassCreationActionHandler);
         binding.add(EcoreCreateEdgeActionHandler);
+        binding.add(MultiplicityInputResponseActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

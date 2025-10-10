@@ -302,8 +302,8 @@ export class MetamodelRegistry {
      * @param targetClassName The name of the target class
      * @param referenceName The name of the reference
      */
-    addContainmentReference(sourceClassName: string, targetClassName: string, referenceName: string): void {
-        this.addReference(sourceClassName, targetClassName, referenceName, true);
+    addContainmentReference(sourceClassName: string, targetClassName: string, referenceName: string, lowerBound?: number, upperBound?: number): void {
+        this.addReference(sourceClassName, targetClassName, referenceName, true, lowerBound, upperBound);
     }
 
     /**
@@ -312,8 +312,10 @@ export class MetamodelRegistry {
      * @param targetClassName The name of the target class
      * @param referenceName The name of the reference
      * @param isContainment Whether this is a containment reference
+     * @param lowerBound The lower bound for multiplicity (default: 0)
+     * @param upperBound The upper bound for multiplicity (default: -1 for containment, 1 for reference)
      */
-    addReference(sourceClassName: string, targetClassName: string, referenceName: string, isContainment: boolean = false): void {
+    addReference(sourceClassName: string, targetClassName: string, referenceName: string, isContainment: boolean = false, lowerBound?: number, upperBound?: number): void {
         const sourceClass = this.findEClass(sourceClassName);
         const targetClass = this.findEClass(targetClassName);
         
@@ -342,13 +344,16 @@ export class MetamodelRegistry {
             throw new Error(`Reference '${referenceName}' already exists in class '${sourceClassName}'`);
         }
 
-        // Create the reference
+        // Create the reference with custom multiplicity if provided
+        const finalLowerBound = lowerBound !== undefined ? lowerBound : 0;
+        const finalUpperBound = upperBound !== undefined ? upperBound : (isContainment ? -1 : 1);
+        
         const eReference = {
             name: referenceName,
             eType: targetClass,
             containment: isContainment,
-            lowerBound: 0,
-            upperBound: isContainment ? -1 : 1, // Containment is typically 0..* or 1..*, reference is typically 0..1 or 1..1
+            lowerBound: finalLowerBound,
+            upperBound: finalUpperBound, // Use custom values if provided
             unique: true,
             ordered: false,
             get: function(key: string) {

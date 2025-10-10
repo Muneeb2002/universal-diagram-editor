@@ -1,7 +1,8 @@
 import { injectable, inject } from 'inversify';
 import { Action, SetModelAction } from '@eclipse-glsp/protocol';
-import { ActionHandler, GModelFactory, ModelState } from '@eclipse-glsp/server';
+import { ActionHandler, GModelFactory, ModelState, ActionDispatcher } from '@eclipse-glsp/server';
 import { MetamodelRegistry } from './metamodel-registry';
+import { MultiplicityInputAction } from './ecore-server-actions';
 
 /**
  * Action handler for createEdge actions
@@ -18,6 +19,9 @@ export class EcoreCreateEdgeActionHandler implements ActionHandler {
 
     @inject(ModelState)
     protected modelState: ModelState;
+
+    @inject(ActionDispatcher)
+    protected actionDispatcher: ActionDispatcher;
 
     async execute(action: Action): Promise<Action[]> {
         console.log('EcoreCreateEdgeActionHandler.execute() called with action:', action);
@@ -38,10 +42,23 @@ export class EcoreCreateEdgeActionHandler implements ActionHandler {
                         console.log(`Added inheritance: ${sourceElementId} extends ${targetElementId}`);
                         break;
                     case 'edge:ecore-containment':
-                        const containmentRefName = `${targetElementId.toLowerCase()}s`;
-                        this.metamodelRegistry.addContainmentReference(sourceElementId, targetElementId, containmentRefName);
-                        console.log(`Added containment: ${sourceElementId} contains ${targetElementId}`);
-                        break;
+                        console.log(`Triggering multiplicity dialog for containment edge: ${sourceElementId} -> ${targetElementId}`);
+                        
+                        // Dispatch action to show multiplicity dialog on client
+                        const multiplicityAction = MultiplicityInputAction.create(
+                            sourceElementId,
+                            targetElementId,
+                            'edge:ecore-containment',
+                            sourceElementId,
+                            targetElementId
+                        );
+                        
+                        console.log('Dispatching MultiplicityInputAction:', multiplicityAction);
+                        this.actionDispatcher.dispatch(multiplicityAction);
+                        console.log('MultiplicityInputAction dispatched successfully');
+                        
+                        // Don't create the edge immediately - wait for user input
+                        return [];
                     case 'edge:ecore-reference':
                         const refName = `${targetElementId.toLowerCase()}`;
                         this.metamodelRegistry.addReference(sourceElementId, targetElementId, refName);
