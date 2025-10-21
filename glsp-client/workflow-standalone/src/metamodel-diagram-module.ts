@@ -36,7 +36,8 @@ import { Container } from 'inversify';
 import { EcoreClassNodeView, EcoreDataTypeNodeView, EcoreEnumNodeView, EcoreInstanceNodeView, EcoreCompartmentView } from './ecore-views';
 import { EcoreEdgeView } from './ecore-edge-views';
 import { MultiplicityInputActionHandler } from './multiplicity-input-action-handler';
-import { MultiplicityInputAction } from './ecore-client-actions';
+import { BidirectionalMultiplicityInputActionHandler } from './bidirectional-multiplicity-input-action-handler';
+import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 
 // Define Ecore-specific model elements
 export class EcoreClassNode extends GNode {
@@ -124,8 +125,9 @@ export const metamodelDiagramModule = new FeatureModule(
             show: () => { }
         });
 
-        // Configure multiplicity input action handler
+        // Configure multiplicity input action handlers
         configureActionHandler(context, MultiplicityInputAction.KIND, MultiplicityInputActionHandler);
+        configureActionHandler(context, BidirectionalMultiplicityInputAction.KIND, BidirectionalMultiplicityInputActionHandler);
     },
     { featureId: Symbol('metamodelDiagram') }
 );

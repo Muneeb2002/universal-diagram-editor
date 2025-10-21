@@ -391,10 +391,11 @@ export class EcoreParser {
                 const structuralFeatures = eclass.get('eStructuralFeatures');
                 if (structuralFeatures) {
                     structuralFeatures.forEach((feature: any) => {
-                        if (feature && typeof feature.get === 'function' && feature.get('eClass') === eclass) {
-                            // This is a reference (not an attribute)
+                        if (feature && typeof feature.get === 'function') {
+                            // Check if it's a reference (has _eOpposite or has containment/eType that's not a primitive)
                             const eOpposite = (feature as any)._eOpposite;
                             if (eOpposite) {
+                                console.log(`Found reference with eOpposite: ${className}.${feature.get('name')} -> ${eOpposite.name}`);
                                 allReferences.push({
                                     reference: feature,
                                     sourceClass: eclass,
@@ -411,27 +412,44 @@ export class EcoreParser {
         allReferences.forEach(({ reference, sourceClass, sourceClassName }) => {
             const eOpposite = (reference as any)._eOpposite;
             if (eOpposite && eOpposite.name) {
-                // Find the target class
-                const targetClassName = reference.get('eType').get('name');
-                const targetClass = classifierMap.get(targetClassName);
-                
-                if (targetClass) {
-                    // Find the opposite reference in the target class
-                    const structuralFeatures = targetClass.get('eStructuralFeatures');
-                    if (structuralFeatures) {
-                        structuralFeatures.forEach((feature: any) => {
-                            if (feature && typeof feature.get === 'function' && 
-                                feature.get('name') === eOpposite.name &&
-                                feature.get('eClass') === targetClass) {
-                                
-                                // Set the eOpposite relationship
-                                reference.set('eOpposite', feature);
-                                feature.set('eOpposite', reference);
-                                
-                                console.log(`Resolved eOpposite: ${sourceClassName}.${reference.get('name')} <-> ${targetClassName}.${feature.get('name')}`);
-                            }
-                        });
+                try {
+                    // Find the target class
+                    const eType = reference.get('eType');
+                    if (!eType) {
+                        console.warn(`No eType found for reference ${sourceClassName}.${reference.get('name')}`);
+                        return;
                     }
+                    
+                    const targetClassName = eType.get('name');
+                    const targetClass = classifierMap.get(targetClassName);
+                    
+                    if (targetClass) {
+                        // Find the opposite reference in the target class
+                        const structuralFeatures = targetClass.get('eStructuralFeatures');
+                        if (structuralFeatures) {
+                            let oppositeFound = false;
+                            structuralFeatures.forEach((feature: any) => {
+                                if (feature && typeof feature.get === 'function' && 
+                                    feature.get('name') === eOpposite.name) {
+                                    
+                                    // Set the eOpposite relationship
+                                    reference.set('eOpposite', feature);
+                                    feature.set('eOpposite', reference);
+                                    oppositeFound = true;
+                                    
+                                    console.log(`✓ Resolved eOpposite: ${sourceClassName}.${reference.get('name')} <-> ${targetClassName}.${feature.get('name')}`);
+                                }
+                            });
+                            
+                            if (!oppositeFound) {
+                                console.warn(`Could not find opposite reference '${eOpposite.name}' in class '${targetClassName}' for ${sourceClassName}.${reference.get('name')}`);
+                            }
+                        }
+                    } else {
+                        console.warn(`Could not find target class '${targetClassName}' for resolving eOpposite`);
+                    }
+                } catch (error) {
+                    console.error(`Error resolving eOpposite for ${sourceClassName}.${reference.get('name')}:`, error);
                 }
             }
         });

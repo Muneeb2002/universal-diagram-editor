@@ -3,7 +3,7 @@ import { GEdge, GModelElement, GLabel } from '@eclipse-glsp/graph';
 import { CreateEdgeOperation } from '@eclipse-glsp/protocol';
 import { GModelCreateEdgeOperationHandler, ModelState, ActionDispatcher } from '@eclipse-glsp/server';
 import { MetamodelRegistry } from './metamodel-registry';
-import { MultiplicityInputAction } from './ecore-server-actions';
+import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-server-actions';
 
 /**
  * Handler for creating Ecore edges (inheritance, containment, reference)
@@ -73,7 +73,7 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
             case 'edge:ecore-reference':
                 return this.createReferenceEdgeWithMultiplicity(sourceClassName, targetClassName, source.id, target.id);
             case 'edge:ecore-bidirectional':
-                return this.createBidirectionalReferenceEdge(sourceClassName, targetClassName);
+                return this.createBidirectionalReferenceEdgeWithMultiplicity(sourceClassName, targetClassName, source.id, target.id);
             default:
                 console.error(`Unknown edge type: ${edgeType}, defaulting to containment`);
                 return this.createContainmentEdge(sourceClassName, targetClassName);
@@ -168,37 +168,24 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
         return undefined;
     }
 
-    private createBidirectionalReferenceEdge(sourceClassName: string, targetClassName: string): GEdge {
-        const edge = new GEdge();
-        edge.type = 'edge:ecore-reference';
-        edge.id = `${sourceClassName}_bidirectional_${targetClassName}`;
-        edge.sourceId = sourceClassName;
-        edge.targetId = targetClassName;
-        edge.cssClasses = ['ecore-reference', 'bidirectional'];
-
-        // Add bidirectional reference to the metamodel
-        try {
-            const sourceRefName = `${targetClassName.toLowerCase()}s`; // Plural for collection
-            const targetRefName = `${sourceClassName.toLowerCase()}s`; // Plural for collection
-            this.metamodelRegistry.addBidirectionalReference(
-                sourceClassName, 
-                targetClassName, 
-                sourceRefName, 
-                targetRefName
-            );
-            console.log(`Added bidirectional reference: ${sourceClassName} <-> ${targetClassName}`);
-        } catch (error) {
-            console.error(`Error adding bidirectional reference: ${error}`);
-        }
-
-        // Add label showing the bidirectional relationship
-        const label = new GLabel();
-        label.type = 'label:text';
-        label.id = `${edge.id}_label`;
-        label.text = `↔ ${targetClassName.toLowerCase()}s`;
-        edge.children.push(label);
-
-        return edge;
+    private createBidirectionalReferenceEdgeWithMultiplicity(sourceClassName: string, targetClassName: string, sourceElementId: string, targetElementId: string): GEdge | undefined {
+        console.log(`Triggering bidirectional multiplicity dialog for: ${sourceClassName} <-> ${targetClassName}`);
+        
+        // Dispatch action to show bidirectional multiplicity dialog on client
+        const bidirectionalAction = BidirectionalMultiplicityInputAction.create(
+            sourceClassName,
+            targetClassName,
+            sourceElementId,
+            targetElementId
+        );
+        
+        console.log('Dispatching BidirectionalMultiplicityInputAction:', bidirectionalAction);
+        this.actionDispatcher.dispatch(bidirectionalAction);
+        console.log('BidirectionalMultiplicityInputAction dispatched successfully');
+        
+        // Return undefined to prevent immediate edge creation
+        // The edge will be created after user provides multiplicity input
+        return undefined;
     }
 
 }

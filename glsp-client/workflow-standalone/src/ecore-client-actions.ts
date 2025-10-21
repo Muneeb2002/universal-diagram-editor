@@ -328,3 +328,70 @@ export namespace MultiplicityInputResponseAction {
     }
 }
 
+// Bidirectional Reference Actions
+export interface BidirectionalMultiplicityInputAction extends Action {
+    kind: typeof BidirectionalMultiplicityInputAction.KIND;
+    sourceClassName: string;
+    targetClassName: string;
+    sourceElementId: string;
+    targetElementId: string;
+}
+
+export namespace BidirectionalMultiplicityInputAction {
+    export const KIND = 'bidirectionalMultiplicityInput';
+    
+    export function create(
+        sourceClassName: string,
+        targetClassName: string,
+        sourceElementId: string,
+        targetElementId: string
+    ): BidirectionalMultiplicityInputAction {
+        return {
+            kind: KIND,
+            sourceClassName,
+            targetClassName,
+            sourceElementId,
+            targetElementId
+        };
+    }
+}
+
+export interface BidirectionalMultiplicityInputResponseAction extends Action {
+    kind: typeof BidirectionalMultiplicityInputResponseAction.KIND;
+    sourceReferenceName: string;
+    sourceLowerBound: number;
+    sourceUpperBound: number;
+    targetReferenceName: string;
+    targetLowerBound: number;
+    targetUpperBound: number;
+    sourceElementId: string;
+    targetElementId: string;
+}
+
+export namespace BidirectionalMultiplicityInputResponseAction {
+    export const KIND = 'bidirectionalMultiplicityInputResponse';
+    
+    export function create(
+        sourceReferenceName: string,
+        sourceLowerBound: number,
+        sourceUpperBound: number,
+        targetReferenceName: string,
+        targetLowerBound: number,
+        targetUpperBound: number,
+        sourceElementId: string,
+        targetElementId: string
+    ): BidirectionalMultiplicityInputResponseAction {
+        return {
+            kind: KIND,
+            sourceReferenceName,
+            sourceLowerBound,
+            sourceUpperBound,
+            targetReferenceName,
+            targetLowerBound,
+            targetUpperBound,
+            sourceElementId,
+            targetElementId
+        };
+    }
+}
+

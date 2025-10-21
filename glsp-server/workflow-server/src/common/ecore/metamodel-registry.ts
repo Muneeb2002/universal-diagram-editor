@@ -384,13 +384,21 @@ export class MetamodelRegistry {
      * @param sourceRefName The name of the reference in the source class
      * @param targetRefName The name of the reference in the target class
      * @param isContainment Whether this is a containment reference
+     * @param sourceLowerBound Lower bound for source reference (default: 0)
+     * @param sourceUpperBound Upper bound for source reference (default: 1)
+     * @param targetLowerBound Lower bound for target reference (default: 0)
+     * @param targetUpperBound Upper bound for target reference (default: -1)
      */
     addBidirectionalReference(
         sourceClassName: string, 
         targetClassName: string, 
         sourceRefName: string, 
         targetRefName: string, 
-        isContainment: boolean = false
+        isContainment: boolean = false,
+        sourceLowerBound?: number,
+        sourceUpperBound?: number,
+        targetLowerBound?: number,
+        targetUpperBound?: number
     ): void {
         const sourceClass = this.findEClass(sourceClassName);
         const targetClass = this.findEClass(targetClassName);
@@ -403,13 +411,19 @@ export class MetamodelRegistry {
             throw new Error(`Target class '${targetClassName}' not found in active metamodel`);
         }
 
+        // Set default multiplicity values if not provided
+        const finalSourceLowerBound = sourceLowerBound !== undefined ? sourceLowerBound : 0;
+        const finalSourceUpperBound = sourceUpperBound !== undefined ? sourceUpperBound : (isContainment ? -1 : 1);
+        const finalTargetLowerBound = targetLowerBound !== undefined ? targetLowerBound : 0;
+        const finalTargetUpperBound = targetUpperBound !== undefined ? targetUpperBound : -1;
+
         // Create the source reference
         const sourceReference: any = {
             name: sourceRefName,
             eType: targetClass,
             containment: isContainment,
-            lowerBound: 0,
-            upperBound: isContainment ? -1 : 1,
+            lowerBound: finalSourceLowerBound,
+            upperBound: finalSourceUpperBound,
             unique: true,
             ordered: false,
             eOpposite: null, // Will be set after target reference is created
@@ -426,8 +440,8 @@ export class MetamodelRegistry {
             name: targetRefName,
             eType: sourceClass,
             containment: false, // Opposite is never containment
-            lowerBound: 0,
-            upperBound: -1, // Opposite is typically 0..*
+            lowerBound: finalTargetLowerBound,
+            upperBound: finalTargetUpperBound,
             unique: true,
             ordered: false,
             eOpposite: null, // Will be set after source reference is created
@@ -1178,6 +1192,17 @@ export class MetamodelRegistry {
                                         featureData.container = feature.container;
                                     } else if (feature.get?.('container') !== undefined) {
                                         featureData.container = feature.get('container');
+                                    }
+
+                                    // Handle eOpposite for bidirectional references
+                                    const eOpposite = feature.eOpposite || feature.get?.('eOpposite');
+                                    if (eOpposite) {
+                                        const oppositeName = eOpposite.name || eOpposite.get?.('name');
+                                        if (oppositeName) {
+                                            featureData.eOpposite = {
+                                                name: oppositeName
+                                            };
+                                        }
                                     }
 
                                     // Determine if it's an attribute or reference based on eType

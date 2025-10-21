@@ -2,7 +2,7 @@ import { injectable, inject } from 'inversify';
 import { Action, SetModelAction } from '@eclipse-glsp/protocol';
 import { ActionHandler, GModelFactory, ModelState, ActionDispatcher } from '@eclipse-glsp/server';
 import { MetamodelRegistry } from './metamodel-registry';
-import { MultiplicityInputAction } from './ecore-server-actions';
+import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-server-actions';
 
 /**
  * Action handler for createEdge actions
@@ -74,6 +74,23 @@ export class EcoreCreateEdgeActionHandler implements ActionHandler {
                         console.log('Dispatching MultiplicityInputAction for reference:', referenceMultiplicityAction);
                         this.actionDispatcher.dispatch(referenceMultiplicityAction);
                         console.log('MultiplicityInputAction dispatched successfully');
+                        
+                        // Don't create the edge immediately - wait for user input
+                        return [];
+                    case 'edge:ecore-bidirectional':
+                        console.log(`Triggering bidirectional multiplicity dialog for: ${sourceElementId} <-> ${targetElementId}`);
+                        
+                        // Dispatch action to show bidirectional multiplicity dialog on client
+                        const bidirectionalMultiplicityAction = BidirectionalMultiplicityInputAction.create(
+                            sourceElementId,
+                            targetElementId,
+                            sourceElementId,
+                            targetElementId
+                        );
+                        
+                        console.log('Dispatching BidirectionalMultiplicityInputAction:', bidirectionalMultiplicityAction);
+                        this.actionDispatcher.dispatch(bidirectionalMultiplicityAction);
+                        console.log('BidirectionalMultiplicityInputAction dispatched successfully');
                         
                         // Don't create the edge immediately - wait for user input
                         return [];
