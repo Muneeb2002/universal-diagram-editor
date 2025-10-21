@@ -144,10 +144,10 @@ export class EcoreContextMenu {
         const actionsContainer = document.createElement('div');
         actionsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
 
-        const editPropertiesBtn = this.createMenuItem('Edit Properties...', () => this.editProperties());
+        const addAttributeBtn = this.createMenuItem('Add Attribute...', () => this.addAttribute());
         const deleteClassBtn = this.createMenuItem('Delete Class...', () => this.deleteClass());
 
-        actionsContainer.appendChild(editPropertiesBtn);
+        actionsContainer.appendChild(addAttributeBtn);
         actionsContainer.appendChild(deleteClassBtn);
         actionsSection.appendChild(actionsContainer);
 
@@ -264,15 +264,13 @@ export class EcoreContextMenu {
 
 
 
-    private editProperties(): void {
-        if (!this.currentClass) {
-            return;
+    private addAttribute(): void {
+        if (!this.currentClass) return;
+        // Call the global showAddAttributeDialog function
+        if ((window as any).showAddAttributeDialog) {
+            (window as any).showAddAttributeDialog(this.currentClass.className);
         }
-
-        // Open the full property editor
-        alert(`Opening property editor for class: ${this.currentClass.className}\n\nThis would show the full React property editor with all attributes and references.`);
-        
-        // TODO: Integrate with the React property editor component
+        this.hide();
     }
 
     private deleteClass(): void {

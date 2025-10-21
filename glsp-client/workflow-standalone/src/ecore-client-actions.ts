@@ -264,6 +264,35 @@ export function createCreateEClassAction(
     };
 }
 
+/**
+ * Action to add an attribute to an existing EClass.
+ */
+export interface AddAttributeAction extends Action {
+    kind: 'addAttribute';
+    className: string;
+    attributeName: string;
+    attributeType: string;
+    lowerBound: number;
+    upperBound: number;
+}
+
+export function createAddAttributeAction(
+    className: string,
+    attributeName: string,
+    attributeType: string,
+    lowerBound: number = 0,
+    upperBound: number = 1
+): AddAttributeAction {
+    return {
+        kind: 'addAttribute',
+        className,
+        attributeName,
+        attributeType,
+        lowerBound,
+        upperBound
+    };
+}
+
 // Multiplicity Input Actions for Containment Edges
 export interface MultiplicityInputAction extends Action {
     kind: typeof MultiplicityInputAction.KIND;

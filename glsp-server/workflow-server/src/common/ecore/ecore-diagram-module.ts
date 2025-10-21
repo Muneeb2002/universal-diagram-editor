@@ -40,6 +40,7 @@ import { EcoreEdgeCreationHandler } from './ecore-edge-creation-handler';
 import { EcoreCreateEdgeActionHandler } from './ecore-create-edge-action-handler';
 import { MultiplicityInputResponseActionHandler } from './multiplicity-input-response-action-handler';
 import { BidirectionalMultiplicityInputResponseActionHandler } from './bidirectional-multiplicity-input-response-action-handler';
+import { AddAttributeActionHandler } from './add-attribute-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -78,6 +79,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(EcoreCreateEdgeActionHandler);
         binding.add(MultiplicityInputResponseActionHandler);
         binding.add(BidirectionalMultiplicityInputResponseActionHandler);
+        binding.add(AddAttributeActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

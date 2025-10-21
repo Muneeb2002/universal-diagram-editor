@@ -1080,6 +1080,146 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Adds an attribute to an existing EClass.
+     * @param className The name of the class to add the attribute to
+     * @param attributeName The name of the attribute
+     * @param attributeType The type of the attribute (EString, EInt, EBoolean, etc.)
+     * @param lowerBound The lower bound for multiplicity (default: 0)
+     * @param upperBound The upper bound for multiplicity (default: 1)
+     * @returns Success status and message
+     */
+    addAttribute(
+        className: string,
+        attributeName: string,
+        attributeType: string,
+        lowerBound: number = 0,
+        upperBound: number = 1
+    ): { success: boolean; message?: string } {
+        try {
+            // Find the class
+            const eClass = this.findEClass(className);
+            if (!eClass) {
+                return {
+                    success: false,
+                    message: `Class '${className}' not found in active metamodel`
+                };
+            }
+
+            // Validate attribute name
+            this.validateName(attributeName);
+
+            // Check if attribute already exists
+            let existingFeatures: any[];
+            if (typeof eClass.get === 'function') {
+                existingFeatures = eClass.get('eStructuralFeatures') || [];
+            } else {
+                existingFeatures = [...(eClass.eAttributes || []), ...(eClass.eReferences || [])];
+            }
+
+            const existingAttr = existingFeatures.find((feature: any) => {
+                const featureName = typeof feature.get === 'function' ? feature.get('name') : feature.name;
+                return featureName === attributeName;
+            });
+
+            if (existingAttr) {
+                return {
+                    success: false,
+                    message: `Attribute or reference '${attributeName}' already exists in class '${className}'`
+                };
+            }
+
+            // Map attribute type to ecore-ts type
+            const eType = this.mapAttributeTypeToEcoreType(attributeType);
+            
+            // Create the attribute
+            let attribute: any;
+            
+            if (typeof eClass.get === 'function') {
+                // ecore-ts EClass - create proper ecore-ts EAttribute
+                attribute = EAttribute.create({
+                    name: attributeName,
+                    eType: eType,
+                    lowerBound: lowerBound,
+                    upperBound: upperBound,
+                    unique: true,
+                    ordered: false
+                });
+                // Add using .add() on the EList
+                (eClass as any).get('eStructuralFeatures').add(attribute);
+            } else {
+                // Plain JavaScript object - create plain JS attribute
+                attribute = {
+                    name: attributeName,
+                    eType: { name: attributeType },
+                    lowerBound: lowerBound,
+                    upperBound: upperBound,
+                    unique: true,
+                    ordered: false,
+                    get: function(key: string) {
+                        return (this as any)[key];
+                    },
+                    set: function(key: string, value: any) {
+                        (this as any)[key] = value;
+                    }
+                };
+                // Add using .push()
+                if (!Array.isArray(eClass.eAttributes)) {
+                    eClass.eAttributes = [];
+                }
+                eClass.eAttributes.push(attribute);
+                
+                // Also add to eStructuralFeatures if it exists
+                if (Array.isArray(eClass.eStructuralFeatures)) {
+                    eClass.eStructuralFeatures.push(attribute);
+                }
+            }
+
+            console.log(`Added attribute '${attributeName}' (${attributeType}) to class '${className}'`);
+
+            return {
+                success: true,
+                message: `Successfully added attribute '${attributeName}' to class '${className}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to add attribute: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
+     * Maps attribute type name to ecore-ts type object.
+     */
+    private mapAttributeTypeToEcoreType(typeName: string): any {
+        switch (typeName) {
+            case 'EString':
+                return EString;
+            case 'EInt':
+                const { EInt } = require('ecore-ts');
+                return EInt;
+            case 'EBoolean':
+                const { EBoolean } = require('ecore-ts');
+                return EBoolean;
+            case 'EDouble':
+                const { EDouble } = require('ecore-ts');
+                return EDouble;
+            case 'EFloat':
+                const { EFloat } = require('ecore-ts');
+                return EFloat;
+            case 'ELong':
+                const { ELong } = require('ecore-ts');
+                return ELong;
+            case 'EDate':
+                const { EDate } = require('ecore-ts');
+                return EDate;
+            default:
+                // Default to EString if type not recognized
+                return EString;
+        }
+    }
+
+    /**
      * Serialize metamodel to JSON, handling circular references.
      */
     private serializeMetamodelToJSON(metamodel: any): string {

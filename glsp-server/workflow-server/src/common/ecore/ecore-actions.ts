@@ -424,3 +424,43 @@ export namespace TriggerEClassCreationAction {
         };
     }
 }
+
+/**
+ * Action to add an attribute to an existing EClass.
+ */
+export interface AddAttributeAction extends Action {
+    kind: typeof AddAttributeAction.KIND;
+    className: string;
+    attributeName: string;
+    attributeType: string;
+    lowerBound: number;
+    upperBound: number;
+}
+
+export namespace AddAttributeAction {
+    export const KIND = 'addAttribute';
+
+    export function is(object: any): object is AddAttributeAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'className') && 
+               hasStringProp(object, 'attributeName') && 
+               hasStringProp(object, 'attributeType');
+    }
+
+    export function create(
+        className: string,
+        attributeName: string,
+        attributeType: string,
+        lowerBound: number = 0,
+        upperBound: number = 1
+    ): AddAttributeAction {
+        return {
+            kind: KIND,
+            className,
+            attributeName,
+            attributeType,
+            lowerBound,
+            upperBound
+        };
+    }
+}

@@ -30,7 +30,7 @@ import createContainer from './di.config';
 import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { createLoadMetamodelAction, createCreateEClassAction } from './ecore-client-actions';
+import { createLoadMetamodelAction, createCreateEClassAction, createAddAttributeAction } from './ecore-client-actions';
 
 // Global type declaration for the EClass creation dialog
 declare global {
@@ -408,3 +408,163 @@ function showEClassCreationDialog(): void {
     // Focus the name input
     nameInput.focus();
 }
+
+function showAddAttributeDialog(className: string): void {
+    // Create a dialog for adding an attribute
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 350px;
+        font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = `Add Attribute to ${className}`;
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    // Attribute Name Input
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Attribute Name:';
+    nameLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    dialog.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'e.g., name, age, description';
+    nameInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+    dialog.appendChild(nameInput);
+
+    // Attribute Type Dropdown
+    const typeLabel = document.createElement('label');
+    typeLabel.textContent = 'Attribute Type:';
+    typeLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    dialog.appendChild(typeLabel);
+
+    const typeSelect = document.createElement('select');
+    typeSelect.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;';
+    const types = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'];
+    types.forEach(type => {
+        const option = document.createElement('option');
+        option.value = type;
+        option.textContent = type;
+        typeSelect.appendChild(option);
+    });
+    dialog.appendChild(typeSelect);
+
+    // Lower Bound Input
+    const lowerBoundLabel = document.createElement('label');
+    lowerBoundLabel.textContent = 'Lower Bound:';
+    lowerBoundLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    dialog.appendChild(lowerBoundLabel);
+
+    const lowerBoundInput = document.createElement('input');
+    lowerBoundInput.type = 'number';
+    lowerBoundInput.value = '0';
+    lowerBoundInput.min = '0';
+    lowerBoundInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+    dialog.appendChild(lowerBoundInput);
+
+    // Upper Bound Input
+    const upperBoundLabel = document.createElement('label');
+    upperBoundLabel.textContent = 'Upper Bound (-1 for unlimited):';
+    upperBoundLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    dialog.appendChild(upperBoundLabel);
+
+    const upperBoundInput = document.createElement('input');
+    upperBoundInput.type = 'number';
+    upperBoundInput.value = '1';
+    upperBoundInput.min = '-1';
+    upperBoundInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+    dialog.appendChild(upperBoundInput);
+
+    // Buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    const addButton = document.createElement('button');
+    addButton.textContent = 'Add Attribute';
+    addButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
+    addButton.addEventListener('click', () => {
+        const attributeName = nameInput.value.trim();
+        if (!attributeName) {
+            alert('Please enter an attribute name');
+            return;
+        }
+
+        // Validate attribute name
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(attributeName)) {
+            alert('Attribute name must start with a letter or underscore and contain only letters, numbers, and underscores.');
+            return;
+        }
+
+        const attributeType = typeSelect.value;
+        const lowerBound = parseInt(lowerBoundInput.value, 10);
+        const upperBound = parseInt(upperBoundInput.value, 10);
+
+        // Validate bounds
+        if (lowerBound < 0) {
+            alert('Lower bound must be >= 0');
+            return;
+        }
+        if (upperBound < -1 || (upperBound >= 0 && upperBound < lowerBound)) {
+            alert('Upper bound must be >= lower bound or -1 for unlimited');
+            return;
+        }
+
+        // Add the attribute
+        if (actionDispatcher) {
+            const action = createAddAttributeAction(className, attributeName, attributeType, lowerBound, upperBound);
+            actionDispatcher.dispatch(action);
+        }
+
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    buttonContainer.appendChild(cancelButton);
+    buttonContainer.appendChild(addButton);
+    dialog.appendChild(buttonContainer);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+
+    // Focus the name input
+    nameInput.focus();
+}
+
+// Export to global scope so context menu can call it
+(window as any).showAddAttributeDialog = showAddAttributeDialog;
