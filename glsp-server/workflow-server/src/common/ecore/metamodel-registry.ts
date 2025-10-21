@@ -1220,6 +1220,106 @@ export class MetamodelRegistry {
     }
 
     /**
+     * Deletes an attribute from an existing EClass.
+     * @param className The name of the class to delete the attribute from
+     * @param attributeName The name of the attribute to delete
+     * @returns Success status and message
+     */
+    deleteAttribute(className: string, attributeName: string): { success: boolean; message?: string } {
+        try {
+            // Find the class
+            const eClass = this.findEClass(className);
+            if (!eClass) {
+                return {
+                    success: false,
+                    message: `Class '${className}' not found in active metamodel`
+                };
+            }
+
+            // Handle ecore-ts vs plain JS objects differently
+            if (typeof eClass.get === 'function') {
+                // ecore-ts EClass - use EList methods
+                const structuralFeatures = eClass.get('eStructuralFeatures');
+                
+                // Convert EList to array to find the attribute
+                let attributeToRemove: any = null;
+                
+                // Iterate through EList to find the attribute
+                if (typeof structuralFeatures.forEach === 'function') {
+                    structuralFeatures.forEach((feature: any) => {
+                        const featureName = feature.get('name');
+                        // Check if it's an attribute (not a reference)
+                        const isAttr = feature.eClass?.values?.name === 'EAttribute';
+                        if (featureName === attributeName && isAttr) {
+                            attributeToRemove = feature;
+                        }
+                    });
+                } else {
+                    // Fallback: try to convert to array
+                    const featuresArray = Array.from(structuralFeatures);
+                    attributeToRemove = featuresArray.find((feature: any) => {
+                        const featureName = feature.get('name');
+                        const isAttr = feature.eClass?.values?.name === 'EAttribute';
+                        return featureName === attributeName && isAttr;
+                    });
+                }
+
+                if (!attributeToRemove) {
+                    return {
+                        success: false,
+                        message: `Attribute '${attributeName}' not found in class '${className}'`
+                    };
+                }
+
+                // Remove using EList's remove method
+                if (typeof structuralFeatures.remove === 'function') {
+                    structuralFeatures.remove(attributeToRemove);
+                    console.log(`Removed attribute using EList.remove()`);
+                } else {
+                    return {
+                        success: false,
+                        message: `Cannot remove attribute: EList does not support remove operation`
+                    };
+                }
+            } else {
+                // Plain JS object - use array methods
+                const features = eClass.eAttributes || [];
+                const attributeIndex = features.findIndex((f: any) => f.name === attributeName);
+
+                if (attributeIndex === -1) {
+                    return {
+                        success: false,
+                        message: `Attribute '${attributeName}' not found in class '${className}'`
+                    };
+                }
+
+                // Remove using splice
+                eClass.eAttributes.splice(attributeIndex, 1);
+                
+                // Also remove from eStructuralFeatures if it exists
+                if (Array.isArray(eClass.eStructuralFeatures)) {
+                    const sfIndex = eClass.eStructuralFeatures.findIndex((f: any) => f.name === attributeName);
+                    if (sfIndex !== -1) {
+                        eClass.eStructuralFeatures.splice(sfIndex, 1);
+                    }
+                }
+            }
+
+            console.log(`Deleted attribute '${attributeName}' from class '${className}'`);
+
+            return {
+                success: true,
+                message: `Successfully deleted attribute '${attributeName}' from class '${className}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to delete attribute: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
      * Serialize metamodel to JSON, handling circular references.
      */
     private serializeMetamodelToJSON(metamodel: any): string {

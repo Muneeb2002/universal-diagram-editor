@@ -293,6 +293,26 @@ export function createAddAttributeAction(
     };
 }
 
+/**
+ * Action to delete an attribute from an existing EClass.
+ */
+export interface DeleteAttributeAction extends Action {
+    kind: 'deleteAttribute';
+    className: string;
+    attributeName: string;
+}
+
+export function createDeleteAttributeAction(
+    className: string,
+    attributeName: string
+): DeleteAttributeAction {
+    return {
+        kind: 'deleteAttribute',
+        className,
+        attributeName
+    };
+}
+
 // Multiplicity Input Actions for Containment Edges
 export interface MultiplicityInputAction extends Action {
     kind: typeof MultiplicityInputAction.KIND;

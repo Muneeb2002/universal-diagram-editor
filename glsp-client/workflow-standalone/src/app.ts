@@ -30,7 +30,7 @@ import createContainer from './di.config';
 import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { createLoadMetamodelAction, createCreateEClassAction, createAddAttributeAction } from './ecore-client-actions';
+import { createLoadMetamodelAction, createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 
 // Global type declaration for the EClass creation dialog
 declare global {
@@ -141,13 +141,53 @@ function setupContextMenu(): void {
             const isAbstract = classElement.classList.contains('abstract');
             const isInterface = classElement.classList.contains('interface');
             
-            // Create class info object
+            // Extract attributes from the rendered DOM
+            const attributes: Array<{name: string; type: string; lowerBound: number; upperBound: number; unique: boolean; ordered: boolean}> = [];
+            const references: Array<{name: string; type: string; lowerBound: number; upperBound: number; containment: boolean; container: boolean; unique: boolean; ordered: boolean}> = [];
+            
+            // Find the attributes compartment using data attribute
+            let attributesCompartment = classElement.querySelector('[data-svg-metadata-type="comp:attributes"]');
+            
+            if (attributesCompartment) {
+                // Get the text element within the compartment (all attributes are in ONE label)
+                const textElement = attributesCompartment.querySelector('text');
+                
+                if (textElement) {
+                    const fullText = textElement.textContent || '';
+                    
+                    // Split by newlines - each line is one attribute
+                    const lines = fullText.split('\n');
+                    
+                    lines.forEach((line) => {
+                        const text = line.trim();
+                        if (!text || text === 'Attributes') return;
+                        
+                        // Parse format: "name : EString[0..1]" or "name : EString [0..1]"
+                        // Note: space before and after colon, optional space before bracket
+                        const match = text.match(/^(.+?)\s*:\s*([^\[]+?)\s*(?:\[(\d+)\.\.(-?\d+|\*)\])?$/);
+                        if (match) {
+                            const [, name, type, lower, upper] = match;
+                            
+                            attributes.push({
+                                name: name.trim(),
+                                type: type.trim(),
+                                lowerBound: lower ? parseInt(lower) : 0,
+                                upperBound: upper === '*' || upper === '-1' ? -1 : (upper ? parseInt(upper) : 1),
+                                unique: true,
+                                ordered: false
+                            });
+                        }
+                    });
+                }
+            }
+            
+            // Create class info object  
             const classInfo: ClassInfo = {
                 className: className,
                 isAbstract: isAbstract,
                 isInterface: isInterface,
-                attributes: [], // TODO: Get from metamodel
-                references: []  // TODO: Get from metamodel
+                attributes: attributes,
+                references: references  // Empty for now, could be extracted similarly
             };
             
             // Show context menu
@@ -568,3 +608,184 @@ function showAddAttributeDialog(className: string): void {
 
 // Export to global scope so context menu can call it
 (window as any).showAddAttributeDialog = showAddAttributeDialog;
+
+function showDeleteAttributeDialog(className: string, attributes: Array<{name: string; type: string}>): void {
+    if (!attributes || attributes.length === 0) {
+        alert(`Class "${className}" has no attributes to delete.`);
+        return;
+    }
+
+    // Create a dialog for deleting attributes
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 400px;
+        font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = `Delete Attributes from ${className}`;
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    const description = document.createElement('p');
+    description.textContent = 'Select one or more attributes to delete:';
+    description.style.cssText = 'margin: 10px 0; color: #666;';
+    dialog.appendChild(description);
+
+    // Attribute list (checkboxes for multiple selection)
+    const attributeList = document.createElement('div');
+    attributeList.style.cssText = 'max-height: 300px; overflow-y: auto; margin: 10px 0; padding: 10px; border: 1px solid #ddd; border-radius: 4px;';
+
+    const selectedAttributes: Set<string> = new Set();
+    const checkboxes: Map<string, HTMLInputElement> = new Map();
+
+    attributes.forEach(attr => {
+        const optionDiv = document.createElement('div');
+        optionDiv.style.cssText = 'padding: 8px; margin: 4px 0; cursor: pointer; border-radius: 4px; display: flex; align-items: center;';
+        
+        const checkbox = document.createElement('input');
+        checkbox.type = 'checkbox';
+        checkbox.value = attr.name;
+        checkbox.style.cssText = 'margin-right: 10px; cursor: pointer;';
+        checkbox.addEventListener('change', () => {
+            if (checkbox.checked) {
+                selectedAttributes.add(attr.name);
+            } else {
+                selectedAttributes.delete(attr.name);
+            }
+        });
+        checkboxes.set(attr.name, checkbox);
+
+        const label = document.createElement('span');
+        label.textContent = `${attr.name}: ${attr.type}`;
+        label.style.cssText = 'flex: 1; cursor: pointer;';
+        label.addEventListener('click', () => {
+            checkbox.checked = !checkbox.checked;
+            if (checkbox.checked) {
+                selectedAttributes.add(attr.name);
+            } else {
+                selectedAttributes.delete(attr.name);
+            }
+        });
+
+        optionDiv.addEventListener('mouseenter', () => {
+            optionDiv.style.background = '#f0f0f0';
+        });
+        optionDiv.addEventListener('mouseleave', () => {
+            optionDiv.style.background = 'transparent';
+        });
+
+        optionDiv.appendChild(checkbox);
+        optionDiv.appendChild(label);
+        attributeList.appendChild(optionDiv);
+    });
+
+    dialog.appendChild(attributeList);
+
+    // Select All / Deselect All buttons
+    const selectionButtons = document.createElement('div');
+    selectionButtons.style.cssText = 'margin: 10px 0; display: flex; gap: 10px;';
+    
+    const selectAllButton = document.createElement('button');
+    selectAllButton.textContent = 'Select All';
+    selectAllButton.style.cssText = 'padding: 4px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-size: 12px;';
+    selectAllButton.addEventListener('click', () => {
+        checkboxes.forEach((checkbox, name) => {
+            checkbox.checked = true;
+            selectedAttributes.add(name);
+        });
+    });
+    
+    const deselectAllButton = document.createElement('button');
+    deselectAllButton.textContent = 'Deselect All';
+    deselectAllButton.style.cssText = 'padding: 4px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; font-size: 12px;';
+    deselectAllButton.addEventListener('click', () => {
+        checkboxes.forEach((checkbox) => {
+            checkbox.checked = false;
+        });
+        selectedAttributes.clear();
+    });
+    
+    selectionButtons.appendChild(selectAllButton);
+    selectionButtons.appendChild(deselectAllButton);
+    dialog.appendChild(selectionButtons);
+
+    // Warning message
+    const warning = document.createElement('p');
+    warning.textContent = '⚠️ This action cannot be undone.';
+    warning.style.cssText = 'margin: 10px 0; color: #d9534f; font-size: 12px; font-weight: bold;';
+    dialog.appendChild(warning);
+
+    // Buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    const deleteButton = document.createElement('button');
+    deleteButton.textContent = 'Delete Selected';
+    deleteButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #d9534f; color: white; cursor: pointer;';
+    deleteButton.addEventListener('click', async () => {
+        if (selectedAttributes.size === 0) {
+            alert('Please select at least one attribute to delete');
+            return;
+        }
+
+        const attributeList = Array.from(selectedAttributes).join(', ');
+        const pluralSuffix = selectedAttributes.size > 1 ? 's' : '';
+        const confirmed = confirm(`Are you sure you want to delete ${selectedAttributes.size} attribute${pluralSuffix} (${attributeList}) from class "${className}"?\n\nThis action cannot be undone.`);
+        
+        if (confirmed && actionDispatcher) {
+            // Delete attributes one by one
+            for (const attributeName of selectedAttributes) {
+                const action = createDeleteAttributeAction(className, attributeName);
+                await actionDispatcher.dispatch(action);
+            }
+            
+            document.body.removeChild(backdrop);
+            document.body.removeChild(dialog);
+        }
+    });
+
+    buttonContainer.appendChild(cancelButton);
+    buttonContainer.appendChild(deleteButton);
+    dialog.appendChild(buttonContainer);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+}
+
+// Export to global scope so context menu can call it
+(window as any).showDeleteAttributeDialog = showDeleteAttributeDialog;

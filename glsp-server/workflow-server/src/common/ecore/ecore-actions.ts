@@ -464,3 +464,30 @@ export namespace AddAttributeAction {
         };
     }
 }
+
+/**
+ * Action to delete an attribute from an existing EClass.
+ */
+export interface DeleteAttributeAction extends Action {
+    kind: typeof DeleteAttributeAction.KIND;
+    className: string;
+    attributeName: string;
+}
+
+export namespace DeleteAttributeAction {
+    export const KIND = 'deleteAttribute';
+
+    export function is(object: any): object is DeleteAttributeAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'className') && 
+               hasStringProp(object, 'attributeName');
+    }
+
+    export function create(className: string, attributeName: string): DeleteAttributeAction {
+        return {
+            kind: KIND,
+            className,
+            attributeName
+        };
+    }
+}

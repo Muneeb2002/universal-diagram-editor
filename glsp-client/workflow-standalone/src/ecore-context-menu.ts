@@ -145,9 +145,11 @@ export class EcoreContextMenu {
         actionsContainer.style.cssText = 'display: flex; flex-direction: column; gap: 2px;';
 
         const addAttributeBtn = this.createMenuItem('Add Attribute...', () => this.addAttribute());
+        const deleteAttributeBtn = this.createMenuItem('Delete Attribute...', () => this.deleteAttribute());
         const deleteClassBtn = this.createMenuItem('Delete Class...', () => this.deleteClass());
 
         actionsContainer.appendChild(addAttributeBtn);
+        actionsContainer.appendChild(deleteAttributeBtn);
         actionsContainer.appendChild(deleteClassBtn);
         actionsSection.appendChild(actionsContainer);
 
@@ -269,6 +271,16 @@ export class EcoreContextMenu {
         // Call the global showAddAttributeDialog function
         if ((window as any).showAddAttributeDialog) {
             (window as any).showAddAttributeDialog(this.currentClass.className);
+        }
+        this.hide();
+    }
+
+    private deleteAttribute(): void {
+        if (!this.currentClass) return;
+        // Call the global showDeleteAttributeDialog function
+        if ((window as any).showDeleteAttributeDialog) {
+            const attributes = this.currentClass.attributes || [];
+            (window as any).showDeleteAttributeDialog(this.currentClass.className, attributes);
         }
         this.hide();
     }
