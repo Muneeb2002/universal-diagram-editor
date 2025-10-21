@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { injectable } from 'inversify';
-import { EcoreModel, isEClass, isEAttribute, isEReference } from './ecore-types';
+import { EcoreModel, isEClass, isEAttribute, isEReference, EClass, EAttribute, EReference, EString } from './ecore-types';
 
 /**
  * Registry for storing and managing loaded Ecore metamodels.
@@ -284,11 +284,11 @@ export class MetamodelRegistry {
         }
 
         // Add the superclass to the subclass's eSuperTypes
-        if (typeof subClass.set === 'function') {
-            const currentSuperTypes = Array.isArray(superTypes) ? [...superTypes] : [];
-            currentSuperTypes.push(superClass);
-            subClass.set('eSuperTypes', currentSuperTypes);
+        if (typeof subClass.get === 'function') {
+            // ecore-ts EClass object - use .add() on the EList
+            (subClass as any).get('eSuperTypes').add(superClass);
         } else {
+            // Plain JavaScript object - use .push()
             if (!Array.isArray(subClass.eSuperTypes)) {
                 subClass.eSuperTypes = [];
             }
@@ -348,28 +348,40 @@ export class MetamodelRegistry {
         const finalLowerBound = lowerBound !== undefined ? lowerBound : 0;
         const finalUpperBound = upperBound !== undefined ? upperBound : (isContainment ? -1 : 1);
         
-        const eReference = {
-            name: referenceName,
-            eType: targetClass,
-            containment: isContainment,
-            lowerBound: finalLowerBound,
-            upperBound: finalUpperBound, // Use custom values if provided
-            unique: true,
-            ordered: false,
-            get: function(key: string) {
-                return (this as any)[key];
-            },
-            set: function(key: string, value: any) {
-                (this as any)[key] = value;
-            }
-        };
-
+        let eReference: any;
+        
         // Add the reference to the source class
-        if (typeof sourceClass.set === 'function') {
-            const currentFeatures = Array.isArray(references) ? [...references] : [];
-            currentFeatures.push(eReference);
-            sourceClass.set('eStructuralFeatures', currentFeatures);
+        if (typeof sourceClass.get === 'function') {
+            // ecore-ts EClass object - create proper ecore-ts EReference
+            eReference = EReference.create({
+                name: referenceName,
+                eType: targetClass,
+                containment: isContainment,
+                lowerBound: finalLowerBound,
+                upperBound: finalUpperBound,
+                unique: true,
+                ordered: false
+            });
+            // Add using .add() on the EList
+            (sourceClass as any).get('eStructuralFeatures').add(eReference);
         } else {
+            // Plain JavaScript object - create plain JS reference with get/set
+            eReference = {
+                name: referenceName,
+                eType: targetClass,
+                containment: isContainment,
+                lowerBound: finalLowerBound,
+                upperBound: finalUpperBound,
+                unique: true,
+                ordered: false,
+                get: function(key: string) {
+                    return (this as any)[key];
+                },
+                set: function(key: string, value: any) {
+                    (this as any)[key] = value;
+                }
+            };
+            // Add using .push()
             if (!Array.isArray(sourceClass.eReferences)) {
                 sourceClass.eReferences = [];
             }
@@ -417,52 +429,84 @@ export class MetamodelRegistry {
         const finalTargetLowerBound = targetLowerBound !== undefined ? targetLowerBound : 0;
         const finalTargetUpperBound = targetUpperBound !== undefined ? targetUpperBound : -1;
 
-        // Create the source reference
-        const sourceReference: any = {
-            name: sourceRefName,
-            eType: targetClass,
-            containment: isContainment,
-            lowerBound: finalSourceLowerBound,
-            upperBound: finalSourceUpperBound,
-            unique: true,
-            ordered: false,
-            eOpposite: null, // Will be set after target reference is created
-            get: function(key: string) {
-                return (this as any)[key];
-            },
-            set: function(key: string, value: any) {
-                (this as any)[key] = value;
-            }
-        };
+        let sourceReference: any;
+        let targetReference: any;
+        
+        // Check if we're working with ecore-ts objects
+        const isEcoreTs = typeof sourceClass.get === 'function';
+        
+        if (isEcoreTs) {
+            // Create proper ecore-ts EReference objects
+            sourceReference = EReference.create({
+                name: sourceRefName,
+                eType: targetClass,
+                containment: isContainment,
+                lowerBound: finalSourceLowerBound,
+                upperBound: finalSourceUpperBound,
+                unique: true,
+                ordered: false
+            });
+            
+            targetReference = EReference.create({
+                name: targetRefName,
+                eType: sourceClass,
+                containment: false, // Opposite is never containment
+                lowerBound: finalTargetLowerBound,
+                upperBound: finalTargetUpperBound,
+                unique: true,
+                ordered: false
+            });
+            
+            // Set the eOpposite relationships
+            sourceReference.set('eOpposite', targetReference);
+            targetReference.set('eOpposite', sourceReference);
+        } else {
+            // Create plain JavaScript objects with get/set
+            sourceReference = {
+                name: sourceRefName,
+                eType: targetClass,
+                containment: isContainment,
+                lowerBound: finalSourceLowerBound,
+                upperBound: finalSourceUpperBound,
+                unique: true,
+                ordered: false,
+                eOpposite: null, // Will be set after target reference is created
+                get: function(key: string) {
+                    return (this as any)[key];
+                },
+                set: function(key: string, value: any) {
+                    (this as any)[key] = value;
+                }
+            };
 
-        // Create the target reference
-        const targetReference: any = {
-            name: targetRefName,
-            eType: sourceClass,
-            containment: false, // Opposite is never containment
-            lowerBound: finalTargetLowerBound,
-            upperBound: finalTargetUpperBound,
-            unique: true,
-            ordered: false,
-            eOpposite: null, // Will be set after source reference is created
-            get: function(key: string) {
-                return (this as any)[key];
-            },
-            set: function(key: string, value: any) {
-                (this as any)[key] = value;
-            }
-        };
-
-        // Set the eOpposite relationships
-        sourceReference.eOpposite = targetReference;
-        targetReference.eOpposite = sourceReference;
+            targetReference = {
+                name: targetRefName,
+                eType: sourceClass,
+                containment: false, // Opposite is never containment
+                lowerBound: finalTargetLowerBound,
+                upperBound: finalTargetUpperBound,
+                unique: true,
+                ordered: false,
+                eOpposite: null, // Will be set after source reference is created
+                get: function(key: string) {
+                    return (this as any)[key];
+                },
+                set: function(key: string, value: any) {
+                    (this as any)[key] = value;
+                }
+            };
+            
+            // Set the eOpposite relationships
+            sourceReference.eOpposite = targetReference;
+            targetReference.eOpposite = sourceReference;
+        }
 
         // Add the source reference to the source class
-        if (typeof sourceClass.set === 'function') {
-            const currentFeatures = sourceClass.get('eStructuralFeatures') || [];
-            currentFeatures.push(sourceReference);
-            sourceClass.set('eStructuralFeatures', currentFeatures);
+        if (typeof sourceClass.get === 'function') {
+            // ecore-ts EClass object - use .add() on the EList
+            (sourceClass as any).get('eStructuralFeatures').add(sourceReference);
         } else {
+            // Plain JavaScript object - use .push()
             if (!Array.isArray(sourceClass.eReferences)) {
                 sourceClass.eReferences = [];
             }
@@ -470,11 +514,11 @@ export class MetamodelRegistry {
         }
 
         // Add the target reference to the target class
-        if (typeof targetClass.set === 'function') {
-            const currentFeatures = targetClass.get('eStructuralFeatures') || [];
-            currentFeatures.push(targetReference);
-            targetClass.set('eStructuralFeatures', currentFeatures);
+        if (typeof targetClass.get === 'function') {
+            // ecore-ts EClass object - use .add() on the EList
+            (targetClass as any).get('eStructuralFeatures').add(targetReference);
         } else {
+            // Plain JavaScript object - use .push()
             if (!Array.isArray(targetClass.eReferences)) {
                 targetClass.eReferences = [];
             }
@@ -953,43 +997,72 @@ export class MetamodelRegistry {
                 };
             }
 
-            // Create the EClass with proper Ecore-like structure
-            const eClass = {
-                name: className,
-                abstract: isAbstract,
-                interface: isInterface,
-                eStructuralFeatures: [] as any[],
-                eSuperTypes: [] as any[],
-                get: function(key: string) {
-                    return (this as any)[key];
-                },
-                set: function(key: string, value: any) {
-                    (this as any)[key] = value;
-                }
-            };
-
-            // Add default attribute if requested
-            if (hasAttributes) {
-                const defaultAttribute = {
-                    name: 'name',
-                    eType: { name: 'EString' },
-                    lowerBound: 0,
-                    upperBound: 1,
-                    unique: true,
-                    ordered: false,
-                    get: function(key: string) {
-                        return (this as any)[key];
-                    },
-                    set: function(key: string, value: any) {
-                        (this as any)[key] = value;
-                    }
-                };
-                eClass.eStructuralFeatures.push(defaultAttribute);
-            }
-
             // Add the class to the first package
             if (activeMetamodel.ePackages.length > 0) {
-                activeMetamodel.ePackages[0].eClassifiers.push(eClass);
+                const pkg = activeMetamodel.ePackages[0];
+                let eClass: any;
+                
+                if (typeof (pkg as any).get === 'function') {
+                    // ecore-ts EPackage object - create proper ecore-ts EClass
+                    eClass = EClass.create({
+                        name: className,
+                        abstract: isAbstract,
+                        interface: isInterface
+                    });
+                    
+                    // Add default attribute if requested
+                    if (hasAttributes) {
+                        const defaultAttribute = EAttribute.create({
+                            name: 'name',
+                            eType: EString,
+                            lowerBound: 0,
+                            upperBound: 1,
+                            unique: true,
+                            ordered: false
+                        });
+                        (eClass as any).get('eStructuralFeatures').add(defaultAttribute);
+                    }
+                    
+                    // Add to ecore-ts EPackage using .add()
+                    (pkg as any).get('eClassifiers').add(eClass);
+                } else {
+                    // Plain JavaScript object - create plain JS object with get/set
+                    eClass = {
+                        name: className,
+                        abstract: isAbstract,
+                        interface: isInterface,
+                        eStructuralFeatures: [] as any[],
+                        eSuperTypes: [] as any[],
+                        get: function(key: string) {
+                            return (this as any)[key];
+                        },
+                        set: function(key: string, value: any) {
+                            (this as any)[key] = value;
+                        }
+                    };
+                    
+                    // Add default attribute if requested
+                    if (hasAttributes) {
+                        const defaultAttribute = {
+                            name: 'name',
+                            eType: { name: 'EString' },
+                            lowerBound: 0,
+                            upperBound: 1,
+                            unique: true,
+                            ordered: false,
+                            get: function(key: string) {
+                                return (this as any)[key];
+                            },
+                            set: function(key: string, value: any) {
+                                (this as any)[key] = value;
+                            }
+                        };
+                        eClass.eStructuralFeatures.push(defaultAttribute);
+                    }
+                    
+                    // Add to plain JS package using .push()
+                    pkg.eClassifiers.push(eClass);
+                }
             }
 
             console.log(`Created EClass: ${className} (abstract: ${isAbstract}, interface: ${isInterface})`);
