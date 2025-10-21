@@ -33,10 +33,11 @@ export class MultiplicityInputActionHandler implements IActionHandler {
         const multiplicityAction = action as MultiplicityInputAction;
 
         // Show dialog asynchronously and handle response
-        console.log('About to show dialog for:', multiplicityAction.sourceClassName, '->', multiplicityAction.targetClassName);
+        console.log('About to show dialog for:', multiplicityAction.sourceClassName, '->', multiplicityAction.targetClassName, 'edge type:', multiplicityAction.edgeType);
         this.getDialog().show(
             multiplicityAction.sourceClassName,
-            multiplicityAction.targetClassName
+            multiplicityAction.targetClassName,
+            multiplicityAction.edgeType
         ).then((multiplicityOptions) => {
             console.log('User selected multiplicity options:', multiplicityOptions);
 

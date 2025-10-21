@@ -60,10 +60,23 @@ export class EcoreCreateEdgeActionHandler implements ActionHandler {
                         // Don't create the edge immediately - wait for user input
                         return [];
                     case 'edge:ecore-reference':
-                        const refName = `${targetElementId.toLowerCase()}`;
-                        this.metamodelRegistry.addReference(sourceElementId, targetElementId, refName);
-                        console.log(`Added reference: ${sourceElementId} refers to ${targetElementId}`);
-                        break;
+                        console.log(`Triggering multiplicity dialog for reference edge: ${sourceElementId} -> ${targetElementId}`);
+                        
+                        // Dispatch action to show multiplicity dialog on client
+                        const referenceMultiplicityAction = MultiplicityInputAction.create(
+                            sourceElementId,
+                            targetElementId,
+                            'edge:ecore-reference',
+                            sourceElementId,
+                            targetElementId
+                        );
+                        
+                        console.log('Dispatching MultiplicityInputAction for reference:', referenceMultiplicityAction);
+                        this.actionDispatcher.dispatch(referenceMultiplicityAction);
+                        console.log('MultiplicityInputAction dispatched successfully');
+                        
+                        // Don't create the edge immediately - wait for user input
+                        return [];
                     default:
                         console.error(`Unknown edge type: ${elementTypeId}`);
                         return [];

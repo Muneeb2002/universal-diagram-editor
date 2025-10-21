@@ -27,20 +27,35 @@ export class MultiplicityInputResponseActionHandler implements ActionHandler {
             lowerBound: action.lowerBound,
             upperBound: action.upperBound,
             sourceElementId: action.sourceElementId,
-            targetElementId: action.targetElementId
+            targetElementId: action.targetElementId,
+            edgeType: action.edgeType
         });
 
         try {
-            // Create the containment reference with custom multiplicity
-            this.metamodelRegistry.addContainmentReference(
-                action.sourceElementId,
-                action.targetElementId,
-                action.referenceName,
-                action.lowerBound,
-                action.upperBound
-            );
-
-            console.log(`Added containment reference '${action.referenceName}' with multiplicity ${action.lowerBound}..${action.upperBound === -1 ? '*' : action.upperBound}`);
+            // Create the reference with custom multiplicity based on edge type
+            if (action.edgeType === 'edge:ecore-containment') {
+                this.metamodelRegistry.addContainmentReference(
+                    action.sourceElementId,
+                    action.targetElementId,
+                    action.referenceName,
+                    action.lowerBound,
+                    action.upperBound
+                );
+                console.log(`Added containment reference '${action.referenceName}' with multiplicity ${action.lowerBound}..${action.upperBound === -1 ? '*' : action.upperBound}`);
+            } else if (action.edgeType === 'edge:ecore-reference') {
+                this.metamodelRegistry.addReference(
+                    action.sourceElementId,
+                    action.targetElementId,
+                    action.referenceName,
+                    false, // isContainment = false for regular references
+                    action.lowerBound,
+                    action.upperBound
+                );
+                console.log(`Added reference '${action.referenceName}' with multiplicity ${action.lowerBound}..${action.upperBound === -1 ? '*' : action.upperBound}`);
+            } else {
+                console.error(`Unknown edge type: ${action.edgeType}`);
+                return [];
+            }
 
             // Refresh the model to show the new edge
             this.gmodelFactory.createModel();
@@ -49,7 +64,7 @@ export class MultiplicityInputResponseActionHandler implements ActionHandler {
                 return [SetModelAction.create(gmodel)];
             }
         } catch (error) {
-            console.error('Error creating containment reference with multiplicity:', error);
+            console.error('Error creating reference with multiplicity:', error);
         }
 
         return [];

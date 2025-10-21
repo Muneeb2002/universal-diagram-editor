@@ -41,7 +41,7 @@ export class MultiplicityDialog {
         `;
 
         content.innerHTML = `
-            <h3 style="margin: 0 0 16px 0; color: #333; font-size: 18px;">Configure Containment Reference</h3>
+            <h3 id="dialogTitle" style="margin: 0 0 16px 0; color: #333; font-size: 18px;">Configure Reference</h3>
             <div style="margin-bottom: 16px;">
                 <label for="referenceName" style="display: block; margin-bottom: 4px; font-weight: 500; color: #555;">Reference Name:</label>
                 <input type="text" id="referenceName" style="width: 100%; padding: 8px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;" placeholder="Enter reference name">
@@ -102,20 +102,39 @@ export class MultiplicityDialog {
         return dialog;
     }
 
-    show(sourceClassName: string, targetClassName: string): Promise<MultiplicityOptions> {
+    show(sourceClassName: string, targetClassName: string, edgeType?: string): Promise<MultiplicityOptions> {
         console.log('MultiplicityDialog.show() called, current resolve:', !!this.currentResolve);
         return new Promise((resolve, reject) => {
             this.currentResolve = resolve;
             this.currentReject = reject;
             console.log('Promise callbacks set:', { resolve: !!this.currentResolve, reject: !!this.currentReject });
 
+            // Determine if it's a containment or reference edge
+            const isContainment = edgeType === 'edge:ecore-containment';
+            const edgeLabel = isContainment ? 'Containment' : 'Reference';
+
             // Set default reference name
             const referenceNameInput = this.dialog.querySelector('#referenceName') as HTMLInputElement;
-            referenceNameInput.value = `${targetClassName.toLowerCase()}s`;
+            if (isContainment) {
+                referenceNameInput.value = `${targetClassName.toLowerCase()}s`; // Plural for containment
+            } else {
+                referenceNameInput.value = `${targetClassName.toLowerCase()}`; // Singular for reference
+            }
+
+            // Set default multiplicity based on edge type
+            const lowerBoundInput = this.dialog.querySelector('#lowerBound') as HTMLInputElement;
+            const upperBoundInput = this.dialog.querySelector('#upperBound') as HTMLInputElement;
+            
+            lowerBoundInput.value = '0'; // Always start with optional
+            if (isContainment) {
+                upperBoundInput.value = '-1'; // Containment: 0..* (many)
+            } else {
+                upperBoundInput.value = '1'; // Reference: 0..1 (optional single)
+            }
 
             // Update dialog title
-            const title = this.dialog.querySelector('h3') as HTMLHeadingElement;
-            title.textContent = `Create containment: ${sourceClassName} → ${targetClassName}`;
+            const title = this.dialog.querySelector('#dialogTitle') as HTMLHeadingElement;
+            title.textContent = `Create ${edgeLabel}: ${sourceClassName} → ${targetClassName}`;
 
             this.dialog.style.display = 'flex';
             

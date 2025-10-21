@@ -71,7 +71,7 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
             case 'edge:ecore-containment':
                 return this.createContainmentEdgeWithMultiplicity(sourceClassName, targetClassName, source.id, target.id);
             case 'edge:ecore-reference':
-                return this.createReferenceEdge(sourceClassName, targetClassName);
+                return this.createReferenceEdgeWithMultiplicity(sourceClassName, targetClassName, source.id, target.id);
             case 'edge:ecore-bidirectional':
                 return this.createBidirectionalReferenceEdge(sourceClassName, targetClassName);
             default:
@@ -147,31 +147,25 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
         return edge;
     }
 
-    private createReferenceEdge(sourceClassName: string, targetClassName: string): GEdge {
-        const edge = new GEdge();
-        edge.type = 'edge:ecore-reference';
-        edge.id = `${sourceClassName}_refers_to_${targetClassName}`;
-        edge.sourceId = sourceClassName;
-        edge.targetId = targetClassName;
-        edge.cssClasses = ['ecore-reference'];
-
-        // Add reference to the metamodel
-        try {
-            const referenceName = `${targetClassName.toLowerCase()}`;
-            this.metamodelRegistry.addReference(sourceClassName, targetClassName, referenceName);
-            console.log(`Added reference: ${sourceClassName} refers to ${targetClassName}`);
-        } catch (error) {
-            console.error(`Error adding reference: ${error}`);
-        }
-
-        // Add label showing the reference name
-        const label = new GLabel();
-        label.type = 'label:text';
-        label.id = `${edge.id}_label`;
-        label.text = `${targetClassName.toLowerCase()}`;
-        edge.children.push(label);
-
-        return edge;
+    private createReferenceEdgeWithMultiplicity(sourceClassName: string, targetClassName: string, sourceElementId: string, targetElementId: string): GEdge | undefined {
+        console.log(`Triggering multiplicity dialog for reference edge: ${sourceClassName} -> ${targetClassName}`);
+        
+        // Dispatch action to show multiplicity dialog on client
+        const multiplicityAction = MultiplicityInputAction.create(
+            sourceClassName,
+            targetClassName,
+            'edge:ecore-reference',
+            sourceElementId,
+            targetElementId
+        );
+        
+        console.log('Dispatching MultiplicityInputAction for reference:', multiplicityAction);
+        this.actionDispatcher.dispatch(multiplicityAction);
+        console.log('MultiplicityInputAction dispatched successfully');
+        
+        // Return undefined to prevent immediate edge creation
+        // The edge will be created after user provides multiplicity input
+        return undefined;
     }
 
     private createBidirectionalReferenceEdge(sourceClassName: string, targetClassName: string): GEdge {
