@@ -127,32 +127,67 @@ export class InstanceModelStorage {
      * @param eClass The EClass definition
      */
     private initializeAttributes(instance: EcoreInstance, eClass: any): void {
-        const attributes = eClass.eStructuralFeatures.filter(isEAttribute);
+        // Get structural features safely
+        let structuralFeatures: any[] = [];
+        
+        if (eClass.eStructuralFeatures) {
+            if (Array.isArray(eClass.eStructuralFeatures)) {
+                structuralFeatures = eClass.eStructuralFeatures;
+            } else if (typeof eClass.eStructuralFeatures.forEach === 'function') {
+                eClass.eStructuralFeatures.forEach((feature: any) => {
+                    if (feature) structuralFeatures.push(feature);
+                });
+            } else if (eClass.eStructuralFeatures.size && typeof eClass.eStructuralFeatures.size === 'function') {
+                // It's an EList
+                for (let i = 0; i < eClass.eStructuralFeatures.size(); i++) {
+                    const feature = eClass.eStructuralFeatures.get(i);
+                    if (feature) structuralFeatures.push(feature);
+                }
+            }
+        }
+
+        console.log(`Initializing attributes for ${instance.eClassName}, found ${structuralFeatures.length} structural features`);
+
+        // Initialize attributes
+        const attributes = structuralFeatures.filter(isEAttribute);
         for (const attr of attributes) {
             // Set default values based on type
             let defaultValue: any = null;
 
-            const typeName = attr.eType.name.toLowerCase();
-            if (typeName.includes('string')) {
+            const eType = attr.eType || attr.get?.('eType');
+            const typeName = eType?.name || eType?.get?.('name') || 'EString';
+            const lowerTypeName = typeName.toLowerCase();
+            
+            if (lowerTypeName.includes('string')) {
                 defaultValue = '';
-            } else if (typeName.includes('int') || typeName.includes('long')) {
+            } else if (lowerTypeName.includes('int') || lowerTypeName.includes('long')) {
                 defaultValue = 0;
-            } else if (typeName.includes('boolean')) {
+            } else if (lowerTypeName.includes('boolean')) {
                 defaultValue = false;
-            } else if (typeName.includes('double') || typeName.includes('float')) {
+            } else if (lowerTypeName.includes('double') || lowerTypeName.includes('float')) {
                 defaultValue = 0.0;
             }
 
-            instance.attributes.set(attr.name, defaultValue);
+            const attrName = attr.name || attr.get?.('name');
+            if (attrName) {
+                instance.attributes.set(attrName, defaultValue);
+                console.log(`Set default value for attribute ${attrName}: ${defaultValue}`);
+            }
         }
 
         // Initialize references as empty
-        const references = eClass.eStructuralFeatures.filter(isEReference);
+        const references = structuralFeatures.filter(isEReference);
         for (const ref of references) {
-            if (ref.upperBound === 1) {
-                instance.references.set(ref.name, '');
-            } else {
-                instance.references.set(ref.name, []);
+            const refName = ref.name || ref.get?.('name');
+            const upperBound = ref.upperBound || ref.get?.('upperBound') || 1;
+            
+            if (refName) {
+                if (upperBound === 1) {
+                    instance.references.set(refName, '');
+                } else {
+                    instance.references.set(refName, []);
+                }
+                console.log(`Initialized reference ${refName} with upperBound ${upperBound}`);
             }
         }
     }

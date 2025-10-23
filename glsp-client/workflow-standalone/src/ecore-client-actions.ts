@@ -109,6 +109,83 @@ export function createCreateInstanceAction(
     };
 }
 
+export function createSetInstanceAttributeAction(
+    instanceId: string,
+    attributeName: string,
+    value: any
+): SetInstanceAttributeAction {
+    return {
+        kind: 'setInstanceAttribute',
+        instanceId,
+        attributeName,
+        value
+    };
+}
+
+export function createCreateInstanceReferenceAction(
+    sourceInstanceId: string,
+    targetInstanceId: string,
+    referenceName: string
+): CreateInstanceReferenceAction {
+    return {
+        kind: 'createInstanceReference',
+        sourceInstanceId,
+        targetInstanceId,
+        referenceName
+    };
+}
+
+// Visual Configuration Actions
+export interface OpenVisualConfigurationAction extends Action {
+    kind: 'openVisualConfiguration';
+}
+
+export interface SetClassVisualConfigurationAction extends Action {
+    kind: 'setClassVisualConfiguration';
+    className: string;
+    shape: string;
+    color: string;
+    showAttributes: boolean;
+    showReferences: boolean;
+}
+
+export interface VisualConfigurationResponse extends Action {
+    kind: 'visualConfigurationResponse';
+    success: boolean;
+    configurations: Array<{
+        className: string;
+        shape: string;
+        color: string;
+        showAttributes: boolean;
+        showReferences: boolean;
+    }>;
+    availableShapes: string[];
+    availableColors: string[];
+}
+
+export function createOpenVisualConfigurationAction(): OpenVisualConfigurationAction {
+    return {
+        kind: 'openVisualConfiguration'
+    };
+}
+
+export function createSetClassVisualConfigurationAction(
+    className: string,
+    shape: string,
+    color: string,
+    showAttributes: boolean,
+    showReferences: boolean
+): SetClassVisualConfigurationAction {
+    return {
+        kind: 'setClassVisualConfiguration',
+        className,
+        shape,
+        color,
+        showAttributes,
+        showReferences
+    };
+}
+
 // Helper functions for metamodel editing actions
 export function createRenameClassAction(
     oldClassName: string,

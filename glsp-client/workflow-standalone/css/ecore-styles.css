@@ -58,12 +58,60 @@
     stroke-width: 2px !important;
 }
 
-/* Ecore Instance styling */
+/* Ecore Instance styling - default blue theme */
 .ecore-instance .sprotty-node {
-    fill: #f0f8ff !important;
-    stroke: #87ceeb !important;
     stroke-width: 2px !important;
-    stroke-dasharray: 5, 5 !important;
+}
+
+/* Visual configuration color overrides */
+.ecore-instance.color-blue .sprotty-node {
+    fill: #E3F2FD !important;
+    stroke: #1976D2 !important;
+}
+
+.ecore-instance.color-green .sprotty-node {
+    fill: #E8F5E8 !important;
+    stroke: #388E3C !important;
+}
+
+.ecore-instance.color-red .sprotty-node {
+    fill: #FFEBEE !important;
+    stroke: #D32F2F !important;
+}
+
+.ecore-instance.color-orange .sprotty-node {
+    fill: #FFF3E0 !important;
+    stroke: #F57C00 !important;
+}
+
+.ecore-instance.color-purple .sprotty-node {
+    fill: #F3E5F5 !important;
+    stroke: #7B1FA2 !important;
+}
+
+.ecore-instance.color-pink .sprotty-node {
+    fill: #FCE4EC !important;
+    stroke: #C2185B !important;
+}
+
+.ecore-instance.color-yellow .sprotty-node {
+    fill: #FFFDE7 !important;
+    stroke: #FBC02D !important;
+}
+
+.ecore-instance.color-gray .sprotty-node {
+    fill: #F5F5F5 !important;
+    stroke: #616161 !important;
+}
+
+.ecore-instance.color-brown .sprotty-node {
+    fill: #EFEBE9 !important;
+    stroke: #5D4037 !important;
+}
+
+.ecore-instance.color-cyan .sprotty-node {
+    fill: #E0F2F1 !important;
+    stroke: #00796B !important;
 }
 
 /* Ensure proper spacing and prevent overlaps */

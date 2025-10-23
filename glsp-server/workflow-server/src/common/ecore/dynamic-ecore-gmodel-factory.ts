@@ -22,6 +22,7 @@ import {
 import { EcoreModel, isEClass, isEDataType, isEEnum, isEAttribute, isEReference } from './ecore-types';
 import { MetamodelRegistry } from './metamodel-registry';
 import { InstanceModelStorage } from './instance-model-storage';
+import { VisualConfigurationStorage } from './visual-configuration-storage';
 import { EcoreInstance } from './instance-model-types';
 
 @injectable()
@@ -34,6 +35,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     @inject(InstanceModelStorage)
     protected instanceStorage: InstanceModelStorage;
+
+    @inject(VisualConfigurationStorage)
+    protected visualConfigStorage: VisualConfigurationStorage;
 
     createModel(): void {
         const modelType = this.modelState.get('modelType') as string;
@@ -695,6 +699,13 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.args = ArgsUtil.cornerRadius(5);
         node.cssClasses = ['ecore-instance'];
 
+        // Get visual configuration for this class
+        const visualConfig = this.visualConfigStorage.getClassVisualConfiguration(instance.eClassName);
+        console.log(`Applying visual configuration for ${instance.eClassName}:`, visualConfig);
+        
+        // Apply visual configuration
+        this.applyVisualConfiguration(node, visualConfig);
+
         // Set position if available
         if (instance.position) {
             node.position = { x: instance.position.x, y: instance.position.y };
@@ -703,8 +714,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             node.position = { x: 50, y: 50 };
         }
 
-        // Set size if available
-        if (instance.size) {
+        // Set size if available (use visual config size if specified)
+        if (visualConfig.size) {
+            node.size = { width: visualConfig.size.width, height: visualConfig.size.height };
+        } else if (instance.size) {
             node.size = { width: instance.size.width, height: instance.size.height };
         }
 
@@ -725,8 +738,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         headerCompartment.children.push(headerLabel);
         node.children.push(headerCompartment);
 
-        // Add attributes compartment with values
-        if (eClass && instance.attributes.size > 0) {
+        // Add attributes compartment with values (only if configured to show)
+        if (visualConfig.showAttributes && eClass && instance.attributes.size > 0) {
             const attributesCompartment = new GCompartment();
             attributesCompartment.id = `${instance.id}_attributes`;
             attributesCompartment.type = 'comp:attributes';
@@ -747,8 +760,62 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             node.children.push(attributesCompartment);
         }
 
+        // Add references compartment (only if configured to show)
+        if (visualConfig.showReferences && instance.references.size > 0) {
+            const referencesCompartment = new GCompartment();
+            referencesCompartment.id = `${instance.id}_references`;
+            referencesCompartment.type = 'comp:references';
+            referencesCompartment.layout = 'vbox';
+
+            const referencesText: string[] = [];
+            instance.references.forEach((value, refName) => {
+                if (typeof value === 'string' && value) {
+                    referencesText.push(`${refName} -> ${value}`);
+                } else if (Array.isArray(value) && value.length > 0) {
+                    referencesText.push(`${refName} -> [${value.join(', ')}]`);
+                }
+            });
+
+            if (referencesText.length > 0) {
+                const referencesLabel = new GLabel();
+                referencesLabel.type = 'label:text';
+                referencesLabel.id = `${instance.id}_references_label`;
+                referencesLabel.text = referencesText.join('\n');
+
+                referencesCompartment.children.push(referencesLabel);
+                node.children.push(referencesCompartment);
+            }
+        }
+
         return node;
     }
+
+    /**
+     * Applies visual configuration to a node.
+     */
+    private applyVisualConfiguration(node: GNode, visualConfig: any): void {
+        // Add CSS classes for shape and color
+        const shapeClass = `shape-${visualConfig.shape}`;
+        const colorClass = `color-${visualConfig.color}`;
+        
+        node.cssClasses = [...(node.cssClasses || []), shapeClass, colorClass];
+        
+        // Add border styling if specified
+        if (visualConfig.border && visualConfig.border.style) {
+            const borderClass = `border-${visualConfig.border.style}`;
+            node.cssClasses.push(borderClass);
+        }
+        
+        // Apply custom size if specified
+        if (visualConfig.size) {
+            (node as any).customSize = {
+                width: visualConfig.size.width,
+                height: visualConfig.size.height
+            };
+        }
+    }
+
+
 
     /**
      * Creates GEdges for an instance's references.

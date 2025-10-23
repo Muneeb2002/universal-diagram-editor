@@ -31,11 +31,16 @@ import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
 import { createLoadMetamodelAction, createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
+import { setGlobalToolbar } from './load-metamodel-response-handler';
+import { VisualConfigurationDialog } from './visual-configuration-dialog';
+import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
+import { setupInteractiveResize } from './interactive-resize';
 
 // Global type declaration for the EClass creation dialog
 declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
+        debugVisualConfigurations?: () => void;
     }
 }
 const host = GLSP_SERVER_HOST;
@@ -93,18 +98,32 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     contextMenu.setActionDispatcher(actionDispatcher);
     edgeContextMenu.setActionDispatcher(actionDispatcher);
     
+    // Set the global toolbar reference for the LoadMetamodelResponseHandler
+    setGlobalToolbar(toolbar);
+    
+    // Create and set up visual configuration dialog
+    const visualConfigDialog = new VisualConfigurationDialog(actionDispatcher);
+    setGlobalVisualConfigDialog(visualConfigDialog);
+    
     // Set up context menu for class elements
     setupContextMenu();
     
     // Set up action handling for custom actions
     setupCustomActionHandling();
     
+    // Add visual configuration debugging
+    setupVisualConfigurationDebugging();
+    
+    // Set up interactive resize functionality with a delay to ensure DOM is ready
+    setTimeout(() => {
+        setupInteractiveResize();
+    }, 1000);
+    
     const diagramLoader = container.get(DiagramLoader);
     await diagramLoader.load({ requestModelOptions: { isReconnecting } });
 
-    // TODO: Set up proper action listener for LoadMetamodelResponse
-    // For now, classes will need to be manually updated
-    // In a full implementation, you'd register a proper action handler
+    // Set up listener for LoadMetamodelResponse to update toolbar
+    setupMetamodelResponseListener();
 
     if (isReconnecting) {
         const message = `Connection to the ${id} glsp server got closed. Connection was successfully re-established.`;
@@ -228,6 +247,28 @@ function setupContextMenu(): void {
             edgeContextMenu.show(event, edgeInfo);
         }
     });
+
+    // Listen for right-clicks on instance nodes
+    document.addEventListener('contextmenu', (event) => {
+        const target = event.target as HTMLElement;
+        
+        // Check if the clicked element is an instance node
+        const instanceElement = target.closest('.ecore-instance');
+        
+        if (instanceElement) {
+            event.preventDefault();
+            event.stopPropagation();
+            
+            // Get instance information from the element
+            const rawId = instanceElement.id || 'unknown-instance';
+            const instanceId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+            
+            console.log(`Right-clicked on instance: ${instanceId}`);
+            
+            // Show instance context menu
+            showInstanceContextMenu(event, instanceId);
+        }
+    });
 }
 
 async function reconnect(connectionProvider: MessageConnection): Promise<void> {
@@ -292,17 +333,51 @@ function setupCustomActionHandling(): void {
     // This is a simplified approach - in a full implementation you'd use proper action handlers
     window.showEClassCreationDialog = showEClassCreationDialog;
 
-    // Listen for palette actions that should trigger dialogs
+    // Listen for various custom actions
     // This is a workaround - in a full implementation you'd use proper action handlers
     const originalDispatch = actionDispatcher.dispatch.bind(actionDispatcher);
     actionDispatcher.dispatch = async (action: any) => {
+        console.log('[ACTION DISPATCHER] Received action:', action.kind);
+        
         // Check if this is the trigger EClass creation action
         if (action.kind === 'triggerEClassCreation') {
             showEClassCreationDialog();
             return Promise.resolve();
         }
+        // Check if this is a LoadMetamodelResponse
+        else if (action.kind === 'loadMetamodelResponse') {
+            console.log('✅ Received LoadMetamodelResponse:', action);
+            
+            // Update toolbar with available classes
+            if (action.success && action.classNames && action.classNames.length > 0) {
+                console.log(`📋 Updating toolbar with ${action.classNames.length} classes:`, action.classNames);
+                toolbar.updateAvailableClasses(action.classNames);
+                console.log('✅ Toolbar updated successfully');
+            } else {
+                console.warn('⚠️ LoadMetamodelResponse received but no classes found:', action);
+            }
+        }
+        
         // Otherwise, dispatch normally
         return originalDispatch(action);
+    };
+}
+
+function setupMetamodelResponseListener(): void {
+    // This function is now handled in setupCustomActionHandling
+    // Keeping it for backwards compatibility but it does nothing
+}
+
+function setupVisualConfigurationDebugging(): void {
+    // Visual configuration debugging functionality
+    window.debugVisualConfigurations = () => {
+        // Find all instance nodes
+        const instanceNodes = document.querySelectorAll('.ecore-instance');
+        
+        instanceNodes.forEach((node) => {
+            // Check for SVG children
+            node.querySelectorAll('rect, circle, ellipse, polygon, path');
+        });
     };
 }
 
@@ -722,7 +797,7 @@ function showDeleteAttributeDialog(className: string, attributes: Array<{name: s
 
     // Warning message
     const warning = document.createElement('p');
-    warning.textContent = '⚠️ This action cannot be undone.';
+    warning.textContent = 'This action cannot be undone.';
     warning.style.cssText = 'margin: 10px 0; color: #d9534f; font-size: 12px; font-weight: bold;';
     dialog.appendChild(warning);
 
@@ -789,3 +864,196 @@ function showDeleteAttributeDialog(className: string, attributes: Array<{name: s
 
 // Export to global scope so context menu can call it
 (window as any).showDeleteAttributeDialog = showDeleteAttributeDialog;
+
+function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
+    // Create a simple context menu for instances
+    const menu = document.createElement('div');
+    menu.style.cssText = `
+        position: fixed;
+        left: ${event.clientX}px;
+        top: ${event.clientY}px;
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 200px;
+        font-family: Arial, sans-serif;
+        padding: 5px 0;
+    `;
+
+    // Add menu item to edit attributes
+    const editAttributesItem = document.createElement('div');
+    editAttributesItem.textContent = 'Edit Attributes';
+    editAttributesItem.style.cssText = `
+        padding: 10px 15px;
+        cursor: pointer;
+        font-size: 14px;
+    `;
+    editAttributesItem.addEventListener('mouseenter', () => {
+        editAttributesItem.style.background = '#f0f0f0';
+    });
+    editAttributesItem.addEventListener('mouseleave', () => {
+        editAttributesItem.style.background = 'transparent';
+    });
+    editAttributesItem.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(menu);
+        showEditInstanceAttributeDialog(instanceId);
+    });
+
+    menu.appendChild(editAttributesItem);
+
+    // Add backdrop to close menu
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(menu);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(menu);
+}
+
+function showEditInstanceAttributeDialog(instanceId: string): void {
+    // Create a dialog for editing instance attributes
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 400px;
+        max-width: 600px;
+        font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = `Edit Instance: ${instanceId}`;
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    const description = document.createElement('p');
+    description.textContent = 'Edit attribute values for this instance:';
+    description.style.cssText = 'margin: 10px 0; color: #666;';
+    dialog.appendChild(description);
+
+    // Create attribute input section
+    const attributeSection = document.createElement('div');
+    attributeSection.style.cssText = 'margin: 15px 0;';
+
+    // Attribute Name Input
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Attribute Name:';
+    nameLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    attributeSection.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'e.g., name, age, description';
+    nameInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+    attributeSection.appendChild(nameInput);
+
+    // Attribute Value Input
+    const valueLabel = document.createElement('label');
+    valueLabel.textContent = 'Attribute Value:';
+    valueLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
+    attributeSection.appendChild(valueLabel);
+
+    const valueInput = document.createElement('input');
+    valueInput.type = 'text';
+    valueInput.placeholder = 'Enter the value';
+    valueInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+    attributeSection.appendChild(valueInput);
+
+    dialog.appendChild(attributeSection);
+
+    // Buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    const saveButton = document.createElement('button');
+    saveButton.textContent = 'Save';
+    saveButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
+    saveButton.addEventListener('click', async () => {
+        const attributeName = nameInput.value.trim();
+        const attributeValue = valueInput.value.trim();
+        
+        if (!attributeName) {
+            alert('Please enter an attribute name');
+            return;
+        }
+
+        if (!attributeValue) {
+            alert('Please enter an attribute value');
+            return;
+        }
+
+        // Dispatch action to set the attribute
+        if (actionDispatcher) {
+            const action = {
+                kind: 'setInstanceAttribute',
+                instanceId: instanceId,
+                attributeName: attributeName,
+                value: attributeValue
+            };
+            
+            try {
+                await actionDispatcher.dispatch(action);
+                document.body.removeChild(backdrop);
+                document.body.removeChild(dialog);
+            } catch (error) {
+                console.error('Error setting instance attribute:', error);
+                alert('Error setting attribute: ' + error);
+            }
+        }
+    });
+
+    buttonContainer.appendChild(cancelButton);
+    buttonContainer.appendChild(saveButton);
+    dialog.appendChild(buttonContainer);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+
+    // Focus the name input
+    nameInput.focus();
+}

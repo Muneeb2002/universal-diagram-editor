@@ -28,6 +28,7 @@ import { EcoreModelStorage } from './ecore-model-storage';
 import { EcoreParser } from './ecore-parser';
 import { EcoreToolPaletteItemProvider } from './ecore-tool-palette-item-provider';
 import { InstanceModelStorage } from './instance-model-storage';
+import { VisualConfigurationStorage } from './visual-configuration-storage';
 import { LoadMetamodelActionHandler } from './load-metamodel-action-handler';
 import { MetamodelRegistry } from './metamodel-registry';
 import { SwitchModeActionHandler } from './switch-mode-action-handler';
@@ -42,6 +43,11 @@ import { MultiplicityInputResponseActionHandler } from './multiplicity-input-res
 import { BidirectionalMultiplicityInputResponseActionHandler } from './bidirectional-multiplicity-input-response-action-handler';
 import { AddAttributeActionHandler } from './add-attribute-action-handler';
 import { DeleteAttributeActionHandler } from './delete-attribute-action-handler';
+import { SetInstanceAttributeActionHandler } from './set-instance-attribute-action-handler';
+import { CreateInstanceReferenceActionHandler } from './create-instance-reference-action-handler';
+import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
+import { OpenVisualConfigurationActionHandler } from './open-visual-configuration-action-handler';
+import { SetClassVisualConfigurationActionHandler } from './set-class-visual-configuration-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -71,8 +77,13 @@ export class EcoreDiagramModule extends GModelDiagramModule {
     protected override configureActionHandlers(binding: InstanceMultiBinding<ActionHandlerConstructor>): void {
         super.configureActionHandlers(binding);
         binding.add(LoadMetamodelActionHandler);
+        binding.add(LoadMetamodelResponseHandler);
         binding.add(SwitchModeActionHandler);
         binding.add(CreateInstanceActionHandler);
+        binding.add(SetInstanceAttributeActionHandler);
+        binding.add(CreateInstanceReferenceActionHandler);
+        binding.add(OpenVisualConfigurationActionHandler);
+        binding.add(SetClassVisualConfigurationActionHandler);
         binding.add(EditMetamodelActionHandler);
         binding.add(DeleteEdgeActionHandler);
         binding.add(CreateCustomMetamodelActionHandler);
@@ -95,5 +106,6 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         bind(EcoreParser).toSelf().inSingletonScope();
         bind(MetamodelRegistry).toSelf().inSingletonScope();
         bind(InstanceModelStorage).toSelf().inSingletonScope();
+        bind(VisualConfigurationStorage).toSelf().inSingletonScope();
     }
 }

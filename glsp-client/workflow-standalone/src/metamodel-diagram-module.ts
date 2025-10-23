@@ -37,6 +37,8 @@ import { EcoreClassNodeView, EcoreDataTypeNodeView, EcoreEnumNodeView, EcoreInst
 import { EcoreEdgeView } from './ecore-edge-views';
 import { MultiplicityInputActionHandler } from './multiplicity-input-action-handler';
 import { BidirectionalMultiplicityInputActionHandler } from './bidirectional-multiplicity-input-action-handler';
+import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
+import { VisualConfigurationResponseHandler } from './visual-configuration-response-handler';
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 
 // Define Ecore-specific model elements
@@ -128,6 +130,12 @@ export const metamodelDiagramModule = new FeatureModule(
         // Configure multiplicity input action handlers
         configureActionHandler(context, MultiplicityInputAction.KIND, MultiplicityInputActionHandler);
         configureActionHandler(context, BidirectionalMultiplicityInputAction.KIND, BidirectionalMultiplicityInputActionHandler);
+        
+                // Configure LoadMetamodelResponse handler
+                configureActionHandler(context, 'loadMetamodelResponse', LoadMetamodelResponseHandler);
+                
+                // Configure VisualConfigurationResponse handler
+                configureActionHandler(context, 'visualConfigurationResponse', VisualConfigurationResponseHandler);
     },
     { featureId: Symbol('metamodelDiagram') }
 );

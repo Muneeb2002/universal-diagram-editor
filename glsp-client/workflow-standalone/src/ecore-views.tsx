@@ -208,8 +208,8 @@ export class EcoreEnumNodeView extends RectangularNodeView {
 }
 
 /**
- * Custom view for Ecore instances - renders as a rectangle with instance-specific styling
- * All visual styling is handled via CSS classes in ecore-styles.css
+ * Custom view for Ecore instances - renders different shapes based on visual configuration
+ * All visual styling is handled via CSS classes in visual-configuration.css
  */
 @injectable()
 export class EcoreInstanceNodeView extends RectangularNodeView {
@@ -218,19 +218,38 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             return undefined;
         }
 
+        // Get CSS classes to determine shape and color
+        const cssClasses = (node as any).cssClasses || [];
+        const shapeClass = cssClasses.find((cls: string) => cls.startsWith('shape-'));
+        
+
+        // Check if custom size is configured
+        const customSize = (node as any).customSize;
+        const nodeWidth = customSize?.width || Math.max(0, node.size.width);
+        const nodeHeight = customSize?.height || Math.max(0, node.size.height);
+
+        // Render different shapes based on configuration
+        let shapeElement: VNode;
+        
+        if (shapeClass === 'shape-circle') {
+            shapeElement = this.renderCircle(node, nodeWidth, nodeHeight);
+        } else if (shapeClass === 'shape-ellipse') {
+            shapeElement = this.renderEllipse(node, nodeWidth, nodeHeight);
+        } else if (shapeClass === 'shape-diamond') {
+            shapeElement = this.renderDiamond(node, nodeWidth, nodeHeight);
+        } else if (shapeClass === 'shape-triangle') {
+            shapeElement = this.renderTriangle(node, nodeWidth, nodeHeight);
+                } else if (shapeClass === 'shape-arrow') {
+            shapeElement = this.renderArrow(node, nodeWidth, nodeHeight);
+        } else {
+            // Default rectangle
+            shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight);
+        }
+
         const vnode = (
             <g class-node={true} class-ecore-instance={true}>
-                <rect
-                    class-sprotty-node={true}
-                    class-selected={node.selected}
-                    class-mouseover={node.hoverFeedback}
-                    x="0"
-                    y="0"
-                    width={Math.max(0, node.size.width)}
-                    height={Math.max(0, node.size.height)}
-                    rx="5"
-                    ry="5"
-                />
+                {shapeElement}
+                {node.selected ? this.renderResizeHandles(node, nodeWidth, nodeHeight) : null}
                 {context.renderChildren(node)}
             </g>
         );
@@ -238,6 +257,295 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         setAttr(vnode, 'data-svg-metadata-type', node.type);
         setClass(vnode, 'ecore-instance', true);
         return vnode;
+    }
+
+    private renderResizeHandles(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const handleSize = 8;
+        const halfHandle = handleSize / 2;
+        
+        return (
+            <g class-resize-handles={true}>
+                {/* Corner handles */}
+                <rect
+                    class-resize-handle={true}
+                    class-resize-nw={true}
+                    x={-halfHandle}
+                    y={-halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="nw-resize"
+                    data-resize-direction="nw"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-ne={true}
+                    x={width - halfHandle}
+                    y={-halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="ne-resize"
+                    data-resize-direction="ne"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-sw={true}
+                    x={-halfHandle}
+                    y={height - halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="sw-resize"
+                    data-resize-direction="sw"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-se={true}
+                    x={width - halfHandle}
+                    y={height - halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="se-resize"
+                    data-resize-direction="se"
+                />
+                
+                {/* Edge handles */}
+                <rect
+                    class-resize-handle={true}
+                    class-resize-n={true}
+                    x={width / 2 - halfHandle}
+                    y={-halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="n-resize"
+                    data-resize-direction="n"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-s={true}
+                    x={width / 2 - halfHandle}
+                    y={height - halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="s-resize"
+                    data-resize-direction="s"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-w={true}
+                    x={-halfHandle}
+                    y={height / 2 - halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="w-resize"
+                    data-resize-direction="w"
+                />
+                <rect
+                    class-resize-handle={true}
+                    class-resize-e={true}
+                    x={width - halfHandle}
+                    y={height / 2 - halfHandle}
+                    width={handleSize}
+                    height={handleSize}
+                    fill="#1976D2"
+                    stroke="#ffffff"
+                    strokeWidth={1}
+                    cursor="e-resize"
+                    data-resize-direction="e"
+                />
+            </g>
+        );
+    }
+
+    private renderRectangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <rect
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                x="0"
+                y="0"
+                width={width}
+                height={height}
+                rx="5"
+                ry="5"
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+    private renderCircle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const radius = Math.min(width, height) / 2 - 10; // Leave more margin for circle
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <circle
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                cx={centerX}
+                cy={centerY}
+                r={radius}
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+    private renderEllipse(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const radiusX = width / 2 - 10; // Leave more margin for ellipse
+        const radiusY = height / 2 - 10; // Leave more margin for ellipse
+        
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <ellipse
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                cx={centerX}
+                cy={centerY}
+                rx={radiusX}
+                ry={radiusY}
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+    private renderDiamond(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const centerX = width / 2;
+        const centerY = height / 2;
+        
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <polygon
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                points={`${centerX},0 ${width},${centerY} ${centerX},${height} 0,${centerY}`}
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+    private renderTriangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <polygon
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                points={`${width/2},0 ${width},${height} 0,${height}`}
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+
+    private renderArrow(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+        // Create a line with an open arrowhead
+        const lineY = height / 2;
+        const lineStart = width * 0.1;
+        const lineEnd = width * 0.8;
+        const arrowheadSize = height * 0.3;
+        const arrowheadX = lineEnd;
+        const arrowheadY = lineY;
+        
+        // Create the main line and open arrowhead
+        const arrowPath = `M ${lineStart},${lineY} L ${lineEnd},${lineY} M ${arrowheadX},${arrowheadY} L ${arrowheadX - arrowheadSize},${arrowheadY - arrowheadSize/2} M ${arrowheadX},${arrowheadY} L ${arrowheadX - arrowheadSize},${arrowheadY + arrowheadSize/2}`;
+        
+        // Check for border style configuration
+        const cssClasses = (node as any).cssClasses || [];
+        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
+        let strokeDasharray = "none";
+        
+        if (borderClass === 'border-dashed') {
+            strokeDasharray = "5,5";
+        } else if (borderClass === 'border-dotted') {
+            strokeDasharray = "2,2";
+        }
+        
+        return (
+            <path
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                d={arrowPath}
+                stroke="black"
+                strokeWidth={3}
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeDasharray={strokeDasharray}
+            />
+        );
     }
 }
 

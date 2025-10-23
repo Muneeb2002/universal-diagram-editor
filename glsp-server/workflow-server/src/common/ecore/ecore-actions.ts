@@ -1,13 +1,3 @@
-/********************************************************************************
- * Copyright (c) 2024 Eclipse GLSP and others.
- *
- * This program and the accompanying materials are made available under the
- * terms of the Eclipse Public License v. 2.0 which is available at
- * http://www.eclipse.org/legal/epl-2.0.
- *
- * SPDX-License-Identifier: EPL-2.0
- ********************************************************************************/
-
 import { Action, hasStringProp, hasBooleanProp } from '@eclipse-glsp/protocol';
 
 /**
@@ -488,6 +478,107 @@ export namespace DeleteAttributeAction {
             kind: KIND,
             className,
             attributeName
+        };
+    }
+}
+
+// Visual Configuration Actions
+export interface OpenVisualConfigurationAction extends Action {
+    kind: typeof OpenVisualConfigurationAction.KIND;
+}
+
+export namespace OpenVisualConfigurationAction {
+    export const KIND = 'openVisualConfiguration';
+    
+    export function create(): OpenVisualConfigurationAction {
+        return {
+            kind: KIND
+        };
+    }
+}
+
+export interface SetClassVisualConfigurationAction extends Action {
+    kind: typeof SetClassVisualConfigurationAction.KIND;
+    className: string;
+    shape: string;
+    color: string;
+    border?: {
+        style: 'solid' | 'dashed' | 'dotted';
+    };
+    size?: {
+        width: number;
+        height: number;
+    };
+    showAttributes: boolean;
+    showReferences: boolean;
+}
+
+export namespace SetClassVisualConfigurationAction {
+    export const KIND = 'setClassVisualConfiguration';
+    
+    export function create(className: string, shape: string, color: string, showAttributes: boolean, showReferences: boolean, border?: { style: 'solid' | 'dashed' | 'dotted' }, size?: { width: number; height: number }): SetClassVisualConfigurationAction {
+        return {
+            kind: KIND,
+            className,
+            shape,
+            color,
+            border,
+            size,
+            showAttributes,
+            showReferences
+        };
+    }
+}
+
+export interface GetVisualConfigurationAction extends Action {
+    kind: typeof GetVisualConfigurationAction.KIND;
+}
+
+export namespace GetVisualConfigurationAction {
+    export const KIND = 'getVisualConfiguration';
+    
+    export function create(): GetVisualConfigurationAction {
+        return {
+            kind: KIND
+        };
+    }
+}
+
+export interface VisualConfigurationResponse extends Action {
+    kind: typeof VisualConfigurationResponse.KIND;
+    success: boolean;
+    configurations: Array<{
+        className: string;
+        shape: string;
+        color: string;
+        showAttributes: boolean;
+        showReferences: boolean;
+    }>;
+    availableShapes: string[];
+    availableColors: string[];
+}
+
+export namespace VisualConfigurationResponse {
+    export const KIND = 'visualConfigurationResponse';
+    
+    export function create(
+        success: boolean,
+        configurations: Array<{
+            className: string;
+            shape: string;
+            color: string;
+            showAttributes: boolean;
+            showReferences: boolean;
+        }>,
+        availableShapes: string[],
+        availableColors: string[]
+    ): VisualConfigurationResponse {
+        return {
+            kind: KIND,
+            success,
+            configurations,
+            availableShapes,
+            availableColors
         };
     }
 }

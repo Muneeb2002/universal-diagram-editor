@@ -20,7 +20,14 @@ export * from './instance-model-types';
 export * from './instance-model-storage';
 export * from './ecore-actions';
 export * from './load-metamodel-action-handler';
+export * from './load-metamodel-response-handler';
 export * from './switch-mode-action-handler';
 export * from './create-instance-action-handler';
+export * from './set-instance-attribute-action-handler';
+export * from './create-instance-reference-action-handler';
+export * from './visual-configuration-types';
+export * from './visual-configuration-storage';
+export * from './open-visual-configuration-action-handler';
+export * from './set-class-visual-configuration-action-handler';
 export * from './edge-action-handlers';
 

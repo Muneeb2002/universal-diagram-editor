@@ -1,0 +1,147 @@
+/********************************************************************************
+ * Copyright (c) 2024 Eclipse GLSP and others.
+ *
+ * This program and the accompanying materials are made available under the
+ * terms of the Eclipse Public License v. 2.0 which is available at
+ * http://www.eclipse.org/legal/epl-2.0.
+ *
+ * SPDX-License-Identifier: EPL-2.0
+ ********************************************************************************/
+
+/* Visual Configuration Styles for Instance Nodes */
+
+/* Base instance node styling */
+.ecore-instance {
+    fill: #E3F2FD !important;
+    stroke: #1976D2 !important;
+    stroke-width: 2px !important;
+    color: #0D47A1 !important;
+}
+
+/* Shape-specific styling - now handled by client-side SVG rendering */
+
+
+/* Color scheme styling */
+.color-blue {
+    fill: #E3F2FD !important;
+    stroke: #1976D2 !important;
+    color: #0D47A1 !important;
+}
+
+.color-green {
+    fill: #E8F5E8 !important;
+    stroke: #388E3C !important;
+    color: #1B5E20 !important;
+}
+
+.color-red {
+    fill: #FFEBEE !important;
+    stroke: #D32F2F !important;
+    color: #B71C1C !important;
+}
+
+.color-orange {
+    fill: #FFF3E0 !important;
+    stroke: #F57C00 !important;
+    color: #E65100 !important;
+}
+
+.color-purple {
+    fill: #F3E5F5 !important;
+    stroke: #7B1FA2 !important;
+    color: #4A148C !important;
+}
+
+.color-pink {
+    fill: #FCE4EC !important;
+    stroke: #C2185B !important;
+    color: #880E4F !important;
+}
+
+.color-yellow {
+    fill: #FFFDE7 !important;
+    stroke: #FBC02D !important;
+    color: #F57F17 !important;
+}
+
+.color-gray {
+    fill: #F5F5F5 !important;
+    stroke: #616161 !important;
+    color: #212121 !important;
+}
+
+.color-brown {
+    fill: #EFEBE9 !important;
+    stroke: #5D4037 !important;
+    color: #3E2723 !important;
+}
+
+.color-cyan {
+    fill: #E0F2F1 !important;
+    stroke: #00796B !important;
+    color: #004D40 !important;
+}
+
+/* Border style variations */
+.border-dashed {
+    stroke-dasharray: 5, 5;
+}
+
+.border-dotted {
+    stroke-dasharray: 2, 2;
+}
+
+.border-solid {
+    stroke-dasharray: none;
+}
+
+/* Hover effects for interactive elements */
+.ecore-instance:hover {
+    stroke-width: calc(var(--border-width, 2px) + 1px);
+    filter: brightness(1.1);
+}
+
+/* Focus styles for accessibility */
+.ecore-instance:focus {
+    outline: 2px solid var(--stroke-color, #1976D2);
+    outline-offset: 2px;
+}
+
+/* Animation for shape transitions */
+.ecore-instance {
+    transition: all 0.3s ease-in-out;
+}
+
+/* Special styling for different compartments */
+.ecore-instance .comp\:header {
+    font-weight: bold;
+    font-size: 14px;
+}
+
+.ecore-instance .comp\:attributes {
+    font-size: 12px;
+    opacity: 0.9;
+}
+
+.ecore-instance .comp\:references {
+    font-size: 12px;
+    opacity: 0.8;
+    font-style: italic;
+}
+
+/* Responsive sizing */
+@media (max-width: 768px) {
+    .ecore-instance {
+        min-width: 120px;
+        min-height: 80px;
+    }
+}
+
+/* Print styles */
+@media print {
+    .ecore-instance {
+        fill: white !important;
+        stroke: black !important;
+        color: black !important;
+    }
+}

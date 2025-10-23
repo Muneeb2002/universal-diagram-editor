@@ -127,6 +127,26 @@ export class EcoreToolbar {
         saveSection.appendChild(saveButton);
 
         this.toolbar.appendChild(saveSection);
+
+        // Create separator
+        const separator4 = document.createElement('hr');
+        separator4.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
+        this.toolbar.appendChild(separator4);
+
+        // Create visual configuration section
+        const visualConfigSection = document.createElement('div');
+        visualConfigSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
+
+        const visualConfigLabel = document.createElement('span');
+        visualConfigLabel.textContent = 'Visual Configuration:';
+        visualConfigLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
+        visualConfigSection.appendChild(visualConfigLabel);
+
+        const visualConfigButton = this.createButton('🎨 Configure Appearance', () => this.openVisualConfiguration());
+        visualConfigButton.style.width = '100%';
+        visualConfigSection.appendChild(visualConfigButton);
+
+        this.toolbar.appendChild(visualConfigSection);
     }
 
     private createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -304,6 +324,22 @@ export class EcoreToolbar {
         } catch (error) {
             console.error('Error creating custom metamodel:', error);
             alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
+        }
+    }
+
+    private async openVisualConfiguration(): Promise<void> {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not set');
+            return;
+        }
+
+        try {
+            console.log('Opening visual configuration...');
+            const action = { kind: 'openVisualConfiguration' };
+            await this.actionDispatcher.dispatch(action);
+        } catch (error) {
+            console.error('Error opening visual configuration:', error);
+            alert('Error opening visual configuration: ' + error);
         }
     }
 

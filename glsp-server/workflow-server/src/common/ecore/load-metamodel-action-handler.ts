@@ -67,8 +67,20 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 console.log('Set modelType to ecore, viewMode to metamodel');
             }
 
-            // Get all class names
-            const classNames = this.metamodelRegistry.getAllEClasses().map(c => c.name);
+            // Get all class names (filter out abstract classes as they can't be instantiated)
+            const allClasses = this.metamodelRegistry.getAllEClasses();
+            const classNames = allClasses
+                .filter(c => {
+                    // Filter out abstract classes
+                    const isAbstract = c.get ? c.get('abstract') : c.abstract;
+                    return !isAbstract;
+                })
+                .map(c => {
+                    // Handle both ecore-ts objects and plain objects
+                    return c.get ? c.get('name') : c.name;
+                });
+
+            console.log(`Found ${allClasses.length} total classes, ${classNames.length} non-abstract classes:`, classNames);
 
             // Create the GModel
             this.gmodelFactory.createModel();
