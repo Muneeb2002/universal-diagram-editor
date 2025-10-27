@@ -5,8 +5,6 @@ export type ShapeType =
     | 'rectangle'
     | 'circle'
     | 'ellipse'
-    | 'diamond'
-    | 'triangle'
     | 'arrow';
 
 /**
@@ -77,8 +75,6 @@ export const SHAPE_DEFINITIONS: Record<ShapeType, string> = {
     rectangle: 'M0,0 L100,0 L100,60 L0,60 Z',
     circle: 'M50,0 A50,50 0 1,1 50,100 A50,50 0 1,1 50,0',
     ellipse: 'M0,30 A50,30 0 1,1 100,30 A50,30 0 1,1 0,30',
-    diamond: 'M50,0 L100,30 L50,60 L0,30 Z',
-    triangle: 'M50,0 L100,60 L0,60 Z',
     arrow: 'M10,30 L100,30 M100,30 L85,20 M100,30 L85,40'
 };
 

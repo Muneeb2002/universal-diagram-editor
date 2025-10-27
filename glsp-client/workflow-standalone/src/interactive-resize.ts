@@ -18,17 +18,18 @@ let startHeight = 0;
 let currentNode: any = null;
 
 export function setupInteractiveResize(): void {
-    // Add mouse event listeners to the diagram container
+    // Use event delegation on the diagram container
     const diagramContainer = document.getElementById('sprotty-container');
-    if (!diagramContainer) {
-        // Fallback to document
-        document.addEventListener('mousedown', handleMouseDown);
-        document.addEventListener('mousemove', handleMouseMove);
-        document.addEventListener('mouseup', handleMouseUp);
+    if (diagramContainer) {
+        // Use event delegation with capture phase to handle resize handles before GLSP
+        diagramContainer.addEventListener('mousedown', handleMouseDown, true);
+        diagramContainer.addEventListener('mousemove', handleMouseMove, true);
+        diagramContainer.addEventListener('mouseup', handleMouseUp, true);
     } else {
-        diagramContainer.addEventListener('mousedown', handleMouseDown);
-        diagramContainer.addEventListener('mousemove', handleMouseMove);
-        diagramContainer.addEventListener('mouseup', handleMouseUp);
+        // Fallback to document with capture phase
+        document.addEventListener('mousedown', handleMouseDown, true);
+        document.addEventListener('mousemove', handleMouseMove, true);
+        document.addEventListener('mouseup', handleMouseUp, true);
     }
 }
 
@@ -36,7 +37,7 @@ function handleMouseDown(event: MouseEvent): void {
     const target = event.target as SVGElement;
     if (!target) return;
 
-    // Check if clicking on a resize handle
+    // Only handle resize handle clicks
     if (target.classList.contains('resize-handle')) {
         event.preventDefault();
         event.stopPropagation();
@@ -61,10 +62,16 @@ function handleMouseDown(event: MouseEvent): void {
                     const radius = parseFloat(rect.getAttribute('r') || '30');
                     startWidth = radius * 2;
                     startHeight = radius * 2;
+                } else if (rect.tagName === 'ellipse') {
+                    const rx = parseFloat(rect.getAttribute('rx') || '50');
+                    const ry = parseFloat(rect.getAttribute('ry') || '30');
+                    startWidth = rx * 2;
+                    startHeight = ry * 2;
                 }
             }
         }
     }
+    // For all other elements, let the event pass through to GLSP for drag handling
 }
 
 function handleMouseMove(event: MouseEvent): void {
@@ -165,7 +172,21 @@ function updateNodeSize(nodeElement: Element, width: number, height: number): vo
     } else if (rect.tagName === 'ellipse') {
         rect.setAttribute('rx', (width / 2).toString());
         rect.setAttribute('ry', (height / 2).toString());
+    } else if (rect.tagName === 'polygon') {
+        // For triangles, update the points based on the new dimensions
+        const points = rect.getAttribute('points');
+        if (points) {
+            // Simple triangle scaling - this could be improved for more complex polygons
+            const scaleX = width / 100; // Assuming original width was 100
+            const scaleY = height / 60; // Assuming original height was 60
+            const scaledPoints = points.split(' ').map(point => {
+                const [x, y] = point.split(',').map(Number);
+                return `${x * scaleX},${y * scaleY}`;
+            }).join(' ');
+            rect.setAttribute('points', scaledPoints);
+        }
     }
+    // Note: Path elements (arrows) are more complex to resize and might need special handling
     
     // Update resize handles position
     const resizeHandles = nodeElement.querySelectorAll('.resize-handle');

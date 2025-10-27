@@ -235,11 +235,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             shapeElement = this.renderCircle(node, nodeWidth, nodeHeight);
         } else if (shapeClass === 'shape-ellipse') {
             shapeElement = this.renderEllipse(node, nodeWidth, nodeHeight);
-        } else if (shapeClass === 'shape-diamond') {
-            shapeElement = this.renderDiamond(node, nodeWidth, nodeHeight);
-        } else if (shapeClass === 'shape-triangle') {
-            shapeElement = this.renderTriangle(node, nodeWidth, nodeHeight);
-                } else if (shapeClass === 'shape-arrow') {
+        } else if (shapeClass === 'shape-arrow') {
             shapeElement = this.renderArrow(node, nodeWidth, nodeHeight);
         } else {
             // Default rectangle
@@ -460,54 +456,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             />
         );
     }
-
-    private renderDiamond(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
-        const centerX = width / 2;
-        const centerY = height / 2;
-        
-        const cssClasses = (node as any).cssClasses || [];
-        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
-        
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
-        }
-        
-        return (
-            <polygon
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                points={`${centerX},0 ${width},${centerY} ${centerX},${height} 0,${centerY}`}
-                strokeDasharray={strokeDasharray}
-            />
-        );
-    }
-
-    private renderTriangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
-        const cssClasses = (node as any).cssClasses || [];
-        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
-        
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
-        }
-        
-        return (
-            <polygon
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                points={`${width/2},0 ${width},${height} 0,${height}`}
-                strokeDasharray={strokeDasharray}
-            />
-        );
-    }
-
 
     private renderArrow(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
         // Create a line with an open arrowhead

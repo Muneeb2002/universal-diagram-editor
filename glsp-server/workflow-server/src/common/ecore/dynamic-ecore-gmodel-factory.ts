@@ -43,7 +43,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const modelType = this.modelState.get('modelType') as string;
         const viewMode = this.modelState.get('viewMode') as string || 'metamodel';
 
-        console.log('DynamicEcoreGModelFactory.createModel() - modelType:', modelType, 'viewMode:', viewMode);
+        // Clear any existing model to prevent duplicate labels
+        this.modelState.set('gmodel', undefined);
 
         if (modelType === 'ecore') {
             if (viewMode === 'instance') {
@@ -703,7 +704,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         // Get visual configuration for this class
         const visualConfig = this.visualConfigStorage.getClassVisualConfiguration(instance.eClassName);
-        console.log(`Applying visual configuration for ${instance.eClassName}:`, visualConfig);
         
         // Apply visual configuration
         this.applyVisualConfiguration(node, visualConfig);
@@ -712,8 +712,16 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         if (instance.position) {
             node.position = { x: instance.position.x, y: instance.position.y };
         } else {
-            // Auto-layout: position instances in a grid
-            node.position = { x: 50, y: 50 };
+            // Auto-layout: position instances in a grid to prevent overlapping
+            const gridSpacing = 250; // Space between instances
+            const instancesPerRow = 3; // Number of instances per row
+            const instanceCount = this.getInstanceCount();
+            const row = Math.floor(instanceCount / instancesPerRow);
+            const col = instanceCount % instancesPerRow;
+            node.position = { 
+                x: 50 + (col * gridSpacing), 
+                y: 50 + (row * gridSpacing) 
+            };
         }
 
         // Set size if available (use visual config size if specified)
@@ -750,7 +758,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             const attributesText: string[] = [];
             instance.attributes.forEach((value, attrName) => {
                 const displayValue = value !== null && value !== undefined ? String(value) : '';
-                attributesText.push(`${attrName} = ${displayValue}`);
+                attributesText.push(displayValue);
             });
 
             const attributesLabel = new GLabel();
@@ -790,6 +798,15 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         return node;
+    }
+
+    /**
+     * Gets the current count of instances for auto-layout positioning.
+     * @returns The number of instances created so far
+     */
+    private getInstanceCount(): number {
+        const instanceModel = this.instanceStorage.getOrCreateActiveInstanceModel();
+        return instanceModel.instances.size;
     }
 
     /**

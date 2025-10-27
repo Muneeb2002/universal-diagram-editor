@@ -119,7 +119,7 @@ export class VisualConfigurationStorage {
      * @returns Array of shape types
      */
     getAvailableShapes(): ShapeType[] {
-        return ['rectangle', 'circle', 'ellipse', 'diamond', 'triangle', 'arrow'];
+        return ['rectangle', 'circle', 'ellipse', 'arrow'];
     }
 
     /**

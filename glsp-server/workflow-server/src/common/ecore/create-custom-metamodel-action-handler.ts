@@ -5,7 +5,8 @@ import { SetModelAction } from '@eclipse-glsp/protocol';
 import { MetamodelRegistry } from './metamodel-registry';
 import { 
     CreateCustomMetamodelAction,
-    CreateEClassAction
+    CreateEClassAction,
+    LoadMetamodelResponse
 } from './ecore-actions';
 
 /**
@@ -43,12 +44,35 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                 success = result.success;
             }
 
-            // If successful, regenerate the model
+            // If successful, regenerate the model and send LoadMetamodelResponse
             if (success) {
                 this.gmodelFactory.createModel();
                 const gmodel = this.modelState.get('gmodel') as GModelRoot;
                 if (gmodel && gmodel.type && gmodel.id) {
-                    return [SetModelAction.create(gmodel)];
+                    // Get available classes for the toolbar
+                    const allClasses = this.metamodelRegistry.getAllEClasses();
+                    const classNames = allClasses
+                        .filter(c => {
+                            // Filter out abstract classes
+                            const isAbstract = c.get ? c.get('abstract') : c.abstract;
+                            return !isAbstract;
+                        })
+                        .map(c => {
+                            // Handle both ecore-ts objects and plain objects
+                            return c.get ? c.get('name') : c.name;
+                        });
+
+                    const activeMetamodelKey = this.metamodelRegistry.getActiveMetamodelKey();
+                    
+                    return [
+                        SetModelAction.create(gmodel),
+                        LoadMetamodelResponse.create(
+                            true,
+                            activeMetamodelKey || 'custom',
+                            `Successfully updated metamodel with ${classNames.length} classes`,
+                            classNames
+                        )
+                    ];
                 }
             }
 
