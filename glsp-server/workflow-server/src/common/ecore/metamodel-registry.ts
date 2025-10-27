@@ -956,6 +956,9 @@ export class MetamodelRegistry {
             // Register the metamodel
             const metamodelKey = nsURI; // Use nsURI as the key
             this.registerMetamodel(metamodelKey, ecoreModel);
+            
+            // Set as active metamodel
+            this.setActiveMetamodel(metamodelKey);
 
             console.log(`Created custom metamodel: ${packageName} (${nsURI})`);
 
@@ -1002,7 +1005,7 @@ export class MetamodelRegistry {
                 const pkg = activeMetamodel.ePackages[0];
                 let eClass: any;
                 
-                if (typeof (pkg as any).get === 'function') {
+                if (typeof (pkg as any).get === 'function' && typeof (pkg as any).get('eClassifiers').add === 'function') {
                     // ecore-ts EPackage object - create proper ecore-ts EClass
                     eClass = EClass.create({
                         name: className,

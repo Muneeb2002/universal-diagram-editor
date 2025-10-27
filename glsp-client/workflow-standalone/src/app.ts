@@ -27,10 +27,9 @@ import {
 import { Container } from 'inversify';
 import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
-import { EcoreFilePicker } from './ecore-file-picker';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { createLoadMetamodelAction, createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
+import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { VisualConfigurationDialog } from './visual-configuration-dialog';
 import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
@@ -58,32 +57,13 @@ let actionDispatcher: GLSPActionDispatcher;
 const wsProvider = new GLSPWebSocketProvider(webSocketUrl);
 wsProvider.listen({ onConnection: initialize, onReconnect: reconnect, logger: console });
 
-// Initialize file picker
-const filePicker = new EcoreFilePicker();
+// Initialize toolbar and context menus
 const toolbar = new EcoreToolbar();
 const contextMenu = new EcoreContextMenu();
 const edgeContextMenu = new EcoreEdgeContextMenu();
 
-filePicker.onFileSelected = async (filename: string, content: string) => {
-    if (actionDispatcher) {
-        try {
-            // Use the action to load JSON metamodel files
-            const action = createLoadMetamodelAction(content, filename, true);
-            await actionDispatcher.dispatch(action);
-
-            console.log('Metamodel loaded:', filename);
-        } catch (error) {
-            console.error('Error loading metamodel:', error);
-            alert('Error loading metamodel: ' + error);
-        }
-    }
-};
-
 // Add UI elements to the page
 document.addEventListener('DOMContentLoaded', () => {
-    const button = filePicker.createFilePickerButton();
-    document.body.appendChild(button);
-    
     const toolbarElement = toolbar.getElement();
     document.body.appendChild(toolbarElement);
 });

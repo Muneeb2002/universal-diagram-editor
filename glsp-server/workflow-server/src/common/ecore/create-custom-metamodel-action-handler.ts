@@ -18,6 +18,7 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
         CreateEClassAction.KIND
     ];
 
+
     @inject(MetamodelRegistry)
     protected metamodelRegistry: MetamodelRegistry;
 
@@ -104,6 +105,12 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
             );
 
             if (result.success) {
+                // Update the model state with the updated metamodel
+                const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
+                if (activeMetamodel) {
+                    this.modelState.set('ecoreModel', activeMetamodel);
+                }
+                
                 return {
                     success: true,
                     message: `Successfully created EClass '${action.className}'`
@@ -115,6 +122,7 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                 };
             }
         } catch (error) {
+            console.error('Error in handleCreateEClass:', error);
             return {
                 success: false,
                 message: `Failed to create EClass: ${error instanceof Error ? error.message : String(error)}`

@@ -165,7 +165,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         let nodeCount = 0;
 
         ecoreModel.ePackages.forEach(pkg => {
-            (pkg.get('eClassifiers') as any).forEach((classifier: any) => {
+            const classifiers = pkg.get('eClassifiers') as any;
+            
+            classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
                     const node = this.createNodeForEClass(classifier);
                     this.setNodePosition(node, x, y, nodeWidth, nodeHeight);

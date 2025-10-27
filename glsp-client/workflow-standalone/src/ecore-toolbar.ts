@@ -147,6 +147,26 @@ export class EcoreToolbar {
         visualConfigSection.appendChild(visualConfigButton);
 
         this.toolbar.appendChild(visualConfigSection);
+
+        // Create separator
+        const separator5 = document.createElement('hr');
+        separator5.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
+        this.toolbar.appendChild(separator5);
+
+        // Create load JSON section
+        const loadSection = document.createElement('div');
+        loadSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
+
+        const loadLabel = document.createElement('span');
+        loadLabel.textContent = 'Load Metamodel:';
+        loadLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
+        loadSection.appendChild(loadLabel);
+
+        const loadButton = this.createButton('Load JSON', () => this.loadJSON());
+        loadButton.style.width = '100%';
+        loadSection.appendChild(loadButton);
+
+        this.toolbar.appendChild(loadSection);
     }
 
     private createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -341,6 +361,48 @@ export class EcoreToolbar {
             console.error('Error opening visual configuration:', error);
             alert('Error opening visual configuration: ' + error);
         }
+    }
+
+    private loadJSON(): void {
+        // Create file input element
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+        
+        fileInput.addEventListener('change', async (event) => {
+            const target = event.target as HTMLInputElement;
+            const file = target.files?.[0];
+            
+            if (!file) return;
+            
+            try {
+                const content = await file.text();
+                
+                if (this.actionDispatcher) {
+                    const action = {
+                        kind: 'loadMetamodel',
+                        content: content,
+                        filename: file.name,
+                        isJSON: true
+                    };
+                    
+                    await this.actionDispatcher.dispatch(action);
+                    console.log('Metamodel loaded:', file.name);
+                } else {
+                    console.error('Action dispatcher not available');
+                    alert('Action dispatcher not available');
+                }
+            } catch (error) {
+                console.error('Error loading metamodel:', error);
+                alert('Error loading metamodel: ' + error);
+            }
+        });
+        
+        // Trigger file selection
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
     }
 
     public getElement(): HTMLDivElement {
