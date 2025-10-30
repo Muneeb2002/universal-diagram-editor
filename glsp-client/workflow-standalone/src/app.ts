@@ -73,9 +73,9 @@ const edgeContextMenu = new EcoreEdgeContextMenu();
 
 // Add UI elements to the page
 document.addEventListener('DOMContentLoaded', () => {
-    const toolbarElement = toolbar.getElement();
-    document.body.appendChild(toolbarElement);
     leftSidebar.attach();
+    const toolbarElement = toolbar.getElement();
+    leftSidebar.dockToolbar(toolbarElement);
 });
 
 async function initialize(connectionProvider: MessageConnection, isReconnecting = false): Promise<void> {
@@ -315,6 +315,23 @@ function setupCustomActionHandling(): void {
             showEClassCreationDialog();
             return Promise.resolve();
         }
+        // Hide/show docked panels depending on mode
+        else if (action.kind === 'switchMode') {
+            const mode = action.mode as 'metamodel' | 'instance';
+            if (mode === 'instance') {
+                const panel = document.getElementById('class-properties-panel');
+                if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
+                document.body.style.paddingBottom = '0px';
+                document.body.style.setProperty('--bottom-panel-height', '0px');
+                // Hide tool palette UI extension
+                const palette = document.getElementById('tool-palette') || document.querySelector('.tool-palette') as HTMLElement | null;
+                if (palette) (palette as HTMLElement).style.display = 'none';
+            } else if (mode === 'metamodel') {
+                try { await actionDispatcher.dispatch({ kind: 'openClassProperties' }); } catch {}
+                const palette = document.getElementById('tool-palette') || document.querySelector('.tool-palette') as HTMLElement | null;
+                if (palette) (palette as HTMLElement).style.display = '';
+            }
+        }
         // Check if this is a LoadMetamodelResponse
         else if (action.kind === 'loadMetamodelResponse') {
             
@@ -332,7 +349,7 @@ function setupCustomActionHandling(): void {
                 console.warn('LoadMetamodelResponse received but no classes found:', action);
             }
 
-            // Refresh docked properties panel when metamodel changes
+            // Refresh docked properties panel when metamodel changes (metamodel mode only)
             try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch {}
         }
         
