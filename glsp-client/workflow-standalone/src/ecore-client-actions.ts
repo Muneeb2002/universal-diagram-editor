@@ -22,12 +22,38 @@ export interface LoadMetamodelAction {
     setAsActive?: boolean;
 }
 
+export interface ClassInfo {
+    className: string;
+    isAbstract: boolean;
+    isInterface: boolean;
+    eSuperTypes?: string[]; // Array of supertype class names
+    attributes: Array<{
+        name: string;
+        type: string;
+        lowerBound: number;
+        upperBound: number;
+        unique: boolean;
+        ordered: boolean;
+    }>;
+    references: Array<{
+        name: string;
+        type: string;
+        lowerBound: number;
+        upperBound: number;
+        containment: boolean;
+        container: boolean;
+        unique: boolean;
+        ordered: boolean;
+    }>;
+}
+
 export interface LoadMetamodelResponse {
     kind: 'loadMetamodelResponse';
     success: boolean;
     metamodelKey: string;
     message?: string;
     classNames?: string[];
+    classInfo?: ClassInfo[];
 }
 
 export interface SwitchModeAction {
@@ -39,6 +65,8 @@ export interface CreateInstanceAction {
     kind: 'createInstance';
     eClassName: string;
     position?: { x: number; y: number };
+    containerInstanceId?: string;
+    containmentReferenceName?: string;
 }
 
 export interface SetInstanceAttributeAction {
@@ -100,12 +128,16 @@ export function createSwitchModeAction(mode: 'metamodel' | 'instance'): SwitchMo
 
 export function createCreateInstanceAction(
     eClassName: string,
-    position?: { x: number; y: number }
+    position?: { x: number; y: number },
+    containerInstanceId?: string,
+    containmentReferenceName?: string
 ): CreateInstanceAction {
     return {
         kind: 'createInstance',
         eClassName,
-        position
+        position,
+        containerInstanceId,
+        containmentReferenceName
     };
 }
 

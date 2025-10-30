@@ -27,12 +27,12 @@ import { VNode } from 'snabbdom';
 @injectable()
 export class EcoreEdgeView extends PolylineEdgeView {
     override render(edge: GEdge, context: RenderingContext, args?: any): VNode | undefined {
-        console.log(`EcoreEdgeView.render() - Rendering edge: ${edge.id} (type: ${edge.type})`);
+        
 
         // Render the basic edge
         const vnode = super.render(edge, context, args);
 
-        console.log(`EcoreEdgeView.render() - Rendered vnode:`, vnode);
+        
 
         // Apply CSS classes for styling
         if (vnode?.data) {

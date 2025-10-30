@@ -34,8 +34,15 @@ export class CreateInstanceActionHandler implements ActionHandler {
         console.log('CreateInstanceActionHandler.execute()', action);
 
         try {
-            // Create the instance
-            const instance = this.instanceStorage.createInstance(action.eClassName, action.position);
+            // Create the instance (optionally within a container)
+            const instance = this.instanceStorage.createInstance(
+                action.eClassName,
+                action.position,
+                {
+                    containerInstanceId: action.containerInstanceId,
+                    containmentReferenceName: action.containmentReferenceName
+                }
+            );
             console.log(`Created instance: ${instance.id}`);
 
             // Ensure we're in instance mode

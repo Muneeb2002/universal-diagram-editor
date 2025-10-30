@@ -89,7 +89,11 @@ export class InstanceModelStorage {
      * @param position Optional initial position
      * @returns The created instance
      */
-    createInstance(eClassName: string, position?: { x: number; y: number }): EcoreInstance {
+    createInstance(
+        eClassName: string,
+        position?: { x: number; y: number },
+        opts?: { containerInstanceId?: string; containmentReferenceName?: string }
+    ): EcoreInstance {
         const activeKey = this.metamodelRegistry.getActiveMetamodelKey();
         if (!activeKey) {
             throw new Error('No active metamodel set');
@@ -106,6 +110,18 @@ export class InstanceModelStorage {
             throw new Error(`Cannot instantiate abstract class '${eClassName}'`);
         }
 
+        // If this class requires containment, ensure container information is provided
+        const incomingContainments = this.findIncomingContainmentRequirements(eClassName);
+        const mustBeContained = incomingContainments.some(r => (r.lowerBound ?? 0) > 0);
+        if (mustBeContained && (!opts?.containerInstanceId || !opts?.containmentReferenceName)) {
+            const refs = incomingContainments
+                .map(r => `${r.containerClassName}.${r.referenceName}[${r.lowerBound}..${this.boundToString(r.upperBound)}]`)
+                .join(', ');
+            throw new Error(
+                `Instances of '${eClassName}' must be contained. Provide containerInstanceId and containmentReferenceName (one of: ${refs}).`
+            );
+        }
+
         // Create the instance
         const instance = this.instanceFactory.createInstance(eClassName, activeKey, position);
 
@@ -115,10 +131,100 @@ export class InstanceModelStorage {
         // Add to instance model
         const instanceModel = this.getOrCreateActiveInstanceModel();
         instanceModel.instances.set(instance.id, instance);
-        instanceModel.rootInstances.add(instance.id);
+
+        // If container info provided, immediately create containment reference
+        // But first, adjust position relative to container
+        if (opts?.containerInstanceId && opts?.containmentReferenceName) {
+            // Get container instance to calculate relative position
+            const containerInstance = this.getInstance(opts.containerInstanceId);
+            if (containerInstance && containerInstance.position) {
+                // Count existing children BEFORE creating the reference
+                const containmentRef = containerInstance.references.get(opts.containmentReferenceName);
+                let existingChildrenCount = 0;
+                if (containmentRef) {
+                    if (Array.isArray(containmentRef)) {
+                        existingChildrenCount = containmentRef.length;
+                    } else if (containmentRef) {
+                        existingChildrenCount = 1;
+                    }
+                }
+                
+                // Always position child instances relative to container
+                const childOffsetX = 300; // Offset to the right
+                const childOffsetY = existingChildrenCount * 150; // Stack vertically
+                
+                instance.position = {
+                    x: containerInstance.position.x + childOffsetX,
+                    y: containerInstance.position.y + childOffsetY
+                };
+            }
+            
+            this.createReference(opts.containerInstanceId, opts.containmentReferenceName, instance.id);
+        } else {
+            // Only add to root instances if it's not contained
+            instanceModel.rootInstances.add(instance.id);
+        }
 
         console.log(`Created instance ${instance.id} of class ${eClassName}`);
         return instance;
+    }
+
+    private boundToString(ub: number | undefined): string {
+        if (ub === undefined) return '1';
+        return ub === -1 ? '*' : String(ub);
+    }
+
+    private findIncomingContainmentRequirements(targetClassName: string): Array<{
+        containerClassName: string;
+        referenceName: string;
+        lowerBound: number;
+        upperBound: number;
+    }> {
+        const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
+        const results: Array<{ containerClassName: string; referenceName: string; lowerBound: number; upperBound: number }> = [];
+        if (!activeMetamodel) return results;
+
+        for (const pkg of activeMetamodel.ePackages ?? []) {
+            const classifiers = (pkg as any).eClassifiers ?? (pkg as any).get?.('eClassifiers');
+            let classifierArray: any[] = [];
+            if (Array.isArray(classifiers)) classifierArray = classifiers;
+            else if (classifiers?.forEach) classifiers.forEach((c: any) => classifierArray.push(c));
+
+            for (const cls of classifierArray) {
+                if (!cls) continue;
+                const isClass = typeof (cls as any).get === 'function'
+                    ? (cls as any).eClass?.values?.name === 'EClass' || true
+                    : true;
+                if (!isClass) continue;
+
+                const className = (cls as any).name || (cls as any).get?.('name');
+                const features = (cls as any).eStructuralFeatures || (cls as any).get?.('eStructuralFeatures') || [];
+                let featureArray: any[] = [];
+                if (Array.isArray(features)) featureArray = features;
+                else if (features?.forEach) features.forEach((f: any) => featureArray.push(f));
+
+                for (const ref of featureArray.filter(isEReference)) {
+                    const containment = ref.containment ?? ref.get?.('containment');
+                    const eType = ref.eType || ref.get?.('eType');
+                    const typeName = eType?.name || eType?.get?.('name');
+                    if (containment && typeName === targetClassName) {
+                        results.push({
+                            containerClassName: className,
+                            referenceName: ref.name || ref.get?.('name'),
+                            lowerBound: ref.lowerBound ?? ref.get?.('lowerBound') ?? 0,
+                            upperBound: ref.upperBound ?? ref.get?.('upperBound') ?? -1
+                        });
+                    }
+                }
+            }
+        }
+        return results;
+    }
+
+    private countRefValue(value: string | string[] | undefined): number {
+        if (!value) return 0;
+        if (Array.isArray(value)) return value.length;
+        return value ? 1 : 0;
     }
 
     /**
@@ -258,24 +364,75 @@ export class InstanceModelStorage {
         }
 
         // Validate reference exists
-        const references = eClass.eStructuralFeatures.filter(isEReference);
-        const ref = references.find((r: any) => r.name === referenceName);
+        let references: any[] = [];
+        const eStructuralFeatures = eClass.get ? eClass.get('eStructuralFeatures') : eClass.eStructuralFeatures;
+        const eReferences = eClass.get ? eClass.get('eReferences') : eClass.eReferences;
+        
+        // First try to get references from eReferences array (JSON format)
+        if (eReferences) {
+            if (Array.isArray(eReferences)) {
+                references = eReferences; // Already references, no need to filter
+            } else if (eReferences.forEach) {
+                eReferences.forEach((f: any) => references.push(f));
+            }
+        }
+        
+        // Fallback to eStructuralFeatures if eReferences not available
+        if (references.length === 0 && eStructuralFeatures) {
+            let structuralFeatures: any[] = [];
+            if (Array.isArray(eStructuralFeatures)) {
+                structuralFeatures = eStructuralFeatures;
+            } else if (eStructuralFeatures.forEach) {
+                eStructuralFeatures.forEach((f: any) => structuralFeatures.push(f));
+            }
+            // Filter to get only references
+            references = structuralFeatures.filter(isEReference);
+        }
+        
+        console.log(`Found ${references.length} references in class '${sourceInstance.eClassName}':`, references.map(r => {
+            const name = r.get ? r.get('name') : r.name;
+            return name;
+        }));
+        const ref = references.find((r: any) => {
+            const name = r.get ? r.get('name') : r.name;
+            return name === referenceName;
+        });
         if (!ref) {
-            throw new Error(`Reference '${referenceName}' not found in class '${sourceInstance.eClassName}'`);
+            const availableRefs = references.map(r => {
+                const name = r.get ? r.get('name') : r.name;
+                return name;
+            });
+            console.error(`Reference '${referenceName}' not found in class '${sourceInstance.eClassName}'. Available references:`, availableRefs);
+            throw new Error(`Reference '${referenceName}' not found in class '${sourceInstance.eClassName}'. Available references: ${availableRefs.join(', ')}`);
         }
 
         // Validate target type matches reference type
-        if (ref.eType.name !== targetInstance.eClassName) {
-            throw new Error(
-                `Type mismatch: reference '${referenceName}' expects type '${ref.eType.name}' but got '${targetInstance.eClassName}'`
-            );
+        const refEType = ref.get ? ref.get('eType') : ref.eType;
+        const refTypeName = refEType ? (refEType.get ? refEType.get('name') : refEType.name) : null;
+        if (refTypeName && refTypeName !== targetInstance.eClassName) {
+            // Check if target type is a subtype of reference type
+            if (!this.isSubtypeOf(targetInstance.eClassName, refTypeName)) {
+                throw new Error(
+                    `Type mismatch: reference '${referenceName}' expects type '${refTypeName}' but got '${targetInstance.eClassName}'`
+                );
+            }
         }
 
-        // Check if it's a single or multi-valued reference
-        if (ref.upperBound === 1) {
+        // Enforce multiplicity
+        const lower = ref.get ? (ref.get('lowerBound') ?? 0) : (ref.lowerBound ?? 0);
+        const upper = ref.get ? (ref.get('upperBound') ?? 1) : (ref.upperBound ?? 1);
+        const currentValue = sourceInstance.references.get(referenceName);
+        const currentCount = this.countRefValue(currentValue);
+
+        if (upper === 1) {
+            if (currentCount === 1) {
+                throw new Error(`Reference '${referenceName}' on '${sourceInstance.eClassName}' already has a target (upperBound=1).`);
+            }
             sourceInstance.references.set(referenceName, targetInstanceId);
         } else {
-            const currentValue = sourceInstance.references.get(referenceName);
+            if (upper !== -1 && currentCount >= upper) {
+                throw new Error(`Reference '${referenceName}' exceeds upperBound (${upper}).`);
+            }
             if (Array.isArray(currentValue)) {
                 currentValue.push(targetInstanceId);
             } else {
@@ -291,7 +448,71 @@ export class InstanceModelStorage {
             }
         }
 
+        // Maintain eOpposite if present and enforce its multiplicity
+        const opposite = ref.eOpposite || ref.get?.('eOpposite');
+        if (opposite) {
+            const oppositeName = opposite.name || opposite.get?.('name');
+            if (oppositeName) {
+                const targetEClass = this.metamodelRegistry.findEClass(targetInstance.eClassName);
+                const targetRefs = targetEClass?.eStructuralFeatures?.filter(isEReference) || [];
+                const targetOppRef = targetRefs.find((r: any) => (r.name || r.get?.('name')) === oppositeName);
+                if (targetOppRef) {
+                    const tUpper = targetOppRef.upperBound ?? targetOppRef.get?.('upperBound') ?? 1;
+                    const targetCurrent = targetInstance.references.get(oppositeName);
+                    const targetCount = this.countRefValue(targetCurrent);
+                    if (tUpper === 1 && targetCount === 1) {
+                        throw new Error(`Opposite reference '${oppositeName}' on '${targetInstance.eClassName}' already has a target (upperBound=1).`);
+                    }
+                    if (tUpper !== -1 && targetCount >= tUpper) {
+                        throw new Error(`Opposite reference '${oppositeName}' exceeds upperBound (${tUpper}).`);
+                    }
+                    if (tUpper === 1) {
+                        targetInstance.references.set(oppositeName, sourceInstanceId);
+                    } else {
+                        if (Array.isArray(targetCurrent)) {
+                            targetCurrent.push(sourceInstanceId);
+                        } else {
+                            targetInstance.references.set(oppositeName, [sourceInstanceId]);
+                        }
+                    }
+                }
+            }
+        }
+
         console.log(`Created reference ${referenceName} from ${sourceInstanceId} to ${targetInstanceId}`);
+
+        // For [1..1], ensure exactly one after creation
+        if (lower === 1 && upper === 1) {
+            const afterCount = this.countRefValue(sourceInstance.references.get(referenceName));
+            if (afterCount !== 1) {
+                throw new Error(`Reference '${referenceName}' must have exactly one target ([1..1]).`);
+            }
+        }
+    }
+
+    validateActiveModel(): string[] {
+        const errors: string[] = [];
+        const model = this.getActiveInstanceModel();
+        if (!model) return errors;
+
+        for (const inst of model.instances.values()) {
+            const eClass = this.metamodelRegistry.findEClass(inst.eClassName);
+            if (!eClass) continue;
+            const refs = (eClass.eStructuralFeatures || []).filter(isEReference);
+            for (const ref of refs) {
+                const name = ref.name || ref.get?.('name');
+                const lower = ref.lowerBound ?? ref.get?.('lowerBound') ?? 0;
+                const upper = ref.upperBound ?? ref.get?.('upperBound') ?? 1;
+                const cnt = this.countRefValue(inst.references.get(name));
+                if (lower > 0 && cnt < lower) {
+                    errors.push(`Instance ${inst.id} (${inst.eClassName}) violates lowerBound ${lower} on reference '${name}'.`);
+                }
+                if (upper !== -1 && cnt > upper) {
+                    errors.push(`Instance ${inst.id} (${inst.eClassName}) exceeds upperBound ${upper} on reference '${name}'.`);
+                }
+            }
+        }
+        return errors;
     }
 
     /**
@@ -365,5 +586,51 @@ export class InstanceModelStorage {
         this.instanceModels.clear();
         this.instanceFactory.resetCounter();
         console.log('Cleared all instance models');
+    }
+
+    /**
+     * Checks if a class is a subtype of (or same as) another class.
+     * @param className The name of the class to check
+     * @param superTypeName The name of the potential supertype
+     * @returns True if className is a subtype of or equal to superTypeName
+     */
+    private isSubtypeOf(className: string, superTypeName: string): boolean {
+        // If they're the same, it's valid
+        if (className === superTypeName) {
+            return true;
+        }
+
+        // Find the class in the metamodel
+        const eClass = this.metamodelRegistry.findEClass(className);
+        if (!eClass) {
+            return false;
+        }
+
+        // Get supertypes
+        const eSuperTypes = eClass.get ? eClass.get('eSuperTypes') : eClass.eSuperTypes;
+        if (!eSuperTypes) {
+            return false;
+        }
+
+        // Check direct supertypes
+        let superTypes: any[] = [];
+        if (Array.isArray(eSuperTypes)) {
+            superTypes = eSuperTypes;
+        } else if (eSuperTypes.forEach) {
+            eSuperTypes.forEach((st: any) => superTypes.push(st));
+        }
+
+        for (const superType of superTypes) {
+            const stName = superType.get ? superType.get('name') : superType.name;
+            if (stName === superTypeName) {
+                return true;
+            }
+            // Recursively check supertypes of supertypes
+            if (this.isSubtypeOf(stName, superTypeName)) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

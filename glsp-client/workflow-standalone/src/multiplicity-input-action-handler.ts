@@ -1,3 +1,13 @@
+ /********************************************************************************
+  * Copyright (c) 2024 Eclipse GLSP and others.
+  *
+  * This program and the accompanying materials are made available under the
+  * terms of the Eclipse Public License v. 2.0 which is available at
+  * http://www.eclipse.org/legal/epl-2.0.
+  *
+  * SPDX-License-Identifier: EPL-2.0
+  ********************************************************************************/
+
 import { injectable, inject } from 'inversify';
 import { IActionHandler, Action, TYPES, IActionDispatcher } from '@eclipse-glsp/client';
 import { MultiplicityDialog } from './multiplicity-dialog';
@@ -20,26 +30,24 @@ export class MultiplicityInputActionHandler implements IActionHandler {
     }
 
     handle(action: Action): void {
-        console.log('MultiplicityInputActionHandler.handle() called with action:', action);
-        console.log('Action kind:', action.kind);
-        console.log('Expected kind:', MultiplicityInputAction.KIND);
+        
 
         // Type guard to ensure we have the right action type
         if (action.kind !== MultiplicityInputAction.KIND) {
-            console.log('Action kind mismatch, ignoring action');
+            
             return;
         }
 
         const multiplicityAction = action as MultiplicityInputAction;
 
         // Show dialog asynchronously and handle response
-        console.log('About to show dialog for:', multiplicityAction.sourceClassName, '->', multiplicityAction.targetClassName, 'edge type:', multiplicityAction.edgeType);
+        
         this.getDialog().show(
             multiplicityAction.sourceClassName,
             multiplicityAction.targetClassName,
             multiplicityAction.edgeType
         ).then((multiplicityOptions) => {
-            console.log('User selected multiplicity options:', multiplicityOptions);
+            
 
             // Create response action with user input
             const response = MultiplicityInputResponseAction.create(
@@ -51,12 +59,12 @@ export class MultiplicityInputActionHandler implements IActionHandler {
                 multiplicityAction.edgeType
             );
 
-            console.log('Dispatching MultiplicityInputResponseAction:', response);
+            
             // Dispatch the response action
             this.actionDispatcher.dispatch(response);
-            console.log('MultiplicityInputResponseAction dispatched successfully');
+            
         }).catch((error) => {
-            console.log('User cancelled multiplicity input:', error);
+            
             // User cancelled - don't send any response
         });
 

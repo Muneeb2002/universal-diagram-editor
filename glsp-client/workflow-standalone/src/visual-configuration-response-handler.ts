@@ -18,7 +18,7 @@ let globalVisualConfigDialog: VisualConfigurationDialog | null = null;
 
 export function setGlobalVisualConfigDialog(dialog: VisualConfigurationDialog): void {
     globalVisualConfigDialog = dialog;
-    console.log('Global visual configuration dialog reference set');
+    
 }
 
 /**
@@ -29,10 +29,10 @@ export function setGlobalVisualConfigDialog(dialog: VisualConfigurationDialog): 
 export class VisualConfigurationResponseHandler implements IActionHandler {
     handle(action: Action): void {
         if (this.isVisualConfigurationResponse(action)) {
-            console.log('VisualConfigurationResponseHandler received action:', action);
+            
             
             if (action.success && action.configurations && action.configurations.length > 0) {
-                console.log(`Opening visual configuration dialog for ${action.configurations.length} classes`);
+                
                 
                 if (globalVisualConfigDialog) {
                     globalVisualConfigDialog.show(
@@ -40,7 +40,7 @@ export class VisualConfigurationResponseHandler implements IActionHandler {
                         action.availableShapes,
                         action.availableColors
                     );
-                    console.log('Visual configuration dialog opened successfully');
+                    
                 } else {
                     console.warn('Global visual configuration dialog not set');
                     alert('Visual configuration dialog not available. Please try again.');

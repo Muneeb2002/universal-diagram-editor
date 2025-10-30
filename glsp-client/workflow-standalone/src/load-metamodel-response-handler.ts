@@ -17,7 +17,7 @@ let globalToolbar: any = null;
 
 export function setGlobalToolbar(toolbar: any): void {
     globalToolbar = toolbar;
-    console.log('Global toolbar reference set for LoadMetamodelResponseHandler');
+    
 }
 
 /**
@@ -28,13 +28,21 @@ export function setGlobalToolbar(toolbar: any): void {
 export class LoadMetamodelResponseHandler implements IActionHandler {
     handle(action: Action): void {
         if (this.isLoadMetamodelResponse(action)) {
-            console.log('LoadMetamodelResponseHandler received action:', action);
+            
             
             if (action.success && action.classNames && action.classNames.length > 0) {
-                console.log(`Updating toolbar with ${action.classNames.length} classes:`, action.classNames);
+                
                 if (globalToolbar) {
-                    globalToolbar.updateAvailableClasses(action.classNames);
-                    console.log('Toolbar updated successfully');
+                    // If we have full class info, use that (it has containment and abstract info)
+                    if (action.classInfo && action.classInfo.length > 0) {
+                        
+                        globalToolbar.updateClassInfo(action.classInfo);
+                    } else {
+                        // Fallback to class names only (less filtering, but better than nothing)
+                        globalToolbar.updateAvailableClasses(action.classNames);
+                    }
+                    
+                    
                 } else {
                     console.warn('Global toolbar not set in handler');
                 }

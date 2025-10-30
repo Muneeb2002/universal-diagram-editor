@@ -265,7 +265,6 @@ export class VisualConfigurationDialog {
 
     private getShapeSymbol(shape: string): string {
         if (shape === 'arrow') return '→';
-        if (shape === 'diamond') return '◆';
         if (shape === 'triangle') return '▲';
         return shape.charAt(0).toUpperCase();
     }
@@ -305,11 +304,7 @@ export class VisualConfigurationDialog {
                 // Set appropriate symbol for each shape
                 let symbol = shape.charAt(0).toUpperCase();
                 if (shape === 'arrow') symbol = '→';
-                else if (shape === 'star') symbol = '★';
-                else if (shape === 'diamond') symbol = '◆';
                 else if (shape === 'triangle') symbol = '▲';
-                else if (shape === 'pentagon') symbol = '⬟';
-                else if (shape === 'hexagon') symbol = '⬡';
                 
                 preview.textContent = symbol;
                 preview.style.background = this.getColorFill(color);
@@ -358,7 +353,7 @@ export class VisualConfigurationDialog {
 
         try {
             await Promise.all(savePromises);
-            console.log('All visual configurations saved successfully');
+            
             
             // Close dialog
             if (this.backdrop) document.body.removeChild(this.backdrop);

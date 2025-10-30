@@ -15,6 +15,10 @@
  ********************************************************************************/
 import 'reflect-metadata';
 
+// Build-time globals provided by webpack DefinePlugin
+declare const GLSP_SERVER_HOST: string;
+declare const GLSP_SERVER_PORT: string;
+
 import {
     BaseJsonrpcGLSPClient,
     DiagramLoader,
@@ -22,13 +26,16 @@ import {
     GLSPClient,
     GLSPWebSocketProvider,
     MessageAction,
-    StatusAction
+    StatusAction,
+    TYPES,
+    EditorContextService
 } from '@eclipse-glsp/client';
 import { Container } from 'inversify';
 import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
-import { EcoreContextMenu, ClassInfo, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
+import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
+import { ClassInfo } from './ecore-client-actions';
 import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { VisualConfigurationDialog } from './visual-configuration-dialog';
@@ -78,8 +85,16 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     contextMenu.setActionDispatcher(actionDispatcher);
     edgeContextMenu.setActionDispatcher(actionDispatcher);
     
+    // Set editor context service for toolbar
+    const editorContextServiceProvider = container.get(TYPES.IEditorContextServiceProvider) as () => EditorContextService;
+    const editorContextService = editorContextServiceProvider();
+    toolbar.setEditorContextService(editorContextService);
+    
     // Set the global toolbar reference for the LoadMetamodelResponseHandler
     setGlobalToolbar(toolbar);
+    
+    // Also set it on window for context menu access
+    (window as any).globalToolbar = toolbar;
     
     // Create and set up visual configuration dialog
     const visualConfigDialog = new VisualConfigurationDialog(actionDispatcher);
@@ -102,9 +117,7 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     const diagramLoader = container.get(DiagramLoader);
     await diagramLoader.load({ requestModelOptions: { isReconnecting } });
 
-    // Set up listener for LoadMetamodelResponse to update toolbar
-    setupMetamodelResponseListener();
-
+   
     if (isReconnecting) {
         const message = `Connection to the ${id} glsp server got closed. Connection was successfully re-established.`;
         const timeout = 5000;
@@ -221,8 +234,6 @@ function setupContextMenu(): void {
                 currentType: edgeType
             };
             
-            console.log(`Edge info created: edgeId="${edgeId}", sourceId="${sourceId}", targetId="${targetId}"`);
-            
             // Show edge context menu
             edgeContextMenu.show(event, edgeInfo);
         }
@@ -243,8 +254,6 @@ function setupContextMenu(): void {
             const rawId = instanceElement.id || 'unknown-instance';
             const instanceId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
             
-            console.log(`Right-clicked on instance: ${instanceId}`);
-            
             // Show instance context menu
             showInstanceContextMenu(event, instanceId);
         }
@@ -257,49 +266,25 @@ async function reconnect(connectionProvider: MessageConnection): Promise<void> {
 }
 
 function extractSourceAndTargetFromEdgeId(edgeId: string): { sourceId: string, targetId: string } {
-    // Remove sprotty_ prefix if present
+    // Remove sprotty_ prefix if present to get the model element id
     const cleanEdgeId = edgeId.startsWith('sprotty_') ? edgeId.substring(8) : edgeId;
-    
-    // Handle different edge ID patterns
-    if (cleanEdgeId.includes('_inherits_')) {
-        // Inheritance: "Place_inherits_Node" -> sourceId: "Place", targetId: "Node"
-        const parts = cleanEdgeId.split('_inherits_');
-        return { sourceId: parts[0], targetId: parts[1] };
-    } else if (cleanEdgeId.includes('_')) {
-        // Reference/Containment: "Place_tokens" or "Arc_source" or "Arc_target"
-        const parts = cleanEdgeId.split('_');
-        const sourceId = parts[0];
-        
-        // For references like "Arc_source" and "Arc_target", we need to determine the target
-        // This is tricky without more context, so we'll use a heuristic
-        if (parts[1] === 'source' || parts[1] === 'target') {
-            // These are likely references to Node (based on the metamodel)
-            return { sourceId, targetId: 'Node' };
-        } else {
-            // For other cases like "Place_tokens", assume the reference name is the target type
-            // We'll need to map this to the actual target type
-            const referenceName = parts.slice(1).join('_');
-            
-            // For containment/reference edges like "Node_places", we need to reverse the relationship
-            // "Node_places" means Node contains Place, so for inheritance: Place -> Node
-            if (referenceName === 'tokens') {
-                // Place_tokens -> Place contains Token, so inheritance: Token -> Place
-                return { sourceId: 'Token', targetId: sourceId };
-            } else if (referenceName === 'places') {
-                // Node_places -> Node contains Place, so inheritance: Place -> Node
-                return { sourceId: 'Place', targetId: sourceId };
-            } else if (referenceName === 'objects') {
-                // PetriNet_objects -> PetriNet contains Object, so inheritance: Object -> PetriNet
-                return { sourceId: 'Object', targetId: sourceId };
-            } else {
-                // For other cases, try to infer from the reference name
-                const capitalized = referenceName.charAt(0).toUpperCase() + referenceName.slice(1);
-                return { sourceId: capitalized, targetId: sourceId };
-            }
+
+    try {
+        // Resolve the current model via the editor context service to avoid any metamodel assumptions
+        const editorContextServiceProvider = container.get(TYPES.IEditorContextServiceProvider) as () => EditorContextService;
+        const ecs = editorContextServiceProvider();
+        const root = ecs.modelRoot;
+        const edge = root.index.getById(cleanEdgeId) as any;
+
+        if (edge && typeof edge.sourceId === 'string' && typeof edge.targetId === 'string') {
+            return { sourceId: edge.sourceId, targetId: edge.targetId };
         }
+    } catch (e) {
+        // Intentionally swallow to use the generic fallback below
+        // console.warn('Failed to resolve edge endpoints from model', e);
     }
-    
-    // Fallback
+
+    // Fallback to unknowns if the element cannot be resolved; callers should handle gracefully
     return { sourceId: 'unknown-source', targetId: 'unknown-target' };
 }
 
@@ -317,7 +302,6 @@ function setupCustomActionHandling(): void {
     // This is a workaround - in a full implementation you'd use proper action handlers
     const originalDispatch = actionDispatcher.dispatch.bind(actionDispatcher);
     actionDispatcher.dispatch = async (action: any) => {
-        console.log('[ACTION DISPATCHER] Received action:', action.kind);
         
         // Check if this is the trigger EClass creation action
         if (action.kind === 'triggerEClassCreation') {
@@ -326,26 +310,25 @@ function setupCustomActionHandling(): void {
         }
         // Check if this is a LoadMetamodelResponse
         else if (action.kind === 'loadMetamodelResponse') {
-            console.log('✅ Received LoadMetamodelResponse:', action);
             
             // Update toolbar with available classes
             if (action.success && action.classNames && action.classNames.length > 0) {
-                console.log(`📋 Updating toolbar with ${action.classNames.length} classes:`, action.classNames);
-                toolbar.updateAvailableClasses(action.classNames);
-                console.log('✅ Toolbar updated successfully');
+                
+                // If we have full class info, use that (it has containment and abstract info)
+                if (action.classInfo && action.classInfo.length > 0) {
+                    toolbar.updateClassInfo(action.classInfo);
+                } else {
+                    // Fallback to class names only
+                    toolbar.updateAvailableClasses(action.classNames);
+                }
             } else {
-                console.warn('⚠️ LoadMetamodelResponse received but no classes found:', action);
+                console.warn('LoadMetamodelResponse received but no classes found:', action);
             }
         }
         
         // Otherwise, dispatch normally
         return originalDispatch(action);
     };
-}
-
-function setupMetamodelResponseListener(): void {
-    // This function is now handled in setupCustomActionHandling
-    // Keeping it for backwards compatibility but it does nothing
 }
 
 function setupVisualConfigurationDebugging(): void {
@@ -846,6 +829,10 @@ function showDeleteAttributeDialog(className: string, attributes: Array<{name: s
 (window as any).showDeleteAttributeDialog = showDeleteAttributeDialog;
 
 function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
+    // Check if metamodel is loaded (check if toolbar has class info)
+    const toolbar = (window as any).globalToolbar;
+    const hasMetamodel = toolbar && toolbar.hasClassInfo && toolbar.hasClassInfo();
+    
     // Create a simple context menu for instances
     const menu = document.createElement('div');
     menu.style.cssText = `
@@ -883,6 +870,65 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
     });
 
     menu.appendChild(editAttributesItem);
+
+    // Add menu item to set as container (only if metamodel is loaded)
+    if (hasMetamodel) {
+        const setContainerItem = document.createElement('div');
+        setContainerItem.textContent = 'Set as Container';
+        setContainerItem.style.cssText = `
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            border-top: 1px solid #eee;
+        `;
+        setContainerItem.addEventListener('mouseenter', () => {
+            setContainerItem.style.background = '#f0f0f0';
+        });
+        setContainerItem.addEventListener('mouseleave', () => {
+            setContainerItem.style.background = 'transparent';
+        });
+        setContainerItem.addEventListener('click', () => {
+            const toolbar = (window as any).globalToolbar;
+            if (toolbar && toolbar.setContainer) {
+                const className = instanceId.split('_')[0]; // Extract class name from instance ID
+                toolbar.setContainer(instanceId, className);
+            }
+            // Backdrop will be declared later, find it by class or remove menu directly
+            const backdropElements = document.querySelectorAll('div[style*="z-index: 9999"]');
+            backdropElements.forEach(el => {
+                if (el.parentNode) {
+                    el.parentNode.removeChild(el);
+                }
+            });
+            document.body.removeChild(menu);
+        });
+        menu.appendChild(setContainerItem);
+    }
+
+    // Only show instance creation options if metamodel is loaded
+    if (!hasMetamodel) {
+        // Add backdrop to close menu
+        const backdrop = document.createElement('div');
+        backdrop.style.cssText = `
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 9999;
+            background: transparent;
+        `;
+        backdrop.addEventListener('click', () => {
+            document.body.removeChild(backdrop);
+            document.body.removeChild(menu);
+        });
+
+        document.body.appendChild(backdrop);
+        document.body.appendChild(menu);
+        return;
+    }
+
+
 
     // Add backdrop to close menu
     const backdrop = document.createElement('div');

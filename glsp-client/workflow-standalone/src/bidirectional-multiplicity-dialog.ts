@@ -1,3 +1,13 @@
+ /********************************************************************************
+  * Copyright (c) 2024 Eclipse GLSP and others.
+  *
+  * This program and the accompanying materials are made available under the
+  * terms of the Eclipse Public License v. 2.0 which is available at
+  * http://www.eclipse.org/legal/epl-2.0.
+  *
+  * SPDX-License-Identifier: EPL-2.0
+  ********************************************************************************/
+
 
 export interface BidirectionalMultiplicityOptions {
     sourceReferenceName: string;
@@ -14,7 +24,7 @@ export class BidirectionalMultiplicityDialog {
     private currentReject?: (reason?: any) => void;
 
     constructor() {
-        console.log('BidirectionalMultiplicityDialog constructor called');
+        
         this.dialog = this.createDialog();
     }
 
@@ -140,7 +150,7 @@ export class BidirectionalMultiplicityDialog {
     }
 
     show(sourceClassName: string, targetClassName: string): Promise<BidirectionalMultiplicityOptions> {
-        console.log('BidirectionalMultiplicityDialog.show() called');
+        
         return new Promise((resolve, reject) => {
             this.currentResolve = resolve;
             this.currentReject = reject;
@@ -176,7 +186,7 @@ export class BidirectionalMultiplicityDialog {
     }
 
     private confirm(): void {
-        console.log('BidirectionalMultiplicityDialog.confirm() called');
+        
         
         const sourceRefInput = this.dialog.querySelector('#sourceReferenceName') as HTMLInputElement;
         const sourceLowerInput = this.dialog.querySelector('#sourceLowerBound') as HTMLInputElement;
@@ -225,7 +235,7 @@ export class BidirectionalMultiplicityDialog {
 
         this.hide();
         if (this.currentResolve) {
-            console.log('Resolving promise with bidirectional options');
+            
             this.currentResolve({
                 sourceReferenceName,
                 sourceLowerBound,

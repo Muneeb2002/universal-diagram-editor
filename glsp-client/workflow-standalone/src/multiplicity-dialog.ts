@@ -1,3 +1,13 @@
+ /********************************************************************************
+  * Copyright (c) 2024 Eclipse GLSP and others.
+  *
+  * This program and the accompanying materials are made available under the
+  * terms of the Eclipse Public License v. 2.0 which is available at
+  * http://www.eclipse.org/legal/epl-2.0.
+  *
+  * SPDX-License-Identifier: EPL-2.0
+  ********************************************************************************/
+
 
 export interface MultiplicityOptions {
     lowerBound: number;
@@ -11,7 +21,7 @@ export class MultiplicityDialog {
     private currentReject?: (reason?: any) => void;
 
     constructor() {
-        console.log('MultiplicityDialog constructor called');
+        
         this.dialog = this.createDialog();
     }
 
@@ -103,11 +113,11 @@ export class MultiplicityDialog {
     }
 
     show(sourceClassName: string, targetClassName: string, edgeType?: string): Promise<MultiplicityOptions> {
-        console.log('MultiplicityDialog.show() called, current resolve:', !!this.currentResolve);
+        
         return new Promise((resolve, reject) => {
             this.currentResolve = resolve;
             this.currentReject = reject;
-            console.log('Promise callbacks set:', { resolve: !!this.currentResolve, reject: !!this.currentReject });
+            
 
             // Determine if it's a containment or reference edge
             const isContainment = edgeType === 'edge:ecore-containment';
@@ -145,7 +155,7 @@ export class MultiplicityDialog {
     }
 
     private confirm(): void {
-        console.log('MultiplicityDialog.confirm() called, currentResolve:', !!this.currentResolve, 'currentReject:', !!this.currentReject);
+        
         const referenceNameInput = this.dialog.querySelector('#referenceName') as HTMLInputElement;
         const lowerBoundInput = this.dialog.querySelector('#lowerBound') as HTMLInputElement;
         const upperBoundInput = this.dialog.querySelector('#upperBound') as HTMLInputElement;
@@ -171,7 +181,7 @@ export class MultiplicityDialog {
 
         this.hide();
         if (this.currentResolve) {
-            console.log('Resolving promise with options:', { referenceName, lowerBound, upperBound });
+            
             this.currentResolve({
                 referenceName,
                 lowerBound,
@@ -180,7 +190,7 @@ export class MultiplicityDialog {
             this.currentResolve = undefined;
             this.currentReject = undefined;
         } else {
-            console.log('No currentResolve available');
+            
         }
     }
 

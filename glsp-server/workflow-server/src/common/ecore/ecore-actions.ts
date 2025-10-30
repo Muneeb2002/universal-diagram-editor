@@ -30,12 +30,38 @@ export namespace LoadMetamodelAction {
 /**
  * Response action after loading a metamodel.
  */
+export interface ClassInfo {
+    className: string;
+    isAbstract: boolean;
+    isInterface: boolean;
+    eSuperTypes?: string[]; // Array of supertype class names
+    attributes: Array<{
+        name: string;
+        type: string;
+        lowerBound: number;
+        upperBound: number;
+        unique: boolean;
+        ordered: boolean;
+    }>;
+    references: Array<{
+        name: string;
+        type: string;
+        lowerBound: number;
+        upperBound: number;
+        containment: boolean;
+        container: boolean;
+        unique: boolean;
+        ordered: boolean;
+    }>;
+}
+
 export interface LoadMetamodelResponse extends Action {
     kind: typeof LoadMetamodelResponse.KIND;
     success: boolean;
     metamodelKey: string;
     message?: string;
     classNames?: string[];
+    classInfo?: ClassInfo[];
 }
 
 export namespace LoadMetamodelResponse {
@@ -45,13 +71,14 @@ export namespace LoadMetamodelResponse {
         return Action.hasKind(object, KIND) && hasBooleanProp(object, 'success') && hasStringProp(object, 'metamodelKey');
     }
 
-    export function create(success: boolean, metamodelKey: string, message?: string, classNames?: string[]): LoadMetamodelResponse {
+    export function create(success: boolean, metamodelKey: string, message?: string, classNames?: string[], classInfo?: ClassInfo[]): LoadMetamodelResponse {
         return {
             kind: KIND,
             success,
             metamodelKey,
             message,
-            classNames
+            classNames,
+            classInfo
         };
     }
 }
@@ -86,6 +113,9 @@ export interface CreateInstanceAction extends Action {
     kind: typeof CreateInstanceAction.KIND;
     eClassName: string;
     position?: { x: number; y: number };
+    // Optional container info to immediately establish containment
+    containerInstanceId?: string;
+    containmentReferenceName?: string;
 }
 
 export namespace CreateInstanceAction {
@@ -95,11 +125,18 @@ export namespace CreateInstanceAction {
         return Action.hasKind(object, KIND) && hasStringProp(object, 'eClassName');
     }
 
-    export function create(eClassName: string, position?: { x: number; y: number }): CreateInstanceAction {
+    export function create(
+        eClassName: string,
+        position?: { x: number; y: number },
+        containerInstanceId?: string,
+        containmentReferenceName?: string
+    ): CreateInstanceAction {
         return {
             kind: KIND,
             eClassName,
-            position
+            position,
+            containerInstanceId,
+            containmentReferenceName
         };
     }
 }

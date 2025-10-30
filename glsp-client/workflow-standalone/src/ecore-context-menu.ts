@@ -9,31 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createRenameClassAction, createChangeClassTypeAction, createDeleteClassAction } from './ecore-client-actions';
-
-export interface ClassInfo {
-    className: string;
-    isAbstract: boolean;
-    isInterface: boolean;
-    attributes: Array<{
-        name: string;
-        type: string;
-        lowerBound: number;
-        upperBound: number;
-        unique: boolean;
-        ordered: boolean;
-    }>;
-    references: Array<{
-        name: string;
-        type: string;
-        lowerBound: number;
-        upperBound: number;
-        containment: boolean;
-        container: boolean;
-        unique: boolean;
-        ordered: boolean;
-    }>;
-}
+import { createRenameClassAction, createChangeClassTypeAction, createDeleteClassAction, ClassInfo } from './ecore-client-actions';
 
 export class EcoreContextMenu {
     private menu: HTMLDivElement;
@@ -216,7 +192,7 @@ export class EcoreContextMenu {
         try {
             const action = createRenameClassAction(this.currentClass.className, newName.trim());
             this.actionDispatcher.dispatch(action);
-            console.log(`Renaming class from ${this.currentClass.className} to ${newName}`);
+            
         } catch (error) {
             console.error('Error renaming class:', error);
             alert(`Error renaming class: ${error instanceof Error ? error.message : String(error)}`);
@@ -252,12 +228,12 @@ export class EcoreContextMenu {
             newType = 'concrete';
         }
 
-        console.log(`Changing class type to: ${newType}`);
+        
         
         try {
             const action = createChangeClassTypeAction(this.currentClass.className, newType);
             this.actionDispatcher.dispatch(action);
-            console.log(`Changed class ${this.currentClass.className} to type ${newType}`);
+            
         } catch (error) {
             console.error('Error changing class type:', error);
             alert(`Error changing class type: ${error instanceof Error ? error.message : String(error)}`);
@@ -304,7 +280,7 @@ export class EcoreContextMenu {
             try {
                 const action = createDeleteClassAction(className, true); // Force delete to remove references
                 this.actionDispatcher.dispatch(action);
-                console.log(`Deleted class ${className}`);
+                
             } catch (error) {
                 console.error('Error deleting class:', error);
                 alert(`Error deleting class: ${error instanceof Error ? error.message : String(error)}`);
