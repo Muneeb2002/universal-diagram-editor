@@ -265,7 +265,8 @@ export class MetamodelRegistry {
 
         // Get current super types
         let superTypes: any;
-        if (typeof subClass.get === 'function') {
+        const isEcoreTs = !!(subClass && (subClass as any).eClass && (subClass as any).eClass.values && (subClass as any).eClass.values.name === 'EClass');
+        if (isEcoreTs) {
             superTypes = subClass.get('eSuperTypes');
         } else {
             superTypes = subClass.eSuperTypes;
@@ -284,9 +285,19 @@ export class MetamodelRegistry {
         }
 
         // Add the superclass to the subclass's eSuperTypes
-        if (typeof subClass.get === 'function') {
-            // ecore-ts EClass object - use .add() on the EList
-            (subClass as any).get('eSuperTypes').add(superClass);
+        if (isEcoreTs) {
+            // ecore-ts EClass object - use .add() on the EList (if available)
+            const eList = (subClass as any).get('eSuperTypes');
+            if (eList && typeof eList.add === 'function') {
+                eList.add(superClass);
+            } else {
+                // Fallback: if EList doesn't expose add, try pushing
+                try {
+                    eList.push?.(superClass);
+                } catch (_) {
+                    throw new Error("eSuperTypes collection does not support 'add' for this EClass instance");
+                }
+            }
         } else {
             // Plain JavaScript object - use .push()
             if (!Array.isArray(subClass.eSuperTypes)) {
@@ -329,7 +340,8 @@ export class MetamodelRegistry {
 
         // Check if reference already exists
         let references: any[];
-        if (typeof sourceClass.get === 'function') {
+        const isEcoreTs = !!(sourceClass && (sourceClass as any).eClass && (sourceClass as any).eClass.values && (sourceClass as any).eClass.values.name === 'EClass');
+        if (isEcoreTs) {
             references = sourceClass.get('eStructuralFeatures') || [];
         } else {
             references = sourceClass.eReferences || [];
@@ -351,7 +363,7 @@ export class MetamodelRegistry {
         let eReference: any;
         
         // Add the reference to the source class
-        if (typeof sourceClass.get === 'function') {
+        if (isEcoreTs) {
             // ecore-ts EClass object - create proper ecore-ts EReference
             eReference = EReference.create({
                 name: referenceName,
@@ -386,6 +398,10 @@ export class MetamodelRegistry {
                 sourceClass.eReferences = [];
             }
             sourceClass.eReferences.push(eReference);
+            // Ensure structural features also include references so renderers find them
+            if (Array.isArray(sourceClass.eStructuralFeatures)) {
+                sourceClass.eStructuralFeatures.push(eReference);
+            }
         }
     }
 
@@ -433,7 +449,7 @@ export class MetamodelRegistry {
         let targetReference: any;
         
         // Check if we're working with ecore-ts objects
-        const isEcoreTs = typeof sourceClass.get === 'function';
+        const isEcoreTs = !!(sourceClass && (sourceClass as any).eClass && (sourceClass as any).eClass.values && (sourceClass as any).eClass.values.name === 'EClass');
         
         if (isEcoreTs) {
             // Create proper ecore-ts EReference objects
@@ -502,7 +518,7 @@ export class MetamodelRegistry {
         }
 
         // Add the source reference to the source class
-        if (typeof sourceClass.get === 'function') {
+        if (isEcoreTs) {
             // ecore-ts EClass object - use .add() on the EList
             (sourceClass as any).get('eStructuralFeatures').add(sourceReference);
         } else {
@@ -511,10 +527,13 @@ export class MetamodelRegistry {
                 sourceClass.eReferences = [];
             }
             sourceClass.eReferences.push(sourceReference);
+            if (Array.isArray(sourceClass.eStructuralFeatures)) {
+                sourceClass.eStructuralFeatures.push(sourceReference);
+            }
         }
 
         // Add the target reference to the target class
-        if (typeof targetClass.get === 'function') {
+        if (isEcoreTs) {
             // ecore-ts EClass object - use .add() on the EList
             (targetClass as any).get('eStructuralFeatures').add(targetReference);
         } else {
@@ -523,6 +542,9 @@ export class MetamodelRegistry {
                 targetClass.eReferences = [];
             }
             targetClass.eReferences.push(targetReference);
+            if (Array.isArray(targetClass.eStructuralFeatures)) {
+                targetClass.eStructuralFeatures.push(targetReference);
+            }
         }
 
         console.log(`Added bidirectional reference: ${sourceClassName}.${sourceRefName} <-> ${targetClassName}.${targetRefName}`);
