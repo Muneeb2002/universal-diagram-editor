@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createRenameClassAction, createChangeClassTypeAction, createDeleteClassAction, ClassInfo } from './ecore-client-actions';
+import { createRenameClassAction, ClassInfo } from './ecore-client-actions';
 
 export class EcoreContextMenu {
     private menu: HTMLDivElement;
@@ -87,26 +87,6 @@ export class EcoreContextMenu {
 
         this.menu.appendChild(nameSection);
 
-        // Class type section
-        const typeSection = document.createElement('div');
-        typeSection.style.cssText = 'padding: 8px 12px; border-bottom: 1px solid #eee;';
-        
-        const typeLabel = document.createElement('div');
-        typeLabel.textContent = 'Class Type:';
-        typeLabel.style.cssText = 'font-weight: bold; margin-bottom: 4px;';
-        typeSection.appendChild(typeLabel);
-
-        const typeContainer = document.createElement('div');
-        typeContainer.style.cssText = 'display: flex; flex-direction: column; gap: 4px;';
-
-        const abstractOption = this.createCheckboxOption('abstract', 'Abstract', this.currentClass.isAbstract);
-        const interfaceOption = this.createCheckboxOption('interface', 'Interface', this.currentClass.isInterface);
-
-        typeContainer.appendChild(abstractOption);
-        typeContainer.appendChild(interfaceOption);
-        typeSection.appendChild(typeContainer);
-
-        this.menu.appendChild(typeSection);
 
         // Quick actions section
         const actionsSection = document.createElement('div');
@@ -122,35 +102,13 @@ export class EcoreContextMenu {
 
         const addAttributeBtn = this.createMenuItem('Add Attribute...', () => this.addAttribute());
         const deleteAttributeBtn = this.createMenuItem('Delete Attribute...', () => this.deleteAttribute());
-        const deleteClassBtn = this.createMenuItem('Delete Class...', () => this.deleteClass());
-
         actionsContainer.appendChild(addAttributeBtn);
         actionsContainer.appendChild(deleteAttributeBtn);
-        actionsContainer.appendChild(deleteClassBtn);
         actionsSection.appendChild(actionsContainer);
 
         this.menu.appendChild(actionsSection);
     }
 
-    private createCheckboxOption(value: string, label: string, checked: boolean): HTMLLabelElement {
-        const labelElement = document.createElement('label');
-        labelElement.style.cssText = 'display: flex; align-items: center; gap: 6px; cursor: pointer; font-size: 12px;';
-        
-        const checkbox = document.createElement('input');
-        checkbox.type = 'checkbox';
-        checkbox.name = `classType_${value}`;
-        checkbox.value = value;
-        checkbox.checked = checked;
-        checkbox.addEventListener('change', () => this.handleClassTypeChange(value, checkbox.checked));
-        
-        const text = document.createElement('span');
-        text.textContent = label;
-        
-        labelElement.appendChild(checkbox);
-        labelElement.appendChild(text);
-        
-        return labelElement;
-    }
 
     private createMenuItem(text: string, onClick: () => void): HTMLDivElement {
         const item = document.createElement('div');
@@ -199,46 +157,6 @@ export class EcoreContextMenu {
         }
     }
 
-    private handleClassTypeChange(value: string, checked: boolean): void {
-        if (!this.currentClass || !this.actionDispatcher) {
-            return;
-        }
-
-        // Get current checkboxes
-        const abstractCheckbox = document.querySelector('input[name="classType_abstract"]') as HTMLInputElement;
-        const interfaceCheckbox = document.querySelector('input[name="classType_interface"]') as HTMLInputElement;
-
-        // Determine the new class type based on checkbox states
-        let newType: 'abstract' | 'concrete' | 'interface' | 'abstract-interface';
-        
-        const abstractChecked = abstractCheckbox?.checked || false;
-        const interfaceChecked = interfaceCheckbox?.checked || false;
-        
-        if (abstractChecked && interfaceChecked) {
-            // Both are checked - abstract interface (purple)
-            newType = 'abstract-interface';
-        } else if (abstractChecked) {
-            // Only abstract is checked
-            newType = 'abstract';
-        } else if (interfaceChecked) {
-            // Only interface is checked
-            newType = 'interface';
-        } else {
-            // Neither is checked, default to concrete
-            newType = 'concrete';
-        }
-
-        
-        
-        try {
-            const action = createChangeClassTypeAction(this.currentClass.className, newType);
-            this.actionDispatcher.dispatch(action);
-            
-        } catch (error) {
-            console.error('Error changing class type:', error);
-            alert(`Error changing class type: ${error instanceof Error ? error.message : String(error)}`);
-        }
-    }
 
 
 
@@ -261,32 +179,6 @@ export class EcoreContextMenu {
         this.hide();
     }
 
-    private deleteClass(): void {
-        if (!this.currentClass || !this.actionDispatcher) {
-            return;
-        }
-
-        const className = this.currentClass.className;
-        
-        // Show confirmation dialog with options
-        const message = `Are you sure you want to delete the class '${className}'?\n\n` +
-                       `This action will:\n` +
-                       `• Remove the class from the metamodel\n` +
-                       `• Remove all references to this class\n` +
-                       `• Update the entire Petri net structure\n\n` +
-                       `This action cannot be undone.`;
-        
-        if (confirm(message)) {
-            try {
-                const action = createDeleteClassAction(className, true); // Force delete to remove references
-                this.actionDispatcher.dispatch(action);
-                
-            } catch (error) {
-                console.error('Error deleting class:', error);
-                alert(`Error deleting class: ${error instanceof Error ? error.message : String(error)}`);
-            }
-        }
-    }
 
     public destroy(): void {
         if (this.menu.parentNode) {

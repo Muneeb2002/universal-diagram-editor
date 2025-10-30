@@ -40,6 +40,7 @@ import { BidirectionalMultiplicityInputActionHandler } from './bidirectional-mul
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
 import { VisualConfigurationResponseHandler } from './visual-configuration-response-handler';
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
+import { ClassPropertiesResponseHandler } from './class-properties-response-handler';
 
 // Define Ecore-specific model elements
 export class EcoreClassNode extends GNode {
@@ -136,6 +137,8 @@ export const metamodelDiagramModule = new FeatureModule(
                 
                 // Configure VisualConfigurationResponse handler
                 configureActionHandler(context, 'visualConfigurationResponse', VisualConfigurationResponseHandler);
+                // Configure ClassPropertiesResponse handler
+                configureActionHandler(context, 'classPropertiesResponse', ClassPropertiesResponseHandler);
     },
     { featureId: Symbol('metamodelDiagram') }
 );

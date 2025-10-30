@@ -48,6 +48,7 @@ import { CreateInstanceReferenceActionHandler } from './create-instance-referenc
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
 import { OpenVisualConfigurationActionHandler } from './open-visual-configuration-action-handler';
 import { SetClassVisualConfigurationActionHandler } from './set-class-visual-configuration-action-handler';
+import { OpenClassPropertiesActionHandler } from './open-class-properties-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -84,6 +85,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(CreateInstanceReferenceActionHandler);
         binding.add(OpenVisualConfigurationActionHandler);
         binding.add(SetClassVisualConfigurationActionHandler);
+        binding.add(OpenClassPropertiesActionHandler);
         binding.add(EditMetamodelActionHandler);
         binding.add(DeleteEdgeActionHandler);
         binding.add(CreateCustomMetamodelActionHandler);

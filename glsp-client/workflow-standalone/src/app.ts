@@ -35,11 +35,12 @@ import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { ClassInfo } from './ecore-client-actions';
+import { ClassInfo, createOpenClassPropertiesAction } from './ecore-client-actions';
 import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { VisualConfigurationDialog } from './visual-configuration-dialog';
 import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
+import { LeftSidebar } from './left-sidebar';
 import { setupInteractiveResize } from './interactive-resize';
 
 // Global type declaration for the EClass creation dialog
@@ -64,8 +65,9 @@ let actionDispatcher: GLSPActionDispatcher;
 const wsProvider = new GLSPWebSocketProvider(webSocketUrl);
 wsProvider.listen({ onConnection: initialize, onReconnect: reconnect, logger: console });
 
-// Initialize toolbar and context menus
+// Initialize toolbar, sidebar and context menus
 const toolbar = new EcoreToolbar();
+const leftSidebar = new LeftSidebar();
 const contextMenu = new EcoreContextMenu();
 const edgeContextMenu = new EcoreEdgeContextMenu();
 
@@ -73,6 +75,7 @@ const edgeContextMenu = new EcoreEdgeContextMenu();
 document.addEventListener('DOMContentLoaded', () => {
     const toolbarElement = toolbar.getElement();
     document.body.appendChild(toolbarElement);
+    leftSidebar.attach();
 });
 
 async function initialize(connectionProvider: MessageConnection, isReconnecting = false): Promise<void> {
@@ -82,6 +85,7 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     
     // Set action dispatcher for toolbar and context menus
     toolbar.setActionDispatcher(actionDispatcher);
+    leftSidebar.setActionDispatcher(actionDispatcher);
     contextMenu.setActionDispatcher(actionDispatcher);
     edgeContextMenu.setActionDispatcher(actionDispatcher);
     
@@ -116,6 +120,9 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     
     const diagramLoader = container.get(DiagramLoader);
     await diagramLoader.load({ requestModelOptions: { isReconnecting } });
+
+    // Open docked class properties panel initially
+    try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch {}
 
    
     if (isReconnecting) {
@@ -324,6 +331,9 @@ function setupCustomActionHandling(): void {
             } else {
                 console.warn('LoadMetamodelResponse received but no classes found:', action);
             }
+
+            // Refresh docked properties panel when metamodel changes
+            try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch {}
         }
         
         // Otherwise, dispatch normally

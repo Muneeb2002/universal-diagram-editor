@@ -617,3 +617,35 @@ export namespace VisualConfigurationResponse {
         };
     }
 }
+
+// Class Properties Panel Actions ------------------------------------------
+
+export interface OpenClassPropertiesAction extends Action {
+    kind: typeof OpenClassPropertiesAction.KIND;
+}
+
+export namespace OpenClassPropertiesAction {
+    export const KIND = 'openClassProperties';
+    export function create(): OpenClassPropertiesAction {
+        return { kind: KIND };
+    }
+}
+
+export interface ClassPropertiesResponse extends Action {
+    kind: typeof ClassPropertiesResponse.KIND;
+    success: boolean;
+    classes: Array<{
+        className: string;
+        isAbstract: boolean;
+        isInterface: boolean;
+        eSuperTypes: string[];
+        attributes: Array<{ name: string; type: string; lowerBound: number; upperBound: number }>;
+    }>;
+}
+
+export namespace ClassPropertiesResponse {
+    export const KIND = 'classPropertiesResponse';
+    export function create(classes: ClassPropertiesResponse['classes']): ClassPropertiesResponse {
+        return { kind: KIND, success: true, classes };
+    }
+}

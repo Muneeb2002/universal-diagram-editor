@@ -195,6 +195,23 @@ export interface VisualConfigurationResponse extends Action {
     availableColors: string[];
 }
 
+// Client-side mirrors for Class Properties panel
+export interface ClassPropertiesResponse extends Action {
+    kind: 'classPropertiesResponse';
+    success: boolean;
+    classes: Array<{
+        className: string;
+        isAbstract: boolean;
+        isInterface: boolean;
+        eSuperTypes: string[];
+        attributes: Array<{ name: string; type: string; lowerBound: number; upperBound: number }>;
+    }>;
+}
+
+export function createOpenClassPropertiesAction(): Action {
+    return { kind: 'openClassProperties' };
+}
+
 export function createOpenVisualConfigurationAction(): OpenVisualConfigurationAction {
     return {
         kind: 'openVisualConfiguration'
