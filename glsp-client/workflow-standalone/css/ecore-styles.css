@@ -63,15 +63,16 @@
     stroke-width: 2px !important;
 }
 
+
 /* Visual configuration color overrides */
+.ecore-instance.color-black .sprotty-node {
+    fill: #000000 !important;
+    stroke: #000000 !important;
+}
+
 .ecore-instance.color-blue .sprotty-node {
     fill: #E3F2FD !important;
     stroke: #1976D2 !important;
-}
-
-.ecore-instance.color-green .sprotty-node {
-    fill: #E8F5E8 !important;
-    stroke: #388E3C !important;
 }
 
 .ecore-instance.color-red .sprotty-node {
@@ -79,39 +80,14 @@
     stroke: #D32F2F !important;
 }
 
-.ecore-instance.color-orange .sprotty-node {
-    fill: #FFF3E0 !important;
-    stroke: #F57C00 !important;
+.ecore-instance.color-white .sprotty-node {
+    fill: #FFFFFF !important;
+    stroke: #9E9E9E !important;
 }
 
-.ecore-instance.color-purple .sprotty-node {
-    fill: #F3E5F5 !important;
-    stroke: #7B1FA2 !important;
-}
-
-.ecore-instance.color-pink .sprotty-node {
-    fill: #FCE4EC !important;
-    stroke: #C2185B !important;
-}
-
-.ecore-instance.color-yellow .sprotty-node {
-    fill: #FFFDE7 !important;
-    stroke: #FBC02D !important;
-}
-
-.ecore-instance.color-gray .sprotty-node {
+.ecore-instance.color-grey .sprotty-node {
     fill: #F5F5F5 !important;
     stroke: #616161 !important;
-}
-
-.ecore-instance.color-brown .sprotty-node {
-    fill: #EFEBE9 !important;
-    stroke: #5D4037 !important;
-}
-
-.ecore-instance.color-cyan .sprotty-node {
-    fill: #E0F2F1 !important;
-    stroke: #00796B !important;
 }
 
 /* Ensure proper spacing and prevent overlaps */
@@ -248,6 +224,11 @@
     fill: #333 !important;
     font-size: 11px !important;
     font-family: Arial, sans-serif !important;
+}
+
+/* Ensure unfilled option overrides any color fills (placed after color rules) */
+.ecore-instance.fill-none .sprotty-node {
+    fill: transparent !important;
 }
 
 /* Edit button styling */

@@ -21,16 +21,11 @@ export type ShapeType =
  * Available color schemes for class instances
  */
 export type ColorScheme = 
+    | 'black'
     | 'blue'
-    | 'green'
     | 'red'
-    | 'orange'
-    | 'purple'
-    | 'pink'
-    | 'yellow'
-    | 'gray'
-    | 'brown'
-    | 'cyan';
+    | 'white'
+    | 'grey';
 
 /**
  * Visual configuration for a single class
@@ -45,11 +40,8 @@ export interface ClassVisualConfiguration {
     /** The color scheme for instances of this class */
     color: ColorScheme;
     
-    /** Custom size override (optional) */
-    size?: {
-        width: number;
-        height: number;
-    };
+    /** Whether the figure should be filled (true) or outlined only (false) */
+    filled?: boolean;
     
     /** Custom border style (optional) */
     border?: {
@@ -92,16 +84,11 @@ export const SHAPE_DEFINITIONS: Record<ShapeType, string> = {
  * Predefined color schemes with CSS values
  */
 export const COLOR_SCHEMES: Record<ColorScheme, { fill: string; stroke: string; text: string }> = {
+    black: { fill: '#000000', stroke: '#000000', text: '#FFFFFF' },
     blue: { fill: '#E3F2FD', stroke: '#1976D2', text: '#0D47A1' },
-    green: { fill: '#E8F5E8', stroke: '#388E3C', text: '#1B5E20' },
     red: { fill: '#FFEBEE', stroke: '#D32F2F', text: '#B71C1C' },
-    orange: { fill: '#FFF3E0', stroke: '#F57C00', text: '#E65100' },
-    purple: { fill: '#F3E5F5', stroke: '#7B1FA2', text: '#4A148C' },
-    pink: { fill: '#FCE4EC', stroke: '#C2185B', text: '#880E4F' },
-    yellow: { fill: '#FFFDE7', stroke: '#FBC02D', text: '#F57F17' },
-    gray: { fill: '#F5F5F5', stroke: '#616161', text: '#212121' },
-    brown: { fill: '#EFEBE9', stroke: '#5D4037', text: '#3E2723' },
-    cyan: { fill: '#E0F2F1', stroke: '#00796B', text: '#004D40' }
+    white: { fill: '#FFFFFF', stroke: '#9E9E9E', text: '#000000' },
+    grey: { fill: '#F5F5F5', stroke: '#616161', text: '#212121' }
 };
 
 /**
@@ -111,6 +98,7 @@ export const DEFAULT_CLASS_VISUAL_CONFIG: ClassVisualConfiguration = {
     className: '',
     shape: 'rectangle',
     color: 'blue',
+    filled: true,
     showAttributes: true,
     showReferences: false
 };

@@ -42,7 +42,7 @@ export class SetClassVisualConfigurationActionHandler implements ActionHandler {
                 shape: action.shape as any,
                 color: action.color as any,
                 border: action.border,
-                size: action.size,
+                filled: action.filled,
                 showAttributes: action.showAttributes,
                 showReferences: action.showReferences
             };

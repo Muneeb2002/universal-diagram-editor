@@ -29,11 +29,6 @@ export class VisualConfigurationStorage {
     @inject(MetamodelRegistry)
     protected metamodelRegistry: MetamodelRegistry;
 
-    /**
-     * Creates a visual configuration for a metamodel.
-     * @param metamodelKey The key of the metamodel
-     * @returns The created configuration
-     */
     createVisualConfiguration(metamodelKey: string): MetamodelVisualConfiguration {
         const configuration: MetamodelVisualConfiguration = {
             metamodelKey,
@@ -46,19 +41,10 @@ export class VisualConfigurationStorage {
         return configuration;
     }
 
-    /**
-     * Gets the visual configuration for a metamodel.
-     * @param metamodelKey The key of the metamodel
-     * @returns The configuration or undefined if not found
-     */
     getVisualConfiguration(metamodelKey: string): MetamodelVisualConfiguration | undefined {
         return this.configurations.get(metamodelKey);
     }
 
-    /**
-     * Gets or creates the visual configuration for the active metamodel.
-     * @returns The visual configuration
-     */
     getOrCreateActiveVisualConfiguration(): MetamodelVisualConfiguration {
         const activeKey = this.metamodelRegistry.getActiveMetamodelKey();
         if (!activeKey) {
@@ -74,11 +60,6 @@ export class VisualConfigurationStorage {
         return configuration;
     }
 
-    /**
-     * Sets the visual configuration for a specific class.
-     * @param className The name of the class
-     * @param configuration The visual configuration
-     */
     setClassVisualConfiguration(className: string, configuration: ClassVisualConfiguration): void {
         const activeConfig = this.getOrCreateActiveVisualConfiguration();
         activeConfig.classConfigurations.set(className, configuration);
@@ -86,11 +67,6 @@ export class VisualConfigurationStorage {
         console.log(`All configurations for active metamodel:`, Array.from(activeConfig.classConfigurations.entries()));
     }
 
-    /**
-     * Gets the visual configuration for a specific class.
-     * @param className The name of the class
-     * @returns The visual configuration or the default if not found
-     */
     getClassVisualConfiguration(className: string): ClassVisualConfiguration {
         const activeConfig = this.getOrCreateActiveVisualConfiguration();
         const classConfig = activeConfig.classConfigurations.get(className);
@@ -111,10 +87,6 @@ export class VisualConfigurationStorage {
         return defaultConfig;
     }
 
-    /**
-     * Updates the default configuration for the active metamodel.
-     * @param configuration The new default configuration
-     */
     updateDefaultConfiguration(configuration: Partial<ClassVisualConfiguration>): void {
         const activeConfig = this.getOrCreateActiveVisualConfiguration();
         activeConfig.defaultConfiguration = {
@@ -124,26 +96,14 @@ export class VisualConfigurationStorage {
         console.log('Updated default visual configuration:', activeConfig.defaultConfiguration);
     }
 
-    /**
-     * Gets all available shape types.
-     * @returns Array of shape types
-     */
     getAvailableShapes(): ShapeType[] {
         return ['rectangle', 'circle', 'ellipse', 'arrow'];
     }
 
-    /**
-     * Gets all available color schemes.
-     * @returns Array of color schemes
-     */
     getAvailableColors(): ColorScheme[] {
-        return ['blue', 'green', 'red', 'orange', 'purple', 'pink', 'yellow', 'gray', 'brown', 'cyan'];
+        return ['black', 'blue', 'red', 'white', 'grey'];
     }
 
-    /**
-     * Initializes default configurations for all classes in the active metamodel.
-     * @param configuration The configuration to initialize
-     */
     private initializeDefaultConfigurations(configuration: MetamodelVisualConfiguration): void {
         const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
         if (!activeMetamodel) {
@@ -165,11 +125,6 @@ export class VisualConfigurationStorage {
         console.log(`Initialized visual configurations for ${classes.length} classes`);
     }
 
-    /**
-     * Removes the visual configuration for a metamodel.
-     * @param metamodelKey The key of the metamodel
-     * @returns True if the configuration was removed
-     */
     removeVisualConfiguration(metamodelKey: string): boolean {
         const removed = this.configurations.delete(metamodelKey);
         if (removed) {
@@ -178,9 +133,6 @@ export class VisualConfigurationStorage {
         return removed;
     }
 
-    /**
-     * Clears all visual configurations.
-     */
     clear(): void {
         this.configurations.clear();
         console.log('Cleared all visual configurations');

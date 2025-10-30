@@ -724,10 +724,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             };
         }
 
-        // Set size if available (use visual config size if specified)
-        if (visualConfig.size) {
-            node.size = { width: visualConfig.size.width, height: visualConfig.size.height };
-        } else if (instance.size) {
+        // Set size if available from instance data
+        if (instance.size) {
             node.size = { width: instance.size.width, height: instance.size.height };
         }
 
@@ -819,19 +817,17 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         
         node.cssClasses = [...(node.cssClasses || []), shapeClass, colorClass];
         
+        // Apply fill toggle
+        if (visualConfig.filled === false) {
+            node.cssClasses.push('fill-none');
+        }
+        
         // Add border styling if specified
         if (visualConfig.border && visualConfig.border.style) {
             const borderClass = `border-${visualConfig.border.style}`;
             node.cssClasses.push(borderClass);
         }
         
-        // Apply custom size if specified
-        if (visualConfig.size) {
-            (node as any).customSize = {
-                width: visualConfig.size.width,
-                height: visualConfig.size.height
-            };
-        }
     }
 
 

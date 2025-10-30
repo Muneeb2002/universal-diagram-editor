@@ -542,10 +542,7 @@ export interface SetClassVisualConfigurationAction extends Action {
     border?: {
         style: 'solid' | 'dashed' | 'dotted';
     };
-    size?: {
-        width: number;
-        height: number;
-    };
+    filled?: boolean;
     showAttributes: boolean;
     showReferences: boolean;
 }
@@ -553,14 +550,14 @@ export interface SetClassVisualConfigurationAction extends Action {
 export namespace SetClassVisualConfigurationAction {
     export const KIND = 'setClassVisualConfiguration';
     
-    export function create(className: string, shape: string, color: string, showAttributes: boolean, showReferences: boolean, border?: { style: 'solid' | 'dashed' | 'dotted' }, size?: { width: number; height: number }): SetClassVisualConfigurationAction {
+    export function create(className: string, shape: string, color: string, showAttributes: boolean, showReferences: boolean, border?: { style: 'solid' | 'dashed' | 'dotted' }, filled?: boolean): SetClassVisualConfigurationAction {
         return {
             kind: KIND,
             className,
             shape,
             color,
             border,
-            size,
+            filled,
             showAttributes,
             showReferences
         };
@@ -588,6 +585,7 @@ export interface VisualConfigurationResponse extends Action {
         className: string;
         shape: string;
         color: string;
+        filled?: boolean;
         showAttributes: boolean;
         showReferences: boolean;
     }>;

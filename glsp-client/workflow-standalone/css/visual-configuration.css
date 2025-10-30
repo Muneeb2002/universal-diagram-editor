@@ -18,20 +18,25 @@
     color: #0D47A1 !important;
 }
 
+/* Unfilled option (use specific selector and place after color rules) */
+.ecore-instance.fill-none .sprotty-node {
+    fill: transparent !important;
+}
+
 /* Shape-specific styling - now handled by client-side SVG rendering */
 
 
 /* Color scheme styling */
+.color-black {
+    fill: #000000 !important;
+    stroke: #000000 !important;
+    color: #FFFFFF !important;
+}
+
 .color-blue {
     fill: #E3F2FD !important;
     stroke: #1976D2 !important;
     color: #0D47A1 !important;
-}
-
-.color-green {
-    fill: #E8F5E8 !important;
-    stroke: #388E3C !important;
-    color: #1B5E20 !important;
 }
 
 .color-red {
@@ -40,46 +45,16 @@
     color: #B71C1C !important;
 }
 
-.color-orange {
-    fill: #FFF3E0 !important;
-    stroke: #F57C00 !important;
-    color: #E65100 !important;
+.color-white {
+    fill: #FFFFFF !important;
+    stroke: #9E9E9E !important;
+    color: #000000 !important;
 }
 
-.color-purple {
-    fill: #F3E5F5 !important;
-    stroke: #7B1FA2 !important;
-    color: #4A148C !important;
-}
-
-.color-pink {
-    fill: #FCE4EC !important;
-    stroke: #C2185B !important;
-    color: #880E4F !important;
-}
-
-.color-yellow {
-    fill: #FFFDE7 !important;
-    stroke: #FBC02D !important;
-    color: #F57F17 !important;
-}
-
-.color-gray {
+.color-grey {
     fill: #F5F5F5 !important;
     stroke: #616161 !important;
     color: #212121 !important;
-}
-
-.color-brown {
-    fill: #EFEBE9 !important;
-    stroke: #5D4037 !important;
-    color: #3E2723 !important;
-}
-
-.color-cyan {
-    fill: #E0F2F1 !important;
-    stroke: #00796B !important;
-    color: #004D40 !important;
 }
 
 /* Border style variations */

@@ -32,6 +32,7 @@ export class VisualConfigurationDialog {
         className: string;
         shape: string;
         color: string;
+        filled?: boolean;
         border?: {
             style: string;
         };
@@ -47,6 +48,7 @@ export class VisualConfigurationDialog {
         className: string;
         shape: string;
         color: string;
+        filled?: boolean;
         border?: {
             style: string;
         };
@@ -132,6 +134,7 @@ export class VisualConfigurationDialog {
         className: string;
         shape: string;
         color: string;
+        filled?: boolean;
         border?: {
             style: string;
         };
@@ -156,6 +159,10 @@ export class VisualConfigurationDialog {
                         <label style="display: flex; align-items: center; gap: 5px; font-size: 14px;">
                             <input type="checkbox" class="show-references" ${config.showReferences ? 'checked' : ''} style="margin: 0;">
                             Show References
+                        </label>
+                        <label style="display: flex; align-items: center; gap: 5px; font-size: 14px;">
+                            <input type="checkbox" class="filled" ${config.filled !== false ? 'checked' : ''} style="margin: 0;">
+                            Filled
                         </label>
                     </div>
                 </div>
@@ -216,14 +223,14 @@ export class VisualConfigurationDialog {
                     <div class="preview-container" style="
                         width: 60px;
                         height: 40px;
-                        border: 2px solid #ccc;
+                        border: 2px solid ${this.getStrokeColor(config.color)};
                         border-radius: 4px;
                         display: flex;
                         align-items: center;
                         justify-content: center;
                         font-size: 12px;
                         font-weight: bold;
-                        background: ${this.getColorFill(config.color)};
+                        background: ${config.filled !== false ? this.getColorFill(config.color) : 'transparent'};
                         color: ${this.getColorText(config.color)};
                     ">${this.getShapeSymbol(config.shape)}</div>
                 </div>
@@ -233,34 +240,35 @@ export class VisualConfigurationDialog {
 
     private getColorFill(color: string): string {
         const colorMap: Record<string, string> = {
+            black: '#000000',
             blue: '#E3F2FD',
-            green: '#E8F5E8',
             red: '#FFEBEE',
-            orange: '#FFF3E0',
-            purple: '#F3E5F5',
-            pink: '#FCE4EC',
-            yellow: '#FFFDE7',
-            gray: '#F5F5F5',
-            brown: '#EFEBE9',
-            cyan: '#E0F2F1'
+            white: '#FFFFFF',
+            grey: '#F5F5F5'
         };
         return colorMap[color] || '#E3F2FD';
     }
 
     private getColorText(color: string): string {
         const colorMap: Record<string, string> = {
+            black: '#FFFFFF',
             blue: '#0D47A1',
-            green: '#1B5E20',
             red: '#B71C1C',
-            orange: '#E65100',
-            purple: '#4A148C',
-            pink: '#880E4F',
-            yellow: '#F57F17',
-            gray: '#212121',
-            brown: '#3E2723',
-            cyan: '#004D40'
+            white: '#000000',
+            grey: '#212121'
         };
         return colorMap[color] || '#0D47A1';
+    }
+
+    private getStrokeColor(color: string): string {
+        const colorMap: Record<string, string> = {
+            black: '#000000',
+            blue: '#1976D2',
+            red: '#D32F2F',
+            white: '#9E9E9E',
+            grey: '#616161'
+        };
+        return colorMap[color] || '#1976D2';
     }
 
     private getShapeSymbol(shape: string): string {
@@ -295,11 +303,13 @@ export class VisualConfigurationDialog {
             const row = rows[i] as HTMLElement;
             const shapeSelect = row.querySelector('.shape-select') as HTMLSelectElement;
             const colorSelect = row.querySelector('.color-select') as HTMLSelectElement;
+            const filledCheckbox = row.querySelector('.filled') as HTMLInputElement;
             const preview = row.querySelector('.preview-container') as HTMLElement;
 
             const updatePreview = () => {
                 const shape = shapeSelect.value;
                 const color = colorSelect.value;
+                const filled = filledCheckbox?.checked ?? true;
                 
                 // Set appropriate symbol for each shape
                 let symbol = shape.charAt(0).toUpperCase();
@@ -307,12 +317,14 @@ export class VisualConfigurationDialog {
                 else if (shape === 'triangle') symbol = '▲';
                 
                 preview.textContent = symbol;
-                preview.style.background = this.getColorFill(color);
+                preview.style.background = filled ? this.getColorFill(color) : 'transparent';
                 preview.style.color = this.getColorText(color);
+                preview.style.borderColor = this.getStrokeColor(color);
             };
 
             shapeSelect?.addEventListener('change', updatePreview);
             colorSelect?.addEventListener('change', updatePreview);
+            filledCheckbox?.addEventListener('change', updatePreview);
         }
     }
 
@@ -330,6 +342,7 @@ export class VisualConfigurationDialog {
             const className = row.getAttribute('data-class-name');
             const shapeSelect = row.querySelector('.shape-select') as HTMLSelectElement;
             const colorSelect = row.querySelector('.color-select') as HTMLSelectElement;
+            const filledCheckbox = row.querySelector('.filled') as HTMLInputElement;
             const borderStyleSelect = row.querySelector('.border-style-select') as HTMLSelectElement;
             const showAttributesCheckbox = row.querySelector('.show-attributes') as HTMLInputElement;
             const showReferencesCheckbox = row.querySelector('.show-references') as HTMLInputElement;
@@ -340,6 +353,7 @@ export class VisualConfigurationDialog {
                     className,
                     shape: shapeSelect.value,
                     color: colorSelect.value,
+                    filled: filledCheckbox?.checked ?? true,
                     border: {
                         style: borderStyleSelect.value
                     },

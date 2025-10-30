@@ -63,8 +63,8 @@ export class OpenVisualConfigurationActionHandler implements ActionHandler {
                     className,
                     shape: classConfig.shape,
                     color: classConfig.color,
+                    filled: classConfig.filled,
                     border: classConfig.border,
-                    size: classConfig.size,
                     showAttributes: classConfig.showAttributes,
                     showReferences: classConfig.showReferences
                 };
