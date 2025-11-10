@@ -38,7 +38,7 @@ export class LeftSidebar {
         this.sidebar.appendChild(loadLabel);
 
         const loadBtn = document.createElement('button');
-        loadBtn.textContent = 'Load JSON';
+        loadBtn.textContent = 'Load Metamodel';
         loadBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
@@ -51,6 +51,22 @@ export class LeftSidebar {
         `;
         loadBtn.addEventListener('click', () => this.loadJSON());
         this.sidebar.appendChild(loadBtn);
+
+        const createBtn = document.createElement('button');
+        createBtn.textContent = 'Create Metamodel';
+        createBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 8px;
+        `;
+        createBtn.addEventListener('click', () => this.createCustomMetamodel());
+        this.sidebar.appendChild(createBtn);
 
         const loadedLabel = document.createElement('div');
         loadedLabel.textContent = 'Loaded metamodels:';
@@ -90,6 +106,65 @@ export class LeftSidebar {
 
     public setActionDispatcher(dispatcher: GLSPActionDispatcher): void {
         this.actionDispatcher = dispatcher;
+    }
+
+    private createCustomMetamodel(): void {
+        if (!this.actionDispatcher) {
+            console.error('Action dispatcher not available');
+            return;
+        }
+
+        const packageName = prompt('Enter package name for your custom metamodel:');
+        if (!packageName || !packageName.trim()) {
+            return;
+        }
+
+        const trimmedName = packageName.trim();
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedName)) {
+            alert('Package name must start with a letter or underscore and contain only letters, numbers, and underscores.');
+            return;
+        }
+
+        const defaultNsURI = `https://www.example.org/${trimmedName}`;
+        const nsURIInput = prompt('Enter Namespace URI for the metamodel:', defaultNsURI);
+        if (!nsURIInput || !nsURIInput.trim()) {
+            alert('Namespace URI is required.');
+            return;
+        }
+
+        const trimmedNsURI = nsURIInput.trim();
+        if (!/^https?:\/\//i.test(trimmedNsURI)) {
+            const proceed = confirm('Namespace URI does not start with http:// or https://. Continue anyway?');
+            if (!proceed) {
+                return;
+            }
+        }
+
+        const defaultPrefix = trimmedName.slice(0, 3).toLowerCase() || 'pkg';
+        const nsPrefixInput = prompt('Enter Namespace Prefix for the metamodel:', defaultPrefix);
+        if (!nsPrefixInput || !nsPrefixInput.trim()) {
+            alert('Namespace prefix is required.');
+            return;
+        }
+
+        const trimmedPrefix = nsPrefixInput.trim();
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedPrefix)) {
+            alert('Namespace prefix must start with a letter or underscore and contain only letters, numbers, and underscores.');
+            return;
+        }
+
+        try {
+            const action = {
+                kind: 'createCustomMetamodel',
+                packageName: trimmedName,
+                nsURI: trimmedNsURI,
+                nsPrefix: trimmedPrefix
+            };
+            this.actionDispatcher.dispatch(action);
+        } catch (error) {
+            console.error('Error creating custom metamodel:', error);
+            alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
+        }
     }
 
     private loadJSON(): void {

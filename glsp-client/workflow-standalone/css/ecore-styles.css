@@ -130,93 +130,64 @@
     fill: none !important;
 }
 
-/* Default edge styling - ensure all edges are visible */
+/* Default edge styling - uniform monochrome */
 .sprotty-edge {
-    stroke: #333 !important;
+    stroke: #444 !important;
     stroke-width: 2px !important;
     fill: none !important;
 }
 
 .sprotty-edge>path {
-    stroke: #333333 !important;
+    stroke: #444 !important;
     stroke-width: 2px !important;
 }
 
-/* ========================================
-   EDGE STYLES - Different relationship types
-   ======================================== */
-
-/* Reference edges (regular associations) */
-.sprotty-edge.ecore-reference {
-    stroke: #666 !important;
-    stroke-width: 1.5px !important;
-    fill: none !important;
-}
-
-.sprotty-edge.ecore-reference>path {
-    stroke: #666 !important;
-}
-
-/* Bidirectional reference edges - double line with arrows at both ends */
+/* Bidirectional reference edges - keep dash but no extra color */
 .sprotty-edge.ecore-reference.bidirectional {
-    stroke: #9C27B0 !important;
+    stroke: #444 !important;
     stroke-width: 2px !important;
     fill: none !important;
     stroke-dasharray: 5,5 !important;
 }
 
 .sprotty-edge.ecore-reference.bidirectional>path {
-    stroke: #9C27B0 !important;
+    stroke: #444 !important;
 }
 
 /* More specific selector for bidirectional edges */
 .sprotty-edge.ecore-reference.bidirectional path {
-    stroke: #9C27B0 !important;
+    stroke: #444 !important;
     stroke-width: 2px !important;
     stroke-dasharray: 5,5 !important;
 }
 
-/* Inheritance edges (generalization) - brown with hollow triangle arrow */
-.sprotty-edge.ecore-inheritance {
-    stroke: #8B4513 !important;
-    stroke-width: 2px !important;
-    fill: none !important;
-}
-
-.sprotty-edge.ecore-inheritance>path {
-    stroke: #8B4513 !important;
-}
-
-/* Containment edges (composition) - blue with filled diamond arrow */
-.sprotty-edge.ecore-containment {
-    stroke: #0066CC !important;
-    stroke-width: 2px !important;
-    fill: none !important;
-}
-
-.sprotty-edge.ecore-containment>path {
-    stroke: #0066CC !important;
-}
-
 /* Hover effects for edges */
-.sprotty-edge.ecore-reference:hover>path {
-    stroke: #FF6B6B !important;
+.sprotty-edge:hover>path {
+    stroke: #000 !important;
     stroke-width: 3px !important;
 }
 
-.sprotty-edge.ecore-inheritance:hover>path {
-    stroke: #D2691E !important;
-    stroke-width: 3px !important;
+/* Arrowhead styling */
+.edge-arrow {
+    pointer-events: none;
+    fill: #444 !important;
+    stroke: #444 !important;
 }
 
-.sprotty-edge.ecore-containment:hover>path {
-    stroke: #1E90FF !important;
-    stroke-width: 3px !important;
+.edge-arrow-inheritance {
+    fill: none !important;
+    stroke: #444 !important;
+    stroke-width: 2px !important;
 }
 
-.sprotty-edge.ecore-reference.bidirectional:hover>path {
-    stroke: #E91E63 !important;
-    stroke-width: 3px !important;
+.edge-arrow:hover {
+    stroke: #000 !important;
+    fill: #000 !important;
+}
+
+.sprotty-edge.ecore-reference.bidirectional:hover .edge-arrow {
+    stroke: #000 !important;
+    fill: #000 !important;
 }
 
 /* Edge labels styling */

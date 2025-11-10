@@ -128,26 +128,6 @@ export class EcoreToolbar {
         separator2.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
         this.toolbar.appendChild(separator2);
 
-        // Create custom metamodel section
-        const customSection = document.createElement('div');
-        customSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
-
-        const customLabel = document.createElement('span');
-        customLabel.textContent = 'Create Custom Metamodel:';
-        customLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
-        customSection.appendChild(customLabel);
-
-        const createCustomButton = this.createButton('🆕 New Metamodel', () => this.createCustomMetamodel());
-        createCustomButton.style.width = '100%';
-        customSection.appendChild(createCustomButton);
-
-        this.toolbar.appendChild(customSection);
-
-        // Create separator
-        const separator3 = document.createElement('hr');
-        separator3.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
-        this.toolbar.appendChild(separator3);
-
         // Create save section
         const saveSection = document.createElement('div');
         saveSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
@@ -182,12 +162,6 @@ export class EcoreToolbar {
         visualConfigSection.appendChild(visualConfigButton);
 
         this.toolbar.appendChild(visualConfigSection);
-
-        // Create separator
-        const separator5 = document.createElement('hr');
-        separator5.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
-        this.toolbar.appendChild(separator5);
-
     }
 
     private createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -644,49 +618,6 @@ export class EcoreToolbar {
         } catch (error) {
             console.error('Error saving metamodel:', error);
             alert('Error saving metamodel: ' + error);
-        }
-    }
-
-    private createCustomMetamodel(): void {
-        if (!this.actionDispatcher) {
-            console.error('Action dispatcher not available');
-            return;
-        }
-
-        // Show package creation dialog
-        const packageName = prompt('Enter package name for your custom metamodel:');
-        if (!packageName || !packageName.trim()) {
-            return;
-        }
-
-        const trimmedName = packageName.trim();
-        
-        // Validate package name
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedName)) {
-            alert('Package name must start with a letter or underscore and contain only letters, numbers, and underscores.');
-            return;
-        }
-
-        try {
-            // Create the package with auto-generated nsURI and nsPrefix
-            const nsURI = `https://www.example.org/${trimmedName}`;
-            const nsPrefix = trimmedName.substring(0, 2).toUpperCase();
-            
-            
-            
-            // Dispatch action to create custom metamodel
-            const action = {
-                kind: 'createCustomMetamodel',
-                packageName: trimmedName,
-                nsURI: nsURI,
-                nsPrefix: nsPrefix
-            };
-            
-            this.actionDispatcher.dispatch(action);
-            
-        } catch (error) {
-            console.error('Error creating custom metamodel:', error);
-            alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
         }
     }
 

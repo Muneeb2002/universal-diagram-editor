@@ -30,6 +30,8 @@ import {
     TYPES,
     EditorContextService
 } from '@eclipse-glsp/client';
+import { LocalRequestBoundsAction } from '@eclipse-glsp/client/lib/features/bounds/local-bounds';
+import type { GModelRoot } from '@eclipse-glsp/sprotty';
 import { Container } from 'inversify';
 import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
@@ -42,7 +44,10 @@ import { VisualConfigurationDialog } from './visual-configuration-dialog';
 import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
 import { LeftSidebar } from './left-sidebar';
 import { setupInteractiveResize } from './interactive-resize';
-import { SelectAction } from '@eclipse-glsp/protocol';
+import { SelectAction, SetModelAction, UpdateModelAction } from '@eclipse-glsp/protocol';
+
+let editorContextServiceRef: EditorContextService | undefined;
+let lastKnownModelRoot: GModelRoot | undefined;
 
 declare global {
     interface Window {
@@ -93,6 +98,7 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     // Set editor context service for toolbar
     const editorContextServiceProvider = container.get(TYPES.IEditorContextServiceProvider) as () => EditorContextService;
     const editorContextService = editorContextServiceProvider();
+    editorContextServiceRef = editorContextService;
     toolbar.setEditorContextService(editorContextService);
     
     // Set the global toolbar reference for the LoadMetamodelResponseHandler
@@ -121,7 +127,13 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     }, 1000);
     
     const diagramLoader = container.get(DiagramLoader);
-    await diagramLoader.load({ requestModelOptions: { isReconnecting } });
+    const loadResult = await diagramLoader.load({ requestModelOptions: { isReconnecting } });
+    const loadResultAsRoot = (loadResult as unknown as GModelRoot) ?? undefined;
+    if (editorContextService.modelRoot) {
+        lastKnownModelRoot = editorContextService.modelRoot as unknown as GModelRoot;
+    } else if (loadResultAsRoot) {
+        lastKnownModelRoot = loadResultAsRoot;
+    }
 
     // Open docked class properties panel initially
     try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch {}
@@ -290,7 +302,15 @@ function setupCustomActionHandling(): void {
         }
         // Check if this is a LoadMetamodelResponse
         else if (action.kind === 'loadMetamodelResponse') {
-            
+            pendingBoundsRetries = 0;
+            const result = originalDispatch(action);
+            result.then(() => {
+                if (editorContextServiceRef?.modelRoot) {
+                    lastKnownModelRoot = editorContextServiceRef.modelRoot as unknown as GModelRoot;
+                }
+                scheduleBoundsUpdate();
+            }, () => scheduleBoundsUpdate());
+
             // Update toolbar with available classes
             if (action.success && action.classNames && action.classNames.length > 0) {
                 
@@ -307,6 +327,30 @@ function setupCustomActionHandling(): void {
 
             // Refresh docked properties panel when metamodel changes (metamodel mode only)
             try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch {}
+
+            return result;
+        }
+        else if (SetModelAction.is(action)) {
+            const result = originalDispatch(action);
+            result.then(() => {
+                const contextRoot = editorContextServiceRef?.modelRoot as unknown as GModelRoot | undefined;
+                lastKnownModelRoot = contextRoot ?? (action.newRoot as unknown as GModelRoot);
+                scheduleBoundsUpdate();
+            }, () => {
+                scheduleBoundsUpdate();
+            });
+            return result;
+        }
+        else if (UpdateModelAction.is(action)) {
+            const result = originalDispatch(action);
+            result.then(() => {
+                const contextRoot = editorContextServiceRef?.modelRoot as unknown as GModelRoot | undefined;
+                lastKnownModelRoot = contextRoot ?? (action.newRoot as unknown as GModelRoot);
+                scheduleBoundsUpdate();
+            }, () => {
+                scheduleBoundsUpdate();
+            });
+            return result;
         }
         
         // Otherwise, dispatch normally
@@ -1099,3 +1143,42 @@ function setupClassSelectionForwarding(): void {
         forwardSelectionToClassProperties(className);
     });
 }
+
+function requestBoundsUpdate(): void {
+    if (!actionDispatcher) {
+        return;
+    }
+    const root = editorContextServiceRef?.modelRoot ?? lastKnownModelRoot;
+    if (!root) {
+        if (pendingBoundsRetries < MAX_BOUNDS_RETRIES) {
+            pendingBoundsRetries++;
+            setTimeout(() => requestBoundsUpdate(), BOUNDS_RETRY_DELAY);
+        } else {
+            console.warn('[app] requestBoundsUpdate: giving up after retries (no model root)');
+        }
+        return;
+    }
+    pendingBoundsRetries = 0;
+    lastKnownModelRoot = root;
+    try {
+        actionDispatcher.dispatch(LocalRequestBoundsAction.create(root));
+    } catch (err) {
+        console.warn('Failed to request bounds update', err);
+    }
+}
+
+function scheduleBoundsUpdate(): void {
+    if (typeof requestAnimationFrame === 'function') {
+        requestAnimationFrame(() => {
+            requestBoundsUpdate();
+        });
+    } else {
+        setTimeout(() => {
+            requestBoundsUpdate();
+        }, 0);
+    }
+}
+
+let pendingBoundsRetries = 0;
+const MAX_BOUNDS_RETRIES = 10;
+const BOUNDS_RETRY_DELAY = 50;

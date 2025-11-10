@@ -245,7 +245,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.children.push(headerCompartment);
 
         // Add attributes compartment (only if there are attributes)
-        const attributes = (eClass.get('eStructuralFeatures') as any).filter(isEAttribute);
+        const structuralFeatures = typeof eClass.get === 'function'
+            ? eClass.get('eStructuralFeatures')
+            : eClass.eStructuralFeatures || [];
+        const attributes = (structuralFeatures as any[]).filter(isEAttribute);
         if (attributes.length > 0) {
             const attributesCompartment = new GCompartment();
             attributesCompartment.id = `${eClass.get('name')}_attributes`;
@@ -253,7 +256,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             attributesCompartment.layout = 'vbox';
             attributesCompartment.layoutOptions = { paddingTop: 8, paddingBottom: 8, paddingLeft: 10, paddingRight: 10 };
             attributesCompartment.size = { width: 200, height: 50 };
-            attributesCompartment.children.push(this.createAttributesLabel(eClass));
+            attributes.forEach((attr: any, index: number) => {
+                attributesCompartment.children.push(this.createAttributeLabel(eClass, attr, index));
+            });
 
             node.children.push(attributesCompartment);
         }
@@ -354,20 +359,20 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         return label;
     }
 
-    private createAttributesLabel(eClass: any): GLabel {
-        const attributes = (eClass.get('eStructuralFeatures') as any).filter(isEAttribute);
-        const attributesText = attributes
-            .map((attr: any) => {
-                const typeName = this.getTypeName(attr.get('eType'));
-                const multiplicity = this.getMultiplicityString(attr.get('lowerBound'), attr.get('upperBound'));
-                return `${attr.get('name')} : ${typeName}${multiplicity}`;
-            })
-            .join('\n');
+    private createAttributeLabel(eClass: any, attr: any, index: number): GLabel {
+        const getProp = (obj: any, key: string) => (typeof obj?.get === 'function' ? obj.get(key) : obj?.[key]);
+        const attrName = getProp(attr, 'name') ?? `attribute_${index}`;
+        const type = getProp(attr, 'eType');
+        const typeName = this.getTypeName(type);
+        const lowerBound = getProp(attr, 'lowerBound');
+        const upperBound = getProp(attr, 'upperBound');
+        const multiplicity = this.getMultiplicityString(lowerBound, upperBound);
 
         const label = new GLabel();
         label.type = 'label:text';
-        label.id = `${eClass.get('name')}_attributes_label`;
-        label.text = attributesText;
+        const className = typeof eClass.get === 'function' ? eClass.get('name') : eClass?.name ?? 'EClass';
+        label.id = `${className}_attribute_${index}`;
+        label.text = `${attrName} : ${typeName}${multiplicity}`;
         return label;
     }
 
