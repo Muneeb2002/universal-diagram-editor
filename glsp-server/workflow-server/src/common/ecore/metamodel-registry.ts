@@ -11,6 +11,36 @@
 import { injectable } from 'inversify';
 import { EcoreModel, isEClass, isEAttribute, isEReference, EClass, EAttribute, EReference, EString } from './ecore-types';
 
+function toArray(collection: any): any[] {
+    if (!collection) {
+        return [];
+    }
+    if (Array.isArray(collection)) {
+        return collection;
+    }
+    if (typeof collection.forEach === 'function') {
+        const result: any[] = [];
+        try {
+            collection.forEach((item: any) => result.push(item));
+            return result;
+        } catch {
+            // fall through to Array.from attempt
+        }
+    }
+    if (typeof collection.length === 'number') {
+        try {
+            return Array.from(collection);
+        } catch {
+            // ignore
+        }
+    }
+    const internal = (collection as any)._internal;
+    if (Array.isArray(internal)) {
+        return internal;
+    }
+    return [];
+}
+
 /**
  * Registry for storing and managing loaded Ecore metamodels.
  * This is a singleton service that maintains all metamodels loaded during the session.
@@ -997,6 +1027,67 @@ export class MetamodelRegistry {
         }
     }
 
+    updateMetamodelProperties(name: string, nsURI: string, nsPrefix: string): void {
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            throw new Error('No active metamodel found');
+        }
+
+        if (!activeMetamodel.ePackages || activeMetamodel.ePackages.length === 0) {
+            throw new Error('Active metamodel has no packages');
+        }
+
+        const trimmedName = name?.trim() ?? '';
+        const trimmedNsURI = nsURI?.trim() ?? '';
+        const trimmedNsPrefix = nsPrefix?.trim() ?? '';
+
+        if (!trimmedName) {
+            throw new Error('Metamodel name cannot be empty');
+        }
+        if (!trimmedNsURI) {
+            throw new Error('Metamodel nsURI cannot be empty');
+        }
+        if (!trimmedNsPrefix) {
+            throw new Error('Metamodel nsPrefix cannot be empty');
+        }
+
+        const pkg = activeMetamodel.ePackages[0];
+        const setProp = (obj: any, key: string, value: string) => {
+            if (!obj) {
+                return;
+            }
+            if (typeof obj.set === 'function') {
+                obj.set(key, value);
+            } else {
+                obj[key] = value;
+            }
+        };
+
+        const originalKey = this.activeMetamodelKey;
+        const newKeyCandidate = trimmedNsURI.length > 0 ? trimmedNsURI : originalKey ?? trimmedName;
+
+        if (originalKey && newKeyCandidate && originalKey !== newKeyCandidate) {
+            const existing = this.metamodels.get(newKeyCandidate);
+            if (existing && existing !== activeMetamodel) {
+                throw new Error(`A metamodel with nsURI '${newKeyCandidate}' already exists`);
+            }
+        }
+
+        setProp(pkg, 'name', trimmedName);
+        setProp(pkg, 'nsURI', trimmedNsURI);
+        setProp(pkg, 'nsPrefix', trimmedNsPrefix);
+
+        if (originalKey && newKeyCandidate && originalKey !== newKeyCandidate) {
+            const metamodel = activeMetamodel;
+            this.metamodels.delete(originalKey);
+            this.metamodels.set(newKeyCandidate, metamodel);
+            this.activeMetamodelKey = newKeyCandidate;
+        } else if (!originalKey && newKeyCandidate) {
+            this.metamodels.set(newKeyCandidate, activeMetamodel);
+            this.activeMetamodelKey = newKeyCandidate;
+        }
+    }
+
     /**
      * Creates a new EClass in the active custom metamodel.
      */
@@ -1130,13 +1221,18 @@ export class MetamodelRegistry {
                 };
             }
 
+            const structuralFeatures = typeof eClass.get === 'function'
+                ? eClass.get('eStructuralFeatures')
+                : eClass.eStructuralFeatures;
+            const isEcoreTs = !!structuralFeatures && typeof structuralFeatures.add === 'function';
+
             // Validate attribute name
             this.validateName(attributeName);
 
             // Check if attribute already exists
             let existingFeatures: any[];
-            if (typeof eClass.get === 'function') {
-                existingFeatures = eClass.get('eStructuralFeatures') || [];
+            if (isEcoreTs) {
+                existingFeatures = toArray(structuralFeatures);
             } else {
                 existingFeatures = [...(eClass.eAttributes || []), ...(eClass.eReferences || [])];
             }
@@ -1159,8 +1255,7 @@ export class MetamodelRegistry {
             // Create the attribute
             let attribute: any;
             
-            if (typeof eClass.get === 'function') {
-                // ecore-ts EClass - create proper ecore-ts EAttribute
+            if (isEcoreTs) {
                 attribute = EAttribute.create({
                     name: attributeName,
                     eType: eType,
@@ -1169,10 +1264,10 @@ export class MetamodelRegistry {
                     unique: true,
                     ordered: false
                 });
-                // Add using .add() on the EList
-                (eClass as any).get('eStructuralFeatures').add(attribute);
+                if (structuralFeatures && typeof structuralFeatures.add === 'function') {
+                    structuralFeatures.add(attribute);
+                }
             } else {
-                // Plain JavaScript object - create plain JS attribute
                 attribute = {
                     name: attributeName,
                     eType: { name: attributeType },
@@ -1187,13 +1282,10 @@ export class MetamodelRegistry {
                         (this as any)[key] = value;
                     }
                 };
-                // Add using .push()
                 if (!Array.isArray(eClass.eAttributes)) {
                     eClass.eAttributes = [];
                 }
                 eClass.eAttributes.push(attribute);
-                
-                // Also add to eStructuralFeatures if it exists
                 if (Array.isArray(eClass.eStructuralFeatures)) {
                     eClass.eStructuralFeatures.push(attribute);
                 }
@@ -1209,6 +1301,132 @@ export class MetamodelRegistry {
             return {
                 success: false,
                 message: `Failed to add attribute: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    updateAttribute(
+        className: string,
+        originalAttributeName: string,
+        attributeName: string,
+        attributeType: string,
+        lowerBound: number,
+        upperBound: number
+    ): { success: boolean; message?: string } {
+        try {
+            const eClass = this.findEClass(className);
+            if (!eClass) {
+                return {
+                    success: false,
+                    message: `Class '${className}' not found in active metamodel`
+                };
+            }
+
+            const trimmedName = attributeName.trim();
+            if (!trimmedName) {
+                return {
+                    success: false,
+                    message: 'Attribute name cannot be empty'
+                };
+            }
+
+            if (trimmedName !== originalAttributeName) {
+                this.validateName(trimmedName);
+            }
+
+            if (!Number.isFinite(lowerBound) || !Number.isFinite(upperBound)) {
+                return {
+                    success: false,
+                    message: 'Attribute bounds must be numbers'
+                };
+            }
+
+            const featuresSource = typeof eClass.get === 'function'
+                ? eClass.get('eStructuralFeatures')
+                : eClass.eStructuralFeatures || [];
+
+            const featureArray: any[] = [];
+            if (featuresSource) {
+                if (Array.isArray(featuresSource)) {
+                    featureArray.push(...featuresSource);
+                } else if (typeof featuresSource.forEach === 'function') {
+                    featuresSource.forEach((item: any) => {
+                        if (item) {
+                            featureArray.push(item);
+                        }
+                    });
+                } else {
+                    try {
+                        featureArray.push(...Array.from(featuresSource));
+                    } catch {
+                        // ignore if conversion fails
+                    }
+                }
+            }
+
+            const targetAttr = featureArray.find(feature => {
+                if (!feature || !isEAttribute(feature)) {
+                    return false;
+                }
+                const featureName = typeof feature.get === 'function' ? feature.get('name') : feature.name;
+                return featureName === originalAttributeName;
+            });
+
+            if (!targetAttr) {
+                return {
+                    success: false,
+                    message: `Attribute '${originalAttributeName}' not found in class '${className}'`
+                };
+            }
+
+            const hasConflict = featureArray.some(feature => {
+                if (!feature || feature === targetAttr || !isEAttribute(feature)) {
+                    return false;
+                }
+                const featureName = typeof feature.get === 'function' ? feature.get('name') : feature.name;
+                return featureName === trimmedName;
+            });
+
+            if (hasConflict) {
+                return {
+                    success: false,
+                    message: `Another attribute named '${attributeName}' already exists in class '${className}'`
+                };
+            }
+
+            const eType = this.mapAttributeTypeToEcoreType(attributeType);
+
+            if (typeof targetAttr.set === 'function') {
+                targetAttr.set('name', trimmedName);
+                targetAttr.set('eType', eType);
+                targetAttr.set('lowerBound', lowerBound);
+                targetAttr.set('upperBound', upperBound);
+            } else {
+                const originalNameNormalized = targetAttr.name;
+                targetAttr.name = trimmedName;
+                targetAttr.eType = { name: attributeType };
+                targetAttr.lowerBound = lowerBound;
+                targetAttr.upperBound = upperBound;
+
+                if (Array.isArray((eClass as any).eAttributes)) {
+                    const attrEntry = (eClass as any).eAttributes.find((entry: any) => entry.name === originalNameNormalized);
+                    if (attrEntry) {
+                        attrEntry.name = trimmedName;
+                        attrEntry.eType = { name: attributeType };
+                        attrEntry.lowerBound = lowerBound;
+                        attrEntry.upperBound = upperBound;
+                    }
+                }
+            }
+
+            return {
+                success: true,
+                message: `Updated attribute '${originalAttributeName}' in class '${className}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to update attribute: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }
@@ -1261,33 +1479,18 @@ export class MetamodelRegistry {
                 };
             }
 
-            // Handle ecore-ts vs plain JS objects differently
-            if (typeof eClass.get === 'function') {
-                // ecore-ts EClass - use EList methods
-                const structuralFeatures = eClass.get('eStructuralFeatures');
-                
-                // Convert EList to array to find the attribute
-                let attributeToRemove: any = null;
-                
-                // Iterate through EList to find the attribute
-                if (typeof structuralFeatures.forEach === 'function') {
-                    structuralFeatures.forEach((feature: any) => {
-                        const featureName = feature.get('name');
-                        // Check if it's an attribute (not a reference)
-                        const isAttr = feature.eClass?.values?.name === 'EAttribute';
-                        if (featureName === attributeName && isAttr) {
-                            attributeToRemove = feature;
-                        }
-                    });
-                } else {
-                    // Fallback: try to convert to array
-                    const featuresArray = Array.from(structuralFeatures);
-                    attributeToRemove = featuresArray.find((feature: any) => {
-                        const featureName = feature.get('name');
-                        const isAttr = feature.eClass?.values?.name === 'EAttribute';
-                        return featureName === attributeName && isAttr;
-                    });
-                }
+            const structuralFeatures = typeof eClass.get === 'function'
+                ? eClass.get('eStructuralFeatures')
+                : eClass.eStructuralFeatures;
+            const isEcoreTs = !!structuralFeatures && typeof structuralFeatures.add === 'function';
+
+            if (isEcoreTs) {
+                const list = toArray(structuralFeatures);
+                const attributeToRemove = list.find((feature: any) => {
+                    const featureName = feature.get?.('name');
+                    const isAttr = feature.eClass?.values?.name === 'EAttribute';
+                    return featureName === attributeName && isAttr;
+                });
 
                 if (!attributeToRemove) {
                     return {
@@ -1296,37 +1499,39 @@ export class MetamodelRegistry {
                     };
                 }
 
-                // Remove using EList's remove method
                 if (typeof structuralFeatures.remove === 'function') {
                     structuralFeatures.remove(attributeToRemove);
                     console.log(`Removed attribute using EList.remove()`);
                 } else {
-                    return {
-                        success: false,
-                        message: `Cannot remove attribute: EList does not support remove operation`
-                    };
+                    const remaining = list.filter((feature: any) => feature !== attributeToRemove);
+                    if (typeof structuralFeatures.clear === 'function') {
+                        structuralFeatures.clear();
+                        remaining.forEach((item: any) => structuralFeatures.add?.(item));
+                    }
                 }
             } else {
-                // Plain JS object - use array methods
-                const features = eClass.eAttributes || [];
-                const attributeIndex = features.findIndex((f: any) => f.name === attributeName);
-
-                if (attributeIndex === -1) {
-                    return {
-                        success: false,
-                        message: `Attribute '${attributeName}' not found in class '${className}'`
-                    };
+                let removed = false;
+                if (Array.isArray(eClass.eAttributes)) {
+                    const attributeIndex = eClass.eAttributes.findIndex((f: any) => f.name === attributeName);
+                    if (attributeIndex !== -1) {
+                        eClass.eAttributes.splice(attributeIndex, 1);
+                        removed = true;
+                    }
                 }
 
-                // Remove using splice
-                eClass.eAttributes.splice(attributeIndex, 1);
-                
-                // Also remove from eStructuralFeatures if it exists
                 if (Array.isArray(eClass.eStructuralFeatures)) {
                     const sfIndex = eClass.eStructuralFeatures.findIndex((f: any) => f.name === attributeName);
                     if (sfIndex !== -1) {
                         eClass.eStructuralFeatures.splice(sfIndex, 1);
+                        removed = true;
                     }
+                }
+
+                if (!removed) {
+                    return {
+                        success: false,
+                        message: `Attribute '${attributeName}' not found in class '${className}'`
+                    };
                 }
             }
 

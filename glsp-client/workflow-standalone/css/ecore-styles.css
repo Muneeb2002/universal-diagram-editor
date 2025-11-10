@@ -230,31 +230,3 @@
 .ecore-instance.fill-none .sprotty-node {
     fill: transparent !important;
 }
-
-/* Edit button styling */
-.ecore-class .edit-button {
-    opacity: 0;
-    transition: opacity 0.2s ease;
-    cursor: pointer;
-}
-
-.ecore-class .edit-button-visible {
-    opacity: 1 !important;
-}
-
-.ecore-class .edit-button-bg {
-    fill: #007acc !important;
-    stroke: #005a9e !important;
-    stroke-width: 1px !important;
-}
-
-.ecore-class .edit-button-bg:hover {
-    fill: #005a9e !important;
-}
-
-.ecore-class .edit-button-icon {
-    fill: white !important;
-    font-size: 10px !important;
-    font-family: Arial, sans-serif !important;
-    pointer-events: none;
-}

@@ -4,6 +4,65 @@ import { ClassPropertiesResponse, OpenClassPropertiesAction } from './ecore-acti
 import { MetamodelRegistry } from './metamodel-registry';
 import { isEAttribute } from './ecore-types';
 
+function toArray(value: any): any[] {
+    if (!value) {
+        return [];
+    }
+    if (Array.isArray(value)) {
+        return value;
+    }
+    if (typeof value.forEach === 'function') {
+        const tmp: any[] = [];
+        try {
+            value.forEach((item: any) => tmp.push(item));
+            return tmp;
+        } catch {
+            // ignore fallthrough
+        }
+    }
+    try {
+        return Array.from(value);
+    } catch {
+        return [];
+    }
+}
+
+function isAttributeLike(feature: any): boolean {
+    if (!feature) {
+        return false;
+    }
+    if (isEAttribute(feature)) {
+        return true;
+    }
+
+    const containment = typeof feature.get === 'function' ? feature.get('containment') : feature.containment;
+    if (typeof containment === 'boolean' && containment) {
+        return false;
+    }
+
+    const eType = typeof feature.get === 'function' ? feature.get('eType') : feature.eType;
+    if (!eType) {
+        return false;
+    }
+
+    const typeName = typeof eType === 'string'
+        ? eType
+        : (typeof eType.get === 'function' ? eType.get('name') : eType.name);
+
+    if (!typeName) {
+        return false;
+    }
+
+    const normalized = typeName.toString();
+    const primitivePrefixes = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EShort', 'EByte', 'EDate', 'EChar'];
+    if (primitivePrefixes.some(prefix => normalized === prefix || normalized.startsWith(prefix))) {
+        return true;
+    }
+
+    const javaPrimitives = ['String', 'Integer', 'Boolean', 'Double', 'Float', 'Long', 'Short', 'Byte', 'Date', 'Char'];
+    return javaPrimitives.includes(normalized);
+}
+
 @injectable()
 export class OpenClassPropertiesActionHandler implements ActionHandler {
 	actionKinds = [OpenClassPropertiesAction.KIND];
@@ -13,8 +72,17 @@ export class OpenClassPropertiesActionHandler implements ActionHandler {
 
 	async execute(action: Action): Promise<Action[]> {
 		try {
+			const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
+			let metamodelInfo = {
+				name: '',
+				nsURI: '',
+				nsPrefix: '',
+				classCount: 0
+			};
+
 			const classes = this.metamodelRegistry.getAllEClasses().map(eClass => {
-				const name = eClass.get ? eClass.get('name') : eClass.name;
+				const rawName = eClass.get ? eClass.get('name') : eClass.name;
+				const name = typeof rawName === 'string' ? rawName : '';
 				const isAbstract = eClass.get ? !!eClass.get('abstract') : !!eClass.abstract;
 				const isInterface = eClass.get ? !!eClass.get('interface') : !!eClass.interface;
 				// supertypes
@@ -31,18 +99,55 @@ export class OpenClassPropertiesActionHandler implements ActionHandler {
 				}
 				// attributes
 				const features = eClass.get ? eClass.get('eStructuralFeatures') : eClass.eStructuralFeatures || [];
-				const attrs = (Array.isArray(features) ? features : Array.from(features || [])).filter(isEAttribute).map((attr: any) => {
-					const type = (attr.get ? attr.get('eType') : attr.eType);
-					return {
-						name: attr.get ? attr.get('name') : attr.name,
-						type: type?.get ? type.get('name') : type?.name,
-						lowerBound: attr.get ? attr.get('lowerBound') : attr.lowerBound,
-						upperBound: attr.get ? attr.get('upperBound') : attr.upperBound
-					};
-				});
+				const featureArray = toArray(features);
+				const attrs = featureArray
+					.filter(isAttributeLike)
+					.map((attr: any) => {
+						const typeObj = attr.get ? attr.get('eType') : attr.eType;
+						let typeName: string | undefined;
+						if (typeof typeObj === 'string') {
+							typeName = typeObj;
+						} else if (typeObj) {
+							typeName = typeObj.get ? typeObj.get('name') : typeObj.name;
+						}
+						const lowerRaw = attr.get ? attr.get('lowerBound') : attr.lowerBound;
+						const upperRaw = attr.get ? attr.get('upperBound') : attr.upperBound;
+						return {
+							name: attr.get ? attr.get('name') : attr.name,
+							type: typeName,
+							lowerBound: typeof lowerRaw === 'number' ? lowerRaw : 0,
+							upperBound: typeof upperRaw === 'number' ? upperRaw : (upperRaw === '*' ? -1 : 1)
+						};
+					})
+					.filter((attr): attr is { name: string; type: string; lowerBound: number; upperBound: number } => !!attr.name && !!attr.type);
 				return { className: name, isAbstract, isInterface, eSuperTypes: superTypes, attributes: attrs };
 			});
-			return [ClassPropertiesResponse.create(classes)];
+			metamodelInfo.classCount = classes.length;
+
+			if (activeMetamodel && Array.isArray(activeMetamodel.ePackages) && activeMetamodel.ePackages.length > 0) {
+				const pkg = activeMetamodel.ePackages[0];
+				const read = (obj: any, key: string) => {
+					if (!obj) {
+						return '';
+					}
+					if (typeof obj.get === 'function') {
+						try {
+							return obj.get(key) ?? '';
+						} catch {
+							// ignore
+						}
+					}
+					return obj[key] ?? '';
+				};
+				metamodelInfo = {
+					name: (read(pkg, 'name') || '').toString(),
+					nsURI: (read(pkg, 'nsURI') || '').toString(),
+					nsPrefix: (read(pkg, 'nsPrefix') || '').toString(),
+					classCount: classes.length
+				};
+			}
+
+			return [ClassPropertiesResponse.create(metamodelInfo, classes)];
 		} catch (e) {
 			return [];
 		}

@@ -17,7 +17,8 @@ import {
     RenameClassAction,
     SaveMetamodelAction,
     ChangeClassTypeAction,
-    DeleteClassAction
+    DeleteClassAction,
+    UpdateMetamodelPropertiesAction
 } from './ecore-actions';
 
 /**
@@ -29,7 +30,8 @@ export class EditMetamodelActionHandler implements ActionHandler {
         RenameClassAction.KIND,
         SaveMetamodelAction.KIND,
         ChangeClassTypeAction.KIND,
-        DeleteClassAction.KIND
+        DeleteClassAction.KIND,
+        UpdateMetamodelPropertiesAction.KIND
     ];
 
     constructor() {
@@ -69,6 +71,9 @@ export class EditMetamodelActionHandler implements ActionHandler {
                 success = result.success;
             } else if (DeleteClassAction.is(action)) {
                 const result = await this.handleDeleteClass(action);
+                success = result.success;
+            } else if (UpdateMetamodelPropertiesAction.is(action)) {
+                const result = await this.handleUpdateMetamodelProperties(action);
                 success = result.success;
             }
 
@@ -150,4 +155,18 @@ export class EditMetamodelActionHandler implements ActionHandler {
         }
     }
 
+    private async handleUpdateMetamodelProperties(action: UpdateMetamodelPropertiesAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.updateMetamodelProperties(action.name, action.nsURI, action.nsPrefix);
+            return {
+                success: true,
+                message: 'Successfully updated metamodel properties'
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to update metamodel properties: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
 }

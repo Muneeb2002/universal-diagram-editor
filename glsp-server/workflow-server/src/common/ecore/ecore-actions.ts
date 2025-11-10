@@ -300,6 +300,79 @@ export namespace DeleteClassAction {
     }
 }
 
+export interface UpdateMetamodelPropertiesAction extends Action {
+    kind: typeof UpdateMetamodelPropertiesAction.KIND;
+    name: string;
+    nsURI: string;
+    nsPrefix: string;
+}
+
+export namespace UpdateMetamodelPropertiesAction {
+    export const KIND = 'updateMetamodelProperties';
+
+    export function is(object: any): object is UpdateMetamodelPropertiesAction {
+        return Action.hasKind(object, KIND) &&
+            hasStringProp(object, 'name') &&
+            hasStringProp(object, 'nsURI') &&
+            hasStringProp(object, 'nsPrefix');
+    }
+
+    export function create(name: string, nsURI: string, nsPrefix: string): UpdateMetamodelPropertiesAction {
+        return {
+            kind: KIND,
+            name,
+            nsURI,
+            nsPrefix
+        };
+    }
+}
+
+export interface UpdateAttributeAction extends Action {
+    kind: typeof UpdateAttributeAction.KIND;
+    className: string;
+    originalAttributeName: string;
+    attributeName: string;
+    attributeType: string;
+    lowerBound: number;
+    upperBound: number;
+}
+
+export namespace UpdateAttributeAction {
+    export const KIND = 'updateAttribute';
+
+    export function is(object: any): object is UpdateAttributeAction {
+        const candidate = object as any;
+        const lowerBound = (candidate as { lowerBound?: unknown }).lowerBound;
+        const upperBound = (candidate as { upperBound?: unknown }).upperBound;
+        return Action.hasKind(candidate as Action, KIND) &&
+            hasStringProp(candidate, 'className') &&
+            hasStringProp(candidate, 'originalAttributeName') &&
+            hasStringProp(candidate, 'attributeName') &&
+            hasStringProp(candidate, 'attributeType') &&
+            typeof lowerBound === 'number' &&
+            typeof upperBound === 'number';
+    }
+
+    export function create(
+        className: string,
+        originalAttributeName: string,
+        attributeName: string,
+        attributeType: string,
+        lowerBound: number,
+        upperBound: number
+    ): UpdateAttributeAction {
+        return {
+            kind: KIND,
+            className,
+            originalAttributeName,
+            attributeName,
+            attributeType,
+            lowerBound,
+            upperBound
+        };
+    }
+}
+
 /**
  * Action to change the type of an edge.
  */
@@ -634,6 +707,12 @@ export namespace OpenClassPropertiesAction {
 export interface ClassPropertiesResponse extends Action {
     kind: typeof ClassPropertiesResponse.KIND;
     success: boolean;
+    metamodel: {
+        name: string;
+        nsURI: string;
+        nsPrefix: string;
+        classCount: number;
+    };
     classes: Array<{
         className: string;
         isAbstract: boolean;
@@ -645,7 +724,10 @@ export interface ClassPropertiesResponse extends Action {
 
 export namespace ClassPropertiesResponse {
     export const KIND = 'classPropertiesResponse';
-    export function create(classes: ClassPropertiesResponse['classes']): ClassPropertiesResponse {
-        return { kind: KIND, success: true, classes };
+    export function create(
+        metamodel: ClassPropertiesResponse['metamodel'],
+        classes: ClassPropertiesResponse['classes']
+    ): ClassPropertiesResponse {
+        return { kind: KIND, success: true, metamodel, classes };
     }
 }

@@ -35,21 +35,22 @@ import { MessageConnection } from 'vscode-jsonrpc';
 import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
-import { ClassInfo, createOpenClassPropertiesAction } from './ecore-client-actions';
+import { createOpenClassPropertiesAction } from './ecore-client-actions';
 import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { VisualConfigurationDialog } from './visual-configuration-dialog';
 import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
 import { LeftSidebar } from './left-sidebar';
 import { setupInteractiveResize } from './interactive-resize';
+import { SelectAction } from '@eclipse-glsp/protocol';
 
-// Global type declaration for the EClass creation dialog
 declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
         debugVisualConfigurations?: () => void;
     }
 }
+
 const host = GLSP_SERVER_HOST;
 const port = GLSP_SERVER_PORT;
 const id = 'ecore';
@@ -106,6 +107,7 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     
     // Set up context menu for class elements
     setupContextMenu();
+    setupClassSelectionForwarding();
     
     // Set up action handling for custom actions
     setupCustomActionHandling();
@@ -135,83 +137,22 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
 }
 
 function setupContextMenu(): void {
-    // Listen for clicks on edit buttons in the diagram
+    // Listen for clicks on class elements to sync the class properties panel
     document.addEventListener('click', (event) => {
-        const target = event.target as HTMLElement;
-        
-        // Check if the clicked element is an edit button or its parent
-        const editButton = target.closest('.edit-button') || 
-                          (target.classList.contains('edit-button-bg') ? target.parentElement : null);
-        
-        if (editButton) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            // Find the parent class element
-            const classElement = editButton.closest('.ecore-class');
-            if (!classElement) return;
-            
-            // Get class information from the element
-            // Use the node ID which is set to the class name, but strip the sprotty_ prefix
-            const rawId = classElement.id || classElement.getAttribute('data-class-name') || 'UnknownClass';
-            const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
-            
-            // Check if it's abstract or interface
-            const isAbstract = classElement.classList.contains('abstract');
-            const isInterface = classElement.classList.contains('interface');
-            
-            // Extract attributes from the rendered DOM
-            const attributes: Array<{name: string; type: string; lowerBound: number; upperBound: number; unique: boolean; ordered: boolean}> = [];
-            const references: Array<{name: string; type: string; lowerBound: number; upperBound: number; containment: boolean; container: boolean; unique: boolean; ordered: boolean}> = [];
-            
-            // Find the attributes compartment using data attribute
-            let attributesCompartment = classElement.querySelector('[data-svg-metadata-type="comp:attributes"]');
-            
-            if (attributesCompartment) {
-                // Get the text element within the compartment (all attributes are in ONE label)
-                const textElement = attributesCompartment.querySelector('text');
-                
-                if (textElement) {
-                    const fullText = textElement.textContent || '';
-                    
-                    // Split by newlines - each line is one attribute
-                    const lines = fullText.split('\n');
-                    
-                    lines.forEach((line) => {
-                        const text = line.trim();
-                        if (!text || text === 'Attributes') return;
-                        
-                        // Parse format: "name : EString[0..1]" or "name : EString [0..1]"
-                        // Note: space before and after colon, optional space before bracket
-                        const match = text.match(/^(.+?)\s*:\s*([^\[]+?)\s*(?:\[(\d+)\.\.(-?\d+|\*)\])?$/);
-                        if (match) {
-                            const [, name, type, lower, upper] = match;
-                            
-                            attributes.push({
-                                name: name.trim(),
-                                type: type.trim(),
-                                lowerBound: lower ? parseInt(lower) : 0,
-                                upperBound: upper === '*' || upper === '-1' ? -1 : (upper ? parseInt(upper) : 1),
-                                unique: true,
-                                ordered: false
-                            });
-                        }
-                    });
-                }
-            }
-            
-            // Create class info object  
-            const classInfo: ClassInfo = {
-                className: className,
-                isAbstract: isAbstract,
-                isInterface: isInterface,
-                attributes: attributes,
-                references: references  // Empty for now, could be extracted similarly
-            };
-            
-            // Show context menu
-            contextMenu.show(event, classInfo);
+        const target = event.target as HTMLElement | null;
+        if (!target) {
+            return;
         }
+        const classElement = target.closest('.ecore-class') as HTMLElement | null;
+        if (!classElement) {
+            return;
+        }
+        const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
+        if (!rawId) {
+            return;
+        }
+        const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+        forwardSelectionToClassProperties(className);
     });
 
     // Listen for double-clicks on edges
@@ -315,10 +256,25 @@ function setupCustomActionHandling(): void {
             showEClassCreationDialog();
             return Promise.resolve();
         }
+        // Handle diagram selection changes to keep the properties panel in sync
+        else if (SelectAction.is(action)) {
+            const selected = action.selectedElementsIDs ?? [];
+            const deselected = action.deselectedElementsIDs;
+            const deselectAll = typeof deselected === 'boolean' ? deselected : false;
+            const deselectedList = Array.isArray(deselected);
+            if (selected.length > 0) {
+                const first = selected[0];
+                const className = first.startsWith('sprotty_') ? first.substring(8) : first;
+                forwardSelectionToClassProperties(className);
+            } else if (selected.length === 0 && (deselectAll || deselectedList || deselected === undefined)) {
+                forwardSelectionToClassProperties(null);
+            }
+        }
         // Hide/show docked panels depending on mode
         else if (action.kind === 'switchMode') {
             const mode = action.mode as 'metamodel' | 'instance';
             if (mode === 'instance') {
+                forwardSelectionToClassProperties(null);
                 const panel = document.getElementById('class-properties-panel');
                 if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
                 document.body.style.paddingBottom = '0px';
@@ -1109,4 +1065,37 @@ function showEditInstanceAttributeDialog(instanceId: string): void {
 
     // Focus the name input
     nameInput.focus();
+}
+
+let classSelectionForwarderInstalled = false;
+
+function forwardSelectionToClassProperties(className: string | null): void {
+    const panel = window.classPropertiesPanel;
+    if (panel && typeof panel.setSelectedClass === 'function') {
+        panel.setSelectedClass(className);
+    }
+}
+
+function setupClassSelectionForwarding(): void {
+    if (classSelectionForwarderInstalled) {
+        return;
+    }
+    classSelectionForwarderInstalled = true;
+
+    document.addEventListener('click', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (!target) {
+            return;
+        }
+        const classElement = target.closest('.ecore-class') as HTMLElement | null;
+        if (!classElement) {
+            return;
+        }
+        const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
+        if (!rawId) {
+            return;
+        }
+        const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+        forwardSelectionToClassProperties(className);
+    });
 }

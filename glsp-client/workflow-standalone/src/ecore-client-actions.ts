@@ -199,6 +199,12 @@ export interface VisualConfigurationResponse extends Action {
 export interface ClassPropertiesResponse extends Action {
     kind: 'classPropertiesResponse';
     success: boolean;
+    metamodel: {
+        name: string;
+        nsURI: string;
+        nsPrefix: string;
+        classCount: number;
+    };
     classes: Array<{
         className: string;
         isAbstract: boolean;
@@ -266,6 +272,55 @@ export function createDeleteClassAction(
         kind: 'deleteClass',
         className,
         force
+    };
+}
+
+export interface UpdateMetamodelPropertiesAction extends Action {
+    kind: 'updateMetamodelProperties';
+    name: string;
+    nsURI: string;
+    nsPrefix: string;
+}
+
+export function createUpdateMetamodelPropertiesAction(
+    name: string,
+    nsURI: string,
+    nsPrefix: string
+): UpdateMetamodelPropertiesAction {
+    return {
+        kind: 'updateMetamodelProperties',
+        name,
+        nsURI,
+        nsPrefix
+    };
+}
+
+export interface UpdateAttributeAction extends Action {
+    kind: 'updateAttribute';
+    className: string;
+    originalAttributeName: string;
+    attributeName: string;
+    attributeType: string;
+    lowerBound: number;
+    upperBound: number;
+}
+
+export function createUpdateAttributeAction(
+    className: string,
+    originalAttributeName: string,
+    attributeName: string,
+    attributeType: string,
+    lowerBound: number,
+    upperBound: number
+): UpdateAttributeAction {
+    return {
+        kind: 'updateAttribute',
+        className,
+        originalAttributeName,
+        attributeName,
+        attributeType,
+        lowerBound,
+        upperBound
     };
 }
 

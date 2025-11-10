@@ -43,6 +43,7 @@ import { MultiplicityInputResponseActionHandler } from './multiplicity-input-res
 import { BidirectionalMultiplicityInputResponseActionHandler } from './bidirectional-multiplicity-input-response-action-handler';
 import { AddAttributeActionHandler } from './add-attribute-action-handler';
 import { DeleteAttributeActionHandler } from './delete-attribute-action-handler';
+import { UpdateAttributeActionHandler } from './update-attribute-action-handler';
 import { SetInstanceAttributeActionHandler } from './set-instance-attribute-action-handler';
 import { CreateInstanceReferenceActionHandler } from './create-instance-reference-action-handler';
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
@@ -95,6 +96,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(BidirectionalMultiplicityInputResponseActionHandler);
         binding.add(AddAttributeActionHandler);
         binding.add(DeleteAttributeActionHandler);
+        binding.add(UpdateAttributeActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {
