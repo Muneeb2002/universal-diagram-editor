@@ -62,8 +62,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
      * Creates a metamodel visualization directly from an EcoreModel (for testing)
      */
     createMetamodelFromModel(ecoreModel: EcoreModel): GModelRoot {
-        console.log('createMetamodelFromModel() - ecoreModel:', ecoreModel);
-
         const root = new GModelRoot();
         root.type = 'graph';
         root.id = 'sprotty';
@@ -73,9 +71,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         this.createEdgesFromEReferences(root, ecoreModel);
         this.createEdgesFromInheritance(root, ecoreModel);
 
-        console.log('Created metamodel visualization with root:', root);
-        console.log(`Total children in root: ${root.children.length}`);
-
         return root;
     }
 
@@ -84,10 +79,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
      */
     private createMetamodelVisualization(): void {
         const ecoreModel = this.modelState.get('ecoreModel') as EcoreModel;
-        console.log('createMetamodelVisualization() - ecoreModel:', ecoreModel);
-
         if (!ecoreModel) {
-            console.log('No ecoreModel found, creating default model');
             this.createDefaultModel();
             return;
         }
@@ -101,17 +93,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         this.createEdgesFromEReferences(root, ecoreModel);
         this.createEdgesFromInheritance(root, ecoreModel);
 
-        console.log('Created metamodel visualization with root:', root);
-        console.log(`Total children in root: ${root.children.length}`);
-        console.log(`Children breakdown:`, root.children.map(child => ({ type: child.type, id: child.id })));
-
-        // Debug: Check if any edges were created
-        const edges = root.children.filter(child => child.type?.startsWith('edge:'));
-        console.log(`Total edges created: ${edges.length}`);
-        edges.forEach(edge => {
-            console.log(`Edge: ${edge.id} (${edge.type}) from ${(edge as any).sourceId} to ${(edge as any).targetId}`);
-        });
-
         this.modelState.set('gmodel', root);
     }
 
@@ -119,16 +100,12 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
      * Creates visualization of instance model (object diagram view)
      */
     private createInstanceModel(): void {
-        console.log('createInstanceModel()');
-
         const root = new GModelRoot();
         root.type = 'graph';
         root.id = 'sprotty';
         root.revision = 0;
 
         const instances = this.instanceStorage.getAllInstances();
-        console.log(`Found ${instances.length} instances to visualize`);
-
         // Create nodes for each instance
         instances.forEach(instance => {
             const node = this.createNodeForInstance(instance);
@@ -141,18 +118,15 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             edges.forEach(edge => root.children.push(edge));
         });
 
-        console.log('Created instance model with root:', root);
         this.modelState.set('gmodel', root);
     }
 
     private createDefaultModel(): void {
-        console.log('Creating default empty model');
         const root = new GModelRoot();
         root.type = 'graph';
         root.id = 'sprotty';
         root.revision = 0; // Initialize revision
         this.modelState.set('gmodel', root);
-        console.log('Default model root set in model state');
     }
 
     private createNodesFromEClasses(root: GModelRoot, ecoreModel: EcoreModel): void {
@@ -166,7 +140,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         let nodeCount = 0;
 
         ecoreModel.ePackages.forEach(pkg => {
-            const classifiers = pkg.get('eClassifiers') as any;
+            const classifiers = this.getProp(pkg, 'eClassifiers') as any;
             
             classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
@@ -209,8 +183,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     private createNodeForEClass(eClass: any): GNode {
         const node = new GNode();
+        const className = this.getProp<string>(eClass, 'name') ?? 'EClass';
         node.type = 'ecore:class'; // Use consistent type for all EClass nodes
-        node.id = eClass.get('name');
+        node.id = className;
         node.layout = 'vbox';
         node.args = ArgsUtil.cornerRadius(5);
 
@@ -225,17 +200,17 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         // Set CSS classes based on class type
         const cssClasses = ['ecore-class'];
-        if (eClass.get('abstract')) {
+        if (this.getProp<boolean>(eClass, 'abstract')) {
             cssClasses.push('abstract');
         }
-        if (eClass.get('interface')) {
+        if (this.getProp<boolean>(eClass, 'interface')) {
             cssClasses.push('interface');
         }
         node.cssClasses = cssClasses;
 
         // Add header compartment with class name
         const headerCompartment = new GCompartment();
-        headerCompartment.id = `${eClass.get('name')}_header`;
+        headerCompartment.id = `${className}_header`;
         headerCompartment.type = 'comp:header';
         headerCompartment.layout = 'hbox';
         headerCompartment.layoutOptions = { paddingTop: 8, paddingBottom: 8, paddingLeft: 10, paddingRight: 10 };
@@ -245,13 +220,11 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.children.push(headerCompartment);
 
         // Add attributes compartment (only if there are attributes)
-        const structuralFeatures = typeof eClass.get === 'function'
-            ? eClass.get('eStructuralFeatures')
-            : eClass.eStructuralFeatures || [];
+        const structuralFeatures = this.getProp<any[]>(eClass, 'eStructuralFeatures') ?? [];
         const attributes = (structuralFeatures as any[]).filter(isEAttribute);
         if (attributes.length > 0) {
             const attributesCompartment = new GCompartment();
-            attributesCompartment.id = `${eClass.get('name')}_attributes`;
+            attributesCompartment.id = `${className}_attributes`;
             attributesCompartment.type = 'comp:attributes';
             attributesCompartment.layout = 'vbox';
             attributesCompartment.layoutOptions = { paddingTop: 8, paddingBottom: 8, paddingLeft: 10, paddingRight: 10 };
@@ -270,15 +243,16 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     private createNodeForEDataType(eDataType: any): GNode {
         const node = new GNode();
+        const dataTypeName = this.getProp<string>(eDataType, 'name') ?? 'EDataType';
         node.type = 'ecore:datatype'; // Use specific type for EDataType nodes
-        node.id = eDataType.get('name');
+        node.id = dataTypeName;
         node.layout = 'vbox';
         node.args = ArgsUtil.cornerRadius(5);
         node.cssClasses = ['ecore-datatype'];
 
         // Add header compartment with data type name
         const headerCompartment = new GCompartment();
-        headerCompartment.id = `${eDataType.name}_header`;
+        headerCompartment.id = `${dataTypeName}_header`;
         headerCompartment.type = 'comp:header';
         headerCompartment.layout = 'hbox';
         headerCompartment.size = { width: 200, height: 30 }; // Explicit size
@@ -288,7 +262,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         // Add instance class name compartment
         const instanceClassCompartment = new GCompartment();
-        instanceClassCompartment.id = `${eDataType.name}_instanceclass`;
+        instanceClassCompartment.id = `${dataTypeName}_instanceclass`;
         instanceClassCompartment.type = 'comp:attributes';
         instanceClassCompartment.layout = 'vbox';
         instanceClassCompartment.size = { width: 200, height: 50 }; // Explicit size
@@ -301,15 +275,16 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     private createNodeForEEnum(eEnum: any): GNode {
         const node = new GNode();
+        const enumName = this.getProp<string>(eEnum, 'name') ?? 'EEnum';
         node.type = 'ecore:enum'; // Use specific type for EEnum nodes
-        node.id = eEnum.get('name');
+        node.id = enumName;
         node.layout = 'vbox';
         node.args = ArgsUtil.cornerRadius(5);
         node.cssClasses = ['ecore-enum'];
 
         // Add header compartment with enum name
         const headerCompartment = new GCompartment();
-        headerCompartment.id = `${eEnum.name}_header`;
+        headerCompartment.id = `${enumName}_header`;
         headerCompartment.type = 'comp:header';
         headerCompartment.layout = 'hbox';
         headerCompartment.size = { width: 200, height: 30 }; // Explicit size
@@ -318,9 +293,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.children.push(headerCompartment);
 
         // Add literals compartment
-        if (eEnum.eLiterals.length > 0) {
+        const literals = this.getProp<any[]>(eEnum, 'eLiterals') ?? [];
+        if (literals.length > 0) {
             const literalsCompartment = new GCompartment();
-            literalsCompartment.id = `${eEnum.name}_literals`;
+            literalsCompartment.id = `${enumName}_literals`;
             literalsCompartment.type = 'comp:attributes';
             literalsCompartment.layout = 'vbox';
             literalsCompartment.size = { width: 200, height: 50 }; // Explicit size
@@ -333,14 +309,12 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     }
 
     private createClassNameLabel(eClass: any): GLabel {
-        const className = eClass.get('name');
-        console.log('Creating class name label for class:', className);
-        
+        const className = this.getProp<string>(eClass, 'name') ?? 'EClass';
         let labelText = className;
 
         // Add stereotypes for different class types
-        const isInterface = eClass.get('interface');
-        const isAbstract = eClass.get('abstract');
+        const isInterface = !!this.getProp<boolean>(eClass, 'interface');
+        const isAbstract = !!this.getProp<boolean>(eClass, 'abstract');
         
         if (isInterface && isAbstract) {
             labelText = `<<interface>><<abstract>> ${className}`;
@@ -355,22 +329,20 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         label.id = `${className}_classname`;
         label.text = labelText;
         
-        console.log('Created label with ID:', label.id, 'and text:', label.text);
         return label;
     }
 
     private createAttributeLabel(eClass: any, attr: any, index: number): GLabel {
-        const getProp = (obj: any, key: string) => (typeof obj?.get === 'function' ? obj.get(key) : obj?.[key]);
-        const attrName = getProp(attr, 'name') ?? `attribute_${index}`;
-        const type = getProp(attr, 'eType');
+        const attrName = this.getProp<string>(attr, 'name') ?? `attribute_${index}`;
+        const type = this.getProp(attr, 'eType');
         const typeName = this.getTypeName(type);
-        const lowerBound = getProp(attr, 'lowerBound');
-        const upperBound = getProp(attr, 'upperBound');
+        const lowerBound = this.getProp<number | undefined>(attr, 'lowerBound');
+        const upperBound = this.getProp<number | undefined>(attr, 'upperBound');
         const multiplicity = this.getMultiplicityString(lowerBound, upperBound);
 
         const label = new GLabel();
         label.type = 'label:text';
-        const className = typeof eClass.get === 'function' ? eClass.get('name') : eClass?.name ?? 'EClass';
+        const className = this.getProp<string>(eClass, 'name') ?? 'EClass';
         label.id = `${className}_attribute_${index}`;
         label.text = `${attrName} : ${typeName}${multiplicity}`;
         return label;
@@ -379,143 +351,94 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     private createDataTypeNameLabel(eDataType: any): GLabel {
         const label = new GLabel();
         label.type = 'label:heading';
-        label.id = `${eDataType.get('name')}_datatypename`;
-        label.text = `<<datatype>> ${eDataType.get('name')}`;
+        const dataTypeName = this.getProp<string>(eDataType, 'name') ?? 'EDataType';
+        label.id = `${dataTypeName}_datatypename`;
+        label.text = `<<datatype>> ${dataTypeName}`;
         return label;
     }
 
     private createInstanceClassNameLabel(eDataType: any): GLabel {
         const label = new GLabel();
         label.type = 'label:text';
-        label.id = `${eDataType.get('name')}_instanceclassname`;
-        label.text = `instanceClassName: ${eDataType.get('instanceClassName')}`;
+        const dataTypeName = this.getProp<string>(eDataType, 'name') ?? 'EDataType';
+        const instanceClassName = this.getProp<string>(eDataType, 'instanceClassName') ?? '';
+        label.id = `${dataTypeName}_instanceclassname`;
+        label.text = `instanceClassName: ${instanceClassName}`;
         return label;
     }
 
     private createEnumNameLabel(eEnum: any): GLabel {
         const label = new GLabel();
         label.type = 'label:heading';
-        label.id = `${eEnum.get('name')}_enumname`;
-        label.text = `<<enumeration>> ${eEnum.get('name')}`;
+        const enumName = this.getProp<string>(eEnum, 'name') ?? 'EEnum';
+        label.id = `${enumName}_enumname`;
+        label.text = `<<enumeration>> ${enumName}`;
         return label;
     }
 
     private createEnumLiteralsLabel(eEnum: any): GLabel {
-        const literalsText = (eEnum.get('eLiterals') as any)
-            .map((literal: any) => `${literal.get('name')} = ${literal.get('value')}`)
+        const literals = this.getProp<any[]>(eEnum, 'eLiterals') ?? [];
+        const literalsText = literals
+            .map((literal: any) => {
+                const literalName = this.getProp<string>(literal, 'name') ?? '';
+                const literalValue = this.getProp<string | number>(literal, 'value');
+                return literalValue !== undefined ? `${literalName} = ${literalValue}` : literalName;
+            })
             .join('\n');
 
         const label = new GLabel();
         label.type = 'label:text';
-        label.id = `${eEnum.get('name')}_literals_label`;
+        const enumName = this.getProp<string>(eEnum, 'name') ?? 'EEnum';
+        label.id = `${enumName}_literals_label`;
         label.text = literalsText;
         return label;
     }
 
     private createEdgesFromEReferences(root: GModelRoot, ecoreModel: EcoreModel): void {
-        let edgeCount = 0;
-
-        console.log('createEdgesFromEReferences() - Starting edge creation');
-
         ecoreModel.ePackages.forEach(pkg => {
-            // Handle both Ecore packages and JSON packages
-            let classifiers: any[];
-            let packageName: string;
-            
-            if (typeof pkg.get === 'function') {
-                packageName = pkg.get('name');
-                classifiers = pkg.get('eClassifiers');
-            } else {
-                packageName = pkg.name;
-                classifiers = pkg.eClassifiers;
-            }
-            
-            console.log(`Processing package: ${packageName} with ${classifiers.length} classifiers`);
+            const classifiers = this.toArray(this.getProp<any>(pkg, 'eClassifiers'));
             
             classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
-                    let className: string;
-                    if (typeof classifier.get === 'function') {
-                        className = classifier.get('name');
-                    } else {
-                        className = classifier.name;
-                    }
-                    
                     // Handle both Ecore objects and JSON objects
-                    let references: any[];
-                    if (typeof classifier.get === 'function') {
-                        const allFeatures = classifier.get('eStructuralFeatures') || [];
-                        references = allFeatures.filter(isEReference);
-                        console.log(`Class ${className} has ${allFeatures.length} structural features, ${references.length} are references`);
-                    } else {
-                        references = (classifier.eReferences || []).filter(isEReference);
-                        console.log(`Class ${className} has ${references.length} references`);
+                    const allFeatures = this.toArray(this.getProp<any>(classifier, 'eStructuralFeatures'));
+                    let references = allFeatures.filter(isEReference);
+                    if (references.length === 0) {
+                        references = this.toArray(this.getProp<any>(classifier, 'eReferences')).filter(isEReference);
                     }
-                    
+
                     references.forEach((eRef: any) => {
-                        const refName = typeof eRef.get === 'function' ? eRef.get('name') : eRef.name;
-                        const containment = typeof eRef.get === 'function' ? eRef.get('containment') : eRef.containment;
-                        console.log(`Processing reference: ${refName} (containment: ${containment})`);
-                        
                         const edge = this.createEdgeForEReference(eRef, classifier);
                         if (edge) {
                             root.children.push(edge);
-                            edgeCount++;
-                            console.log(`Created edge: ${edge.sourceId} -> ${edge.targetId} (${edge.type}) with CSS classes:`, edge.cssClasses);
                         }
                     });
                 }
             });
         });
-
-        console.log(`createEdgesFromEReferences() - Created ${edgeCount} reference edges`);
     }
 
     private createEdgeForEReference(eRef: any, sourceClass: any): GEdge | null {
         const edge = new GEdge();
 
         // Get values - handle both Ecore objects and JSON objects
-        const containment = typeof eRef.get === 'function' ? eRef.get('containment') : eRef.containment;
-        const refName = typeof eRef.get === 'function' ? eRef.get('name') : eRef.name;
-        const eType = typeof eRef.get === 'function' ? eRef.get('eType') : eRef.eType;
-        const lowerBound = typeof eRef.get === 'function' ? eRef.get('lowerBound') : eRef.lowerBound;
-        const upperBound = typeof eRef.get === 'function' ? eRef.get('upperBound') : eRef.upperBound;
-        const sourceClassName = typeof sourceClass.get === 'function' ? sourceClass.get('name') : sourceClass.name;
+        const containment = !!this.getProp<boolean>(eRef, 'containment');
+        const refName = this.getProp<string>(eRef, 'name') ?? 'reference';
+        const eType = this.getProp<any>(eRef, 'eType');
+        const lowerBound = this.getProp<number | undefined>(eRef, 'lowerBound');
+        const upperBound = this.getProp<number | undefined>(eRef, 'upperBound');
+        const sourceClassName = this.getProp<string>(sourceClass, 'name') ?? 'EClass';
         
         // Check for eOpposite to determine if this is a bidirectional reference
-        // Try multiple ways to access eOpposite
-        let eOpposite = null;
-        let isBidirectional = false;
-        
-        // Method 1: Try Ecore object method
-        if (typeof eRef.get === 'function') {
-            eOpposite = eRef.get('eOpposite');
-        } else {
-            // Method 2: Try direct property access
-            eOpposite = eRef.eOpposite;
-        }
-        
-        // Method 3: Try the stored _eOpposite (from parser)
-        if (!eOpposite && (eRef as any)._eOpposite) {
-            eOpposite = (eRef as any)._eOpposite;
-        }
-        
-        if (eOpposite) {
-            if (typeof eOpposite.get === 'function') {
-                // This is a resolved eOpposite object
-                isBidirectional = eOpposite.get('name') !== undefined;
-            } else if (typeof eOpposite === 'object' && eOpposite.name) {
-                // This is an unresolved eOpposite from JSON
-                isBidirectional = true;
-            }
-        }
-        
+        const eOpposite = this.getProp<any>(eRef, 'eOpposite');
+        const isBidirectional = !!eOpposite;
+
         // Determine edge type based on containment and bidirectionality
         if (containment) {
             edge.type = 'edge:ecore-containment';
             edge.cssClasses = ['ecore-containment'];
         } else if (isBidirectional) {
-            edge.type = 'edge:ecore-reference';
+            edge.type = 'edge:ecore-bidirectional';
             edge.cssClasses = ['ecore-reference', 'bidirectional'];
         } else {
             edge.type = 'edge:ecore-reference';
@@ -529,16 +452,19 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         // Add label with reference name and multiplicity
         const multiplicity = this.getMultiplicityString(lowerBound, upperBound);
         let labelText = multiplicity !== '[1]' ? `${multiplicity} ${refName}` : refName;
-        
-        // Add bidirectional indicator for bidirectional references
-        if (isBidirectional) {
-            labelText = `↔ ${labelText}`;
-        }
 
         const label = new GLabel();
         label.type = 'label:text';
         label.id = `${edge.id}_label`;
         label.text = labelText;
+        if (containment || isBidirectional) {
+            label.edgePlacement = {
+                position: 0.95,
+                offset: 12,
+                side: containment ? 'on' : 'right',
+                rotate: false
+            };
+        }
 
         edge.children.push(label);
 
@@ -549,75 +475,28 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
      * Creates edges for inheritance relationships (eSuperTypes)
      */
     private createEdgesFromInheritance(root: GModelRoot, ecoreModel: EcoreModel): void {
-        let inheritanceCount = 0;
-
         ecoreModel.ePackages.forEach(pkg => {
-            // Handle both Ecore packages and JSON packages
-            let classifiers: any[];
-            
-            if (typeof pkg.get === 'function') {
-                classifiers = pkg.get('eClassifiers');
-            } else {
-                classifiers = pkg.eClassifiers;
-            }
-            
+            const classifiers = this.toArray(this.getProp<any>(pkg, 'eClassifiers'));
             
             classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
                     // Get superTypes - handle both Ecore objects and JSON objects
-                    let superTypes: any;
-                    if (typeof classifier.get === 'function') {
-                        superTypes = classifier.get('eSuperTypes');
-                    } else {
-                        superTypes = classifier.eSuperTypes;
-                    }
-                    
-                    // Handle both Ecore collections (with .size() method) and plain arrays
-                    let superTypesArray: any[] = [];
-                    if (superTypes) {
-                        if (typeof superTypes.size === 'function') {
-                            // Ecore collection - iterate through it properly
-                            if (superTypes.size() > 0) {
-                                superTypesArray = [];
-                                // Use forEach if available, otherwise try Array.from
-                                if (typeof superTypes.forEach === 'function') {
-                                    superTypes.forEach((superType: any) => {
-                                        superTypesArray.push(superType);
-                                    });
-                                } else {
-                                    // Fallback to Array.from
-                                    superTypesArray = Array.from(superTypes);
-                                }
-                            }
-                        } else if (Array.isArray(superTypes)) {
-                            // Plain array (our custom objects)
-                            superTypesArray = superTypes;
-                        }
-                    }
+                    const superTypes = this.getProp<any>(classifier, 'eSuperTypes');
+                    const superTypesArray = this.toArray(superTypes);
                     
                     if (superTypesArray.length > 0) {
                         // Filter out any invalid superType objects
                         const validSuperTypes = superTypesArray.filter((superType: any) => {
                             if (!superType) return false;
                             
-                            // Handle Ecore objects (with .get() method)
-                            if (typeof superType.get === 'function') {
-                                return superType.get('name');
-                            }
-                            
-                            // Handle plain JSON objects (from loaded metamodels)
-                            if (typeof superType.name === 'string') {
-                                return superType.name;
-                            }
-                            
-                            return false;
+                            const superTypeName = this.getProp<string>(superType, 'name');
+                            return !!superTypeName;
                         });
                         
                         validSuperTypes.forEach((superType: any) => {
                             const edge = this.createInheritanceEdge(classifier, superType);
                             if (edge) {
                                 root.children.push(edge);
-                                inheritanceCount++;
                             }
                         });
                     }
@@ -636,25 +515,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return null;
         }
 
-        // Get class names - handle both Ecore objects and plain JSON objects
-        let subClassName: string;
-        let superClassName: string;
-
-        if (typeof subClass.get === 'function') {
-            subClassName = subClass.get('name');
-        } else if (typeof subClass.name === 'string') {
-            subClassName = subClass.name;
-        } else {
-            return null;
-        }
-
-        if (typeof superClass.get === 'function') {
-            superClassName = superClass.get('name');
-        } else if (typeof superClass.name === 'string') {
-            superClassName = superClass.name;
-        } else {
-            return null;
-        }
+        const subClassName = this.getProp<string>(subClass, 'name');
+        const superClassName = this.getProp<string>(superClass, 'name');
 
         if (!subClassName || !superClassName) {
             return null;
@@ -676,23 +538,21 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return eType;
         }
         if (eType && typeof eType === 'object') {
-            // For ecore-ts instances, use .get('name')
-            if (eType.get && typeof eType.get === 'function') {
-                return eType.get('name') || 'Unknown';
-            }
-            // Fallback for plain objects
-            return eType.name || 'Unknown';
+            const typeName = this.getProp<string>(eType, 'name');
+            return typeName || 'Unknown';
         }
         return 'Unknown';
     }
 
-    private getMultiplicityString(lowerBound: number, upperBound: number): string {
-        if (lowerBound === upperBound) {
-            return `[${lowerBound}]`;
-        } else if (upperBound === -1) {
-            return `[${lowerBound}..*]`;
+    private getMultiplicityString(lowerBound?: number, upperBound?: number): string {
+        const lb = lowerBound ?? 0;
+        const ub = upperBound ?? lb;
+        if (lb === ub) {
+            return `[${lb}]`;
+        } else if (ub === -1) {
+            return `[${lb}..*]`;
         } else {
-            return `[${lowerBound}..${upperBound}]`;
+            return `[${lb}..${ub}]`;
         }
     }
 
@@ -887,5 +747,36 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         edge.children.push(label);
 
         return edge;
+    }
+
+    private toArray(collection: any): any[] {
+        if (!collection) {
+            return [];
+        }
+        if (Array.isArray(collection)) {
+            return collection;
+        }
+        if (typeof collection.toArray === 'function') {
+            return collection.toArray();
+        }
+        const result: any[] = [];
+        if (typeof collection.forEach === 'function') {
+            collection.forEach((item: any) => result.push(item));
+            return result;
+        }
+        if (typeof collection.length === 'number') {
+            return Array.from(collection);
+        }
+        return result;
+    }
+
+    private getProp<T>(obj: any, key: string): T | undefined {
+        if (obj == null) {
+            return undefined;
+        }
+        if (typeof obj.get === 'function') {
+            return obj.get(key);
+        }
+        return (obj as Record<string, unknown>)[key] as T | undefined;
     }
 }

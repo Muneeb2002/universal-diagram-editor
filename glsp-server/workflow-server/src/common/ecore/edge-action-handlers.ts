@@ -14,8 +14,6 @@ export class DeleteEdgeActionHandler implements ActionHandler {
     protected modelState: ModelState;
 
     async execute(action: DeleteEdgeAction): Promise<Action[]> {
-        console.log(`Deleting edge: ${action.edgeId}`);
-        
         // Get the current model
         const currentModel = this.modelState.get('gmodel') as GModelRoot;
         if (!currentModel) {
@@ -36,15 +34,6 @@ export class DeleteEdgeActionHandler implements ActionHandler {
         // Find and remove the edge from the visual model
         const removed = this.removeEdgeById(currentModel, action.edgeId);
         if (removed) {
-            console.log(`Edge deleted successfully: ${action.edgeId}`);
-            
-            // Convert the modified ecore-ts model back to plain JavaScript objects for proper serialization
-            const ecoreModel = this.modelState.get('ecoreModel');
-            if (ecoreModel) {
-                const serializableModel = this.convertEcoreTsToSerializable(ecoreModel);
-                this.modelState.set('ecoreModel', serializableModel);
-            }
-            
             // Trigger model update to refresh the view
             return [SetModelAction.create(currentModel)];
         } else {
@@ -114,8 +103,6 @@ export class DeleteEdgeActionHandler implements ActionHandler {
                 return;
             }
 
-            console.log(`Updating Ecore model for edge deletion: ${edgeId}`);
-            
             // Parse the edge ID to determine the relationship type and parameters
             if (edgeId.includes('_inherits_')) {
                 // This is an inheritance edge: ${subClass}_inherits_${superClass}
@@ -143,8 +130,6 @@ export class DeleteEdgeActionHandler implements ActionHandler {
         const subClassName = parts[0];
         const superClassName = parts[1];
 
-        console.log(`Removing inheritance: ${subClassName} inherits from ${superClassName}`);
-
         // Find the subclass in the Ecore model
         const subClass = this.findEClassByName(ecoreModel, subClassName);
         if (!subClass) {
@@ -169,17 +154,20 @@ export class DeleteEdgeActionHandler implements ActionHandler {
         let sourceClass = null;
         let referenceName = null;
         
-        for (const ePackage of ePackages || []) {
-            const eClassifiers = ePackage.get('eClassifiers');
-            (eClassifiers as any).forEach((eClassifier: any) => {
-                const className = eClassifier.get('name');
+        const packagesArray = this.toArray(ePackages);
+        for (const ePackage of packagesArray) {
+            const eClassifiers = this.getProp<any>(ePackage, 'eClassifiers');
+            const classifiersArray = this.toArray(eClassifiers);
+            classifiersArray.forEach((eClassifier: any) => {
+                const className = this.getProp<string>(eClassifier, 'name');
                 // Check if the cleanEdgeId starts with this class name followed by underscore
-                if (cleanEdgeId.startsWith(className + '_')) {
+                if (className && cleanEdgeId.startsWith(className + '_')) {
                     const possibleRefName = cleanEdgeId.substring(className.length + 1);
                     // Check if this reference actually exists in the class
-                    const eStructuralFeatures = eClassifier.get('eStructuralFeatures');
-                    (eStructuralFeatures as any).forEach((feature: any) => {
-                        if (feature.get('name') === possibleRefName) {
+                    const eStructuralFeatures = this.getProp<any>(eClassifier, 'eStructuralFeatures');
+                    const featuresArray = this.toArray(eStructuralFeatures);
+                    featuresArray.forEach((feature: any) => {
+                        if (this.getProp<string>(feature, 'name') === possibleRefName) {
                             sourceClass = eClassifier;
                             referenceName = possibleRefName;
                         }
@@ -193,8 +181,6 @@ export class DeleteEdgeActionHandler implements ActionHandler {
             return;
         }
 
-        console.log(`Removing reference: ${referenceName} from class ${(sourceClass as any).get('name')}`);
-
         // Remove the reference from the source class
         this.removeReferenceIfExists(sourceClass, referenceName);
     }
@@ -203,14 +189,13 @@ export class DeleteEdgeActionHandler implements ActionHandler {
         // Use regular JavaScript object access
         const ePackages = ecoreModel.ePackages;
         
-        for (const ePackage of ePackages || []) {
-            // Use ecore-ts API for classifiers (they are ecore-ts instances)
-            const eClassifiers = ePackage.get('eClassifiers');
-            
-            // Use forEach method on ecore-ts collection
+        const packagesArray = this.toArray(ePackages);
+        for (const ePackage of packagesArray) {
+            const eClassifiers = this.getProp<any>(ePackage, 'eClassifiers');
+
             let foundClassifier = null;
-            (eClassifiers as any).forEach((eClassifier: any) => {
-                const classifierName = eClassifier.get('name');
+            this.toArray(eClassifiers).forEach((eClassifier: any) => {
+                const classifierName = this.getProp<string>(eClassifier, 'name');
                 if (classifierName === className) {
                     foundClassifier = eClassifier;
                 }
@@ -225,175 +210,88 @@ export class DeleteEdgeActionHandler implements ActionHandler {
     }
 
     private removeReferenceIfExists(eClass: any, referenceName: string): void {
-        const eStructuralFeatures = eClass.get('eStructuralFeatures');
+        const eStructuralFeatures = this.getProp<any>(eClass, 'eStructuralFeatures');
         if (!eStructuralFeatures) return;
         
-        console.log(`Before removal - eStructuralFeatures size: ${eStructuralFeatures.size()}`);
-        
-        // Use forEach method on ecore-ts collection
-        (eStructuralFeatures as any).forEach((feature: any) => {
-            if (feature.get('name') === referenceName) {
-                console.log(`Found reference to remove: ${feature.get('name')}`);
-                eStructuralFeatures.remove(feature);
-                console.log(`After removal - eStructuralFeatures size: ${eStructuralFeatures.size()}`);
+        this.removeFromCollection(eStructuralFeatures, (feature: any) => {
+            if (this.getProp<string>(feature, 'name') === referenceName) {
+                return true;
             }
+            return false;
         });
     }
 
     private removeInheritanceIfExists(sourceClass: any, superTypeName: string): void {
-        const superTypes = sourceClass.get('eSuperTypes');
+        const superTypes = this.getProp<any>(sourceClass, 'eSuperTypes');
         if (!superTypes) return;
         
-        // Use forEach method on ecore-ts collection
-        (superTypes as any).forEach((superType: any) => {
-            if (superType.get('name') === superTypeName) {
-                superTypes.remove(superType);
-                console.log(`Removed inheritance: ${sourceClass.get('name')} no longer inherits from ${superTypeName}`);
+        this.removeFromCollection(superTypes, (superType: any) => {
+        if (this.getProp<string>(superType, 'name') === superTypeName) {
+                return true;
             }
+            return false;
         });
     }
 
-    private convertEcoreTsToSerializable(ecoreModel: any): any {
-        // Convert ecore-ts objects back to plain JavaScript objects for JSON serialization
-        const result: any = {
-            ePackages: []
-        };
+    private getProp<T>(obj: any, key: string): T | undefined {
+        if (obj == null) {
+            return undefined;
+        }
+        if (typeof obj.get === 'function') {
+            return obj.get(key);
+        }
+        return (obj as Record<string, unknown>)[key] as T | undefined;
+    }
 
-        const ePackages = ecoreModel.ePackages;
-        for (const ePackage of ePackages || []) {
-            const packageObj: any = {
-                name: ePackage.get('name'),
-                nsURI: ePackage.get('nsURI'),
-                nsPrefix: ePackage.get('nsPrefix'),
-                eClassifiers: []
-            };
+    private toArray(collection: any): any[] {
+        if (!collection) {
+            return [];
+        }
+        if (Array.isArray(collection)) {
+            return collection;
+        }
+        if (typeof collection.toArray === 'function') {
+            return collection.toArray();
+        }
+        const result: any[] = [];
+        if (typeof collection.forEach === 'function') {
+            collection.forEach((item: any) => result.push(item));
+            return result;
+        }
+        return result;
+    }
 
-            // Use forEach method on ecore-ts collection
-            const eClassifiers = ePackage.get('eClassifiers');
-            (eClassifiers as any).forEach((classifier: any) => {
-                const classifierObj: any = {
-                    name: classifier.get('name'),
-                    abstract: classifier.get('abstract'),
-                    interface: classifier.get('interface'),
-                    eAttributes: [],
-                    eReferences: [],
-                    eSuperTypes: []
-                };
-
-                // Convert attributes
-                const eAttributes = classifier.get('eAttributes');
-                (eAttributes as any).forEach((attr: any) => {
-                    classifierObj.eAttributes.push({
-                        name: attr.get('name'),
-                        eType: { name: attr.get('eType')?.get('name') },
-                        lowerBound: attr.get('lowerBound'),
-                        upperBound: attr.get('upperBound'),
-                        unique: attr.get('unique'),
-                        ordered: attr.get('ordered')
-                    });
-                });
-
-                // Convert references
-                const eStructuralFeatures = classifier.get('eStructuralFeatures');
-                console.log(`Serializing structural features for class ${classifier.get('name')}:`);
-                console.log(`  eStructuralFeatures size: ${eStructuralFeatures?.size?.() || eStructuralFeatures?.length || 0}`);
-                
-                // Handle both ecore-ts collections and plain JavaScript arrays
-                if (Array.isArray(eStructuralFeatures)) {
-                    eStructuralFeatures.forEach((feature: any) => {
-                    const featureName = feature.get('name');
-                    const featureType = feature.get('eClass')?.get('name');
-                    const eType = feature.get('eType');
-                    const containment = feature.get('containment');
-                    const container = feature.get('container');
-                    
-                    console.log(`  - Feature: ${featureName}, Type: ${featureType}, eType: ${eType?.get('name')}, containment: ${containment}, container: ${container}`);
-                    
-                    // Check if it's a reference by looking for containment/container properties
-                    // or if it has an eType that's not a primitive type (EString, EInt, etc.)
-                    const isReference = containment !== undefined || container !== undefined || 
-                                      (eType && !['EString', 'EInt', 'EDouble', 'EBoolean', 'EDate'].includes(eType.get('name')));
-                    
-                    if (isReference) {
-                        console.log(`    Adding reference to eReferences: ${featureName}`);
-                        classifierObj.eReferences.push({
-                            name: feature.get('name'),
-                            eType: eType ? { name: eType.get('name') } : undefined,
-                            lowerBound: feature.get('lowerBound'),
-                            upperBound: feature.get('upperBound'),
-                            unique: feature.get('unique'),
-                            ordered: feature.get('ordered'),
-                            containment: containment,
-                            container: container
-                        });
-                    } else {
-                        console.log(`    Adding attribute to eAttributes: ${featureName}`);
-                        classifierObj.eAttributes.push({
-                            name: feature.get('name'),
-                            eType: eType ? { name: eType.get('name') } : undefined,
-                            lowerBound: feature.get('lowerBound'),
-                            upperBound: feature.get('upperBound'),
-                            unique: feature.get('unique'),
-                            ordered: feature.get('ordered')
-                        });
-                    }
-                    });
-                } else {
-                    // Handle ecore-ts collections
-                    (eStructuralFeatures as any).forEach((feature: any) => {
-                    const featureName = feature.get('name');
-                    const featureType = feature.get('eClass')?.get('name');
-                    const eType = feature.get('eType');
-                    const containment = feature.get('containment');
-                    const container = feature.get('container');
-                    
-                    console.log(`  - Feature: ${featureName}, Type: ${featureType}, eType: ${eType?.get('name')}, containment: ${containment}, container: ${container}`);
-                    
-                    // Check if it's a reference by looking for containment/container properties
-                    // or if it has an eType that's not a primitive type (EString, EInt, etc.)
-                    const isReference = containment !== undefined || container !== undefined || 
-                                      (eType && !['EString', 'EInt', 'EDouble', 'EBoolean', 'EDate'].includes(eType.get('name')));
-                    
-                    if (isReference) {
-                        console.log(`    Adding reference to eReferences: ${featureName}`);
-                        classifierObj.eReferences.push({
-                            name: feature.get('name'),
-                            eType: eType ? { name: eType.get('name') } : undefined,
-                            lowerBound: feature.get('lowerBound'),
-                            upperBound: feature.get('upperBound'),
-                            unique: feature.get('unique'),
-                            ordered: feature.get('ordered'),
-                            containment: containment,
-                            container: container
-                        });
-                    } else {
-                        console.log(`    Adding attribute to eAttributes: ${featureName}`);
-                        classifierObj.eAttributes.push({
-                            name: feature.get('name'),
-                            eType: eType ? { name: eType.get('name') } : undefined,
-                            lowerBound: feature.get('lowerBound'),
-                            upperBound: feature.get('upperBound'),
-                            unique: feature.get('unique'),
-                            ordered: feature.get('ordered')
-                        });
-                    }
-                    });
-                }
-
-                // Convert super types
-                const eSuperTypes = classifier.get('eSuperTypes');
-                (eSuperTypes as any).forEach((superType: any) => {
-                    classifierObj.eSuperTypes.push({
-                        name: superType.get('name')
-                    });
-                });
-
-                packageObj.eClassifiers.push(classifierObj);
-            });
-
-            result.ePackages.push(packageObj);
+    private removeFromCollection(collection: any, predicate: (item: any) => boolean): void {
+        if (!collection) {
+            return;
         }
 
-        return result;
+        if (typeof collection.remove === 'function') {
+            this.toArray(collection).forEach(item => {
+                if (predicate(item)) {
+                    collection.remove(item);
+                }
+            });
+            return;
+        }
+
+        if (Array.isArray(collection)) {
+            for (let i = collection.length - 1; i >= 0; i--) {
+                if (predicate(collection[i])) {
+                    collection.splice(i, 1);
+                }
+            }
+            return;
+        }
+
+        if (typeof collection.delete === 'function') {
+            const toDelete: any[] = [];
+            collection.forEach((item: any) => {
+                if (predicate(item)) {
+                    toDelete.push(item);
+                }
+            });
+            toDelete.forEach(item => collection.delete(item));
+        }
     }
 }

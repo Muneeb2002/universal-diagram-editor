@@ -82,6 +82,18 @@ export function isEAttribute(feature: any): boolean {
         return true;
     }
     
+    // Check for plain JSON objects
+    if (
+        feature &&
+        typeof feature.name === 'string' &&
+        feature.eType !== undefined &&
+        typeof feature.lowerBound === 'number' &&
+        typeof feature.upperBound === 'number' &&
+        !('containment' in feature)
+    ) {
+        return true;
+    }
+
     return false;
 }
 
@@ -101,6 +113,16 @@ export function isEReference(feature: any): boolean {
         return true;
     }
     
+    // Check for plain JSON objects
+    if (
+        feature &&
+        typeof feature.name === 'string' &&
+        feature.eType !== undefined &&
+        (typeof feature.containment === 'boolean' || feature.containment === undefined)
+    ) {
+        return true;
+    }
+
     return false;
 }
 
