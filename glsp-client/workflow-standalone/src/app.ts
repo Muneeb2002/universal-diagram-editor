@@ -77,12 +77,86 @@ const leftSidebar = new LeftSidebar();
 const contextMenu = new EcoreContextMenu();
 const edgeContextMenu = new EcoreEdgeContextMenu();
 
+let metamodelAvailable = false;
+let desiredToolPaletteVisible = false;
+let paletteVisibilityRetryHandle: number | undefined;
+let paletteObserver: MutationObserver | undefined;
+
 // Add UI elements to the page
 document.addEventListener('DOMContentLoaded', () => {
     leftSidebar.attach();
     const toolbarElement = toolbar.getElement();
     leftSidebar.dockToolbar(toolbarElement);
 });
+
+function getToolPaletteElement(): HTMLElement | null {
+    return (document.getElementById('tool-palette') as HTMLElement | null) ??
+        (document.querySelector('.tool-palette') as HTMLElement | null) ??
+        null;
+}
+
+function getToolPaletteToggleButton(): HTMLElement | null {
+    return document.querySelector('.minimize-palette-button');
+}
+
+function applyToolPaletteVisibility(): void {
+    const palette = getToolPaletteElement();
+    const toggleButton = getToolPaletteToggleButton();
+
+    if (palette) {
+        palette.style.display = desiredToolPaletteVisible ? '' : 'none';
+    }
+
+    if (toggleButton) {
+        toggleButton.style.display = desiredToolPaletteVisible ? '' : 'none';
+    }
+
+    if ((!palette || !toggleButton) && paletteVisibilityRetryHandle === undefined) {
+        paletteVisibilityRetryHandle = window.setTimeout(() => {
+            paletteVisibilityRetryHandle = undefined;
+            applyToolPaletteVisibility();
+        }, 50);
+    }
+}
+
+function setToolPaletteVisible(visible: boolean): void {
+    desiredToolPaletteVisible = visible;
+    ensureToolPaletteObserver();
+    applyToolPaletteVisibility();
+}
+
+function ensureToolPaletteObserver(): void {
+    if (paletteObserver || typeof MutationObserver === 'undefined') {
+        return;
+    }
+
+    const startObserver = () => {
+        if (!document.body) {
+            return;
+        }
+
+        paletteObserver = new MutationObserver(() => {
+            applyToolPaletteVisibility();
+            const paletteReady = !!getToolPaletteElement();
+            const toggleReady = !!getToolPaletteToggleButton();
+            if (paletteReady && toggleReady) {
+                paletteObserver?.disconnect();
+                paletteObserver = undefined;
+            }
+        });
+
+        paletteObserver.observe(document.body, { childList: true, subtree: true });
+    };
+
+    if (document.body) {
+        startObserver();
+    } else {
+        document.addEventListener('DOMContentLoaded', startObserver, { once: true });
+    }
+}
+
+// Hide the palette as early as possible until a metamodel is available
+setToolPaletteVisible(false);
 
 async function initialize(connectionProvider: MessageConnection, isReconnecting = false): Promise<void> {
     glspClient = new BaseJsonrpcGLSPClient({ id, connectionProvider });
@@ -92,6 +166,7 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     // Set action dispatcher for toolbar and context menus
     toolbar.setActionDispatcher(actionDispatcher);
     leftSidebar.setActionDispatcher(actionDispatcher);
+    leftSidebar.setVisualConfigurationAvailable(false);
     contextMenu.setActionDispatcher(actionDispatcher);
     edgeContextMenu.setActionDispatcher(actionDispatcher);
     
@@ -268,6 +343,11 @@ function setupCustomActionHandling(): void {
             showEClassCreationDialog();
             return Promise.resolve();
         }
+        else if (action.kind === 'createCustomMetamodel') {
+            metamodelAvailable = true;
+            setToolPaletteVisible(true);
+            leftSidebar.setVisualConfigurationAvailable(true);
+        }
         // Handle diagram selection changes to keep the properties panel in sync
         else if (SelectAction.is(action)) {
             const selected = action.selectedElementsIDs ?? [];
@@ -291,13 +371,10 @@ function setupCustomActionHandling(): void {
                 if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
                 document.body.style.paddingBottom = '0px';
                 document.body.style.setProperty('--bottom-panel-height', '0px');
-                // Hide tool palette UI extension
-                const palette = document.getElementById('tool-palette') || document.querySelector('.tool-palette') as HTMLElement | null;
-                if (palette) (palette as HTMLElement).style.display = 'none';
+                setToolPaletteVisible(false);
             } else if (mode === 'metamodel') {
                 try { await actionDispatcher.dispatch({ kind: 'openClassProperties' }); } catch {}
-                const palette = document.getElementById('tool-palette') || document.querySelector('.tool-palette') as HTMLElement | null;
-                if (palette) (palette as HTMLElement).style.display = '';
+                setToolPaletteVisible(metamodelAvailable);
             }
         }
         // Check if this is a LoadMetamodelResponse
@@ -312,17 +389,21 @@ function setupCustomActionHandling(): void {
             }, () => scheduleBoundsUpdate());
 
             // Update toolbar with available classes
-            if (action.success && action.classNames && action.classNames.length > 0) {
-                
-                // If we have full class info, use that (it has containment and abstract info)
+            if (action.success) {
+                metamodelAvailable = true;
+                setToolPaletteVisible(true);
+                leftSidebar.setVisualConfigurationAvailable(true);
                 if (action.classInfo && action.classInfo.length > 0) {
                     toolbar.updateClassInfo(action.classInfo);
-                } else {
-                    // Fallback to class names only
+                } else if (action.classNames && action.classNames.length > 0) {
                     toolbar.updateAvailableClasses(action.classNames);
+                } else {
+                    console.warn('LoadMetamodelResponse received but no classes found:', action);
                 }
             } else {
-                console.warn('LoadMetamodelResponse received but no classes found:', action);
+                metamodelAvailable = false;
+                setToolPaletteVisible(false);
+                leftSidebar.setVisualConfigurationAvailable(false);
             }
 
             // Refresh docked properties panel when metamodel changes (metamodel mode only)

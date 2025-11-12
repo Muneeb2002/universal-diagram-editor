@@ -8,6 +8,10 @@ export class LeftSidebar {
     private loadedList: HTMLDivElement;
     private loadedVisualContainer: HTMLDivElement;
     private loadedVisualList: HTMLDivElement;
+    private configureAppearanceButton: HTMLButtonElement | null = null;
+    private saveVisualButton: HTMLButtonElement | null = null;
+    private loadVisualButton: HTMLButtonElement | null = null;
+    private loadVisualLabel: HTMLDivElement | null = null;
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
     private static readonly VISUAL_STORAGE_KEY = 'wf_loaded_visual_configs';
     // Keep at most N recent entries to avoid exceeding localStorage limits
@@ -61,7 +65,7 @@ export class LeftSidebar {
         saveMetamodelBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #28a745;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -77,7 +81,7 @@ export class LeftSidebar {
         createBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #17a2b8;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -97,50 +101,7 @@ export class LeftSidebar {
 
         this.renderLoadedMetamodels();
 
-        const loadVisualLabel = document.createElement('div');
-        loadVisualLabel.textContent = 'Visual configurations:';
-        loadVisualLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
-        this.sidebar.appendChild(loadVisualLabel);
-
-        const saveVisualBtn = document.createElement('button');
-        saveVisualBtn.textContent = 'Save Visual Mapping';
-        saveVisualBtn.style.cssText = `
-            width: 100%;
-            padding: 8px 12px;
-            background: #28a745;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-        `;
-        saveVisualBtn.addEventListener('click', () => this.saveVisualConfiguration());
-        this.sidebar.appendChild(saveVisualBtn);
-
-        const loadVisualBtn = document.createElement('button');
-        loadVisualBtn.textContent = 'Load Visual Mapping';
-        loadVisualBtn.style.cssText = `
-            width: 100%;
-            padding: 8px 12px;
-            background: #6f42c1;
-            color: white;
-            border: none;
-            border-radius: 4px;
-            cursor: pointer;
-            font-size: 12px;
-            margin-top: 6px;
-        `;
-        loadVisualBtn.addEventListener('click', () => this.loadVisualConfiguration());
-        this.sidebar.appendChild(loadVisualBtn);
-
-        this.loadedVisualContainer = document.createElement('div');
-        this.loadedVisualContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; margin-top:6px;';
-        this.loadedVisualList = document.createElement('div');
-        this.loadedVisualList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
-        this.loadedVisualContainer.appendChild(this.loadedVisualList);
-        this.sidebar.appendChild(this.loadedVisualContainer);
-
-        this.renderLoadedVisualConfigurations();
+        this.createVisualConfigurationSection(false);
     }
 
     public attach(): void {
@@ -166,6 +127,10 @@ export class LeftSidebar {
 
     public setActionDispatcher(dispatcher: GLSPActionDispatcher): void {
         this.actionDispatcher = dispatcher;
+    }
+
+    public setVisualConfigurationAvailable(available: boolean): void {
+        this.createVisualConfigurationSection(available);
     }
 
     private createCustomMetamodel(): void {
@@ -425,6 +390,108 @@ export class LeftSidebar {
         document.body.appendChild(fileInput);
         fileInput.click();
         document.body.removeChild(fileInput);
+    }
+
+    private createVisualConfigurationSection(visible: boolean): void {
+        if (!this.loadVisualLabel) {
+            const loadVisualLabel = document.createElement('div');
+            loadVisualLabel.textContent = 'Visual configurations:';
+            loadVisualLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
+            this.sidebar.appendChild(loadVisualLabel);
+            this.loadVisualLabel = loadVisualLabel;
+        }
+        if (!this.saveVisualButton) {
+            const saveVisualBtn = document.createElement('button');
+            saveVisualBtn.textContent = 'Save Visual Mapping';
+            saveVisualBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+            `;
+            saveVisualBtn.addEventListener('click', () => this.saveVisualConfiguration());
+            this.sidebar.appendChild(saveVisualBtn);
+            this.saveVisualButton = saveVisualBtn;
+        }
+        if (!this.loadVisualButton) {
+            const loadVisualBtn = document.createElement('button');
+            loadVisualBtn.textContent = 'Load Visual Mapping';
+            loadVisualBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-top: 6px;
+            `;
+            loadVisualBtn.addEventListener('click', () => this.loadVisualConfiguration());
+            this.sidebar.appendChild(loadVisualBtn);
+            this.loadVisualButton = loadVisualBtn;
+        }
+        if (!this.configureAppearanceButton) {
+            const configureAppearanceBtn = document.createElement('button');
+            configureAppearanceBtn.textContent = 'Configure Appearance';
+            configureAppearanceBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-top: 6px;
+            `;
+            configureAppearanceBtn.addEventListener('click', () => this.openVisualConfiguration());
+            this.sidebar.appendChild(configureAppearanceBtn);
+            this.configureAppearanceButton = configureAppearanceBtn;
+        }
+        if (!this.loadedVisualContainer) {
+            this.loadedVisualContainer = document.createElement('div');
+            this.loadedVisualContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; margin-top:6px;';
+            this.loadedVisualList = document.createElement('div');
+            this.loadedVisualList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+            this.loadedVisualContainer.appendChild(this.loadedVisualList);
+            this.sidebar.appendChild(this.loadedVisualContainer);
+            this.renderLoadedVisualConfigurations();
+        }
+
+        const display = visible ? '' : 'none';
+        if (this.loadVisualLabel) {
+            this.loadVisualLabel.style.display = display;
+        }
+        if (this.saveVisualButton) {
+            this.saveVisualButton.style.display = display;
+        }
+        if (this.loadVisualButton) {
+            this.loadVisualButton.style.display = display;
+        }
+        if (this.configureAppearanceButton) {
+            this.configureAppearanceButton.style.display = display;
+        }
+        if (this.loadedVisualContainer) {
+            this.loadedVisualContainer.style.display = display;
+        }
+    }
+
+    private async openVisualConfiguration(): Promise<void> {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+        try {
+            await this.actionDispatcher.dispatch({ kind: 'openVisualConfiguration' } as any);
+        } catch (error) {
+            console.error('Error opening visual configuration:', error);
+            alert('Error opening visual configuration: ' + error);
+        }
     }
 
     private getStoredVisualConfigurations(): Array<{ name: string; content: string }> {

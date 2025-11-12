@@ -128,25 +128,6 @@ export class EcoreToolbar {
 
         this.toolbar.appendChild(instanceSection);
 
-        // Create separator
-        const separator2 = document.createElement('hr');
-        separator2.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
-        this.toolbar.appendChild(separator2);
-
-        // Create visual configuration section
-        const visualConfigSection = document.createElement('div');
-        visualConfigSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
-
-        const visualConfigLabel = document.createElement('span');
-        visualConfigLabel.textContent = 'Visual Configuration:';
-        visualConfigLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
-        visualConfigSection.appendChild(visualConfigLabel);
-
-        const visualConfigButton = this.createButton('🎨 Configure Appearance', () => this.openVisualConfiguration());
-        visualConfigButton.style.width = '100%';
-        visualConfigSection.appendChild(visualConfigButton);
-
-        this.toolbar.appendChild(visualConfigSection);
     }
 
     private createButton(text: string, onClick: () => void): HTMLButtonElement {
@@ -593,21 +574,6 @@ export class EcoreToolbar {
             this.updateAvailableClassesForMode();
         }
     }
-
-
-    private async openVisualConfiguration(): Promise<void> {
-        if (!this.actionDispatcher) {
-            return;
-        }
-
-        try {
-            const action = { kind: 'openVisualConfiguration' };
-            await this.actionDispatcher.dispatch(action);
-        } catch (error) {
-            alert('Error opening visual configuration: ' + error);
-        }
-    }
-
 
 
     public getElement(): HTMLDivElement {

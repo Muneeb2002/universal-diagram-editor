@@ -146,20 +146,19 @@ export class ToolPalette extends GLSPAbstractUIExtension implements IActionHandl
         toggleButton.classList.add('minimize-palette-button');
         this.containerElement.classList.add('collapsible-palette');
         const minimizeIcon = createIcon(CHEVRON_DOWN_ICON_ID);
-        this.updateMinimizePaletteButtonTooltip(toggleButton);
+        this.updateMinimizePaletteButtonTooltip(toggleButton as HTMLDivElement);
         minimizeIcon.onclick = _event => {
             if (this.isPaletteMaximized()) {
                 this.containerElement.style.maxHeight = '0px';
             } else {
                 this.containerElement.style.maxHeight = PALETTE_HEIGHT;
             }
-            this.updateMinimizePaletteButtonTooltip(toggleButton);
+            this.updateMinimizePaletteButtonTooltip(toggleButton as HTMLDivElement);
             changeCodiconClass(minimizeIcon, PALETTE_ICON_ID);
             changeCodiconClass(minimizeIcon, CHEVRON_DOWN_ICON_ID);
         };
         toggleButton.appendChild(minimizeIcon);
 
-        // Replace existing header to refresh
         if (this.toggleButton) {
             this.toggleButton.replaceWith(toggleButton);
         } else {
