@@ -35,7 +35,7 @@
           ]
         },
         {
-          "name": "Transitionsita",
+          "name": "Transition",
           "eAttributes": [],
           "eReferences": [],
           "eSuperTypes": [
@@ -55,7 +55,7 @@
               "unique": true,
               "ordered": true,
               "eType": {
-                "name": "Tokensito"
+                "name": "Token"
               },
               "containment": true,
               "container": false
@@ -68,7 +68,7 @@
           ]
         },
         {
-          "name": "Tokensito",
+          "name": "Token",
           "eAttributes": [],
           "eReferences": [],
           "eSuperTypes": []

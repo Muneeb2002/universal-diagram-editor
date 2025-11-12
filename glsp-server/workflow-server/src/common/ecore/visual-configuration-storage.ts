@@ -9,9 +9,9 @@
  *********************************************************************************/
  
 import { injectable, inject } from 'inversify';
-import { 
-    ClassVisualConfiguration, 
-    MetamodelVisualConfiguration, 
+import {
+    ClassVisualConfiguration,
+    MetamodelVisualConfiguration,
     DEFAULT_CLASS_VISUAL_CONFIG,
     ShapeType,
     ColorScheme
@@ -96,12 +96,54 @@ export class VisualConfigurationStorage {
         console.log('Updated default visual configuration:', activeConfig.defaultConfiguration);
     }
 
+    loadVisualConfiguration(serialized: {
+        defaultConfiguration?: Partial<ClassVisualConfiguration>;
+        classConfigurations?: Record<string, ClassVisualConfiguration>;
+    }): void {
+        const activeConfig = this.getOrCreateActiveVisualConfiguration();
+
+        if (serialized.defaultConfiguration) {
+            activeConfig.defaultConfiguration = {
+                ...activeConfig.defaultConfiguration,
+                ...serialized.defaultConfiguration,
+                className: ''
+            };
+        }
+
+        if (serialized.classConfigurations) {
+            activeConfig.classConfigurations.clear();
+            for (const [className, config] of Object.entries(serialized.classConfigurations)) {
+                const merged: ClassVisualConfiguration = {
+                    ...activeConfig.defaultConfiguration,
+                    ...config,
+                    className: config.className ?? className
+                };
+                activeConfig.classConfigurations.set(className, merged);
+            }
+        }
+
+        console.log(`Loaded visual configuration for ${activeConfig.classConfigurations.size} classes`);
+    }
+
     getAvailableShapes(): ShapeType[] {
         return ['rectangle', 'circle', 'ellipse', 'arrow'];
     }
 
     getAvailableColors(): ColorScheme[] {
         return ['black', 'blue', 'red', 'white', 'grey'];
+    }
+
+    removeClassConfiguration(className: string): boolean {
+        const activeConfig = this.getOrCreateActiveVisualConfiguration();
+        const normalized = className.trim();
+        if (normalized.length === 0) {
+            return false;
+        }
+        const removed = activeConfig.classConfigurations.delete(normalized);
+        if (removed) {
+            console.log(`Removed cached visual configuration for ${normalized}`);
+        }
+        return removed;
     }
 
     private initializeDefaultConfigurations(configuration: MetamodelVisualConfiguration): void {

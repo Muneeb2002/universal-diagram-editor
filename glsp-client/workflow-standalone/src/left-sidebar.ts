@@ -1,11 +1,15 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
+import { createLoadVisualConfigurationAction, createSaveMetamodelAction, createSaveVisualConfigurationAction } from './ecore-client-actions';
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private loadedContainer: HTMLDivElement;
     private loadedList: HTMLDivElement;
+    private loadedVisualContainer: HTMLDivElement;
+    private loadedVisualList: HTMLDivElement;
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
+    private static readonly VISUAL_STORAGE_KEY = 'wf_loaded_visual_configs';
     // Keep at most N recent entries to avoid exceeding localStorage limits
     private static readonly MAX_STORED = 10;
 
@@ -32,10 +36,10 @@ export class LeftSidebar {
         title.style.cssText = 'font-weight: bold; font-size: 12px; color: #333; letter-spacing: .2px;';
         this.sidebar.appendChild(title);
 
-        const loadLabel = document.createElement('div');
-        loadLabel.textContent = 'Load Metamodel:';
-        loadLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 4px; margin-bottom: 6px; color:#444;';
-        this.sidebar.appendChild(loadLabel);
+        const metamodelLabel = document.createElement('div');
+        metamodelLabel.textContent = 'Metamodels:';
+        metamodelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 4px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(metamodelLabel);
 
         const loadBtn = document.createElement('button');
         loadBtn.textContent = 'Load Metamodel';
@@ -52,9 +56,9 @@ export class LeftSidebar {
         loadBtn.addEventListener('click', () => this.loadJSON());
         this.sidebar.appendChild(loadBtn);
 
-        const createBtn = document.createElement('button');
-        createBtn.textContent = 'Create Metamodel';
-        createBtn.style.cssText = `
+        const saveMetamodelBtn = document.createElement('button');
+        saveMetamodelBtn.textContent = 'Save Metamodel';
+        saveMetamodelBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
             background: #28a745;
@@ -63,15 +67,26 @@ export class LeftSidebar {
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
-            margin-top: 8px;
+            margin-top: 6px;
+        `;
+        saveMetamodelBtn.addEventListener('click', () => this.saveActiveMetamodel());
+        this.sidebar.appendChild(saveMetamodelBtn);
+
+        const createBtn = document.createElement('button');
+        createBtn.textContent = 'Create Metamodel';
+        createBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #17a2b8;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 6px;
         `;
         createBtn.addEventListener('click', () => this.createCustomMetamodel());
         this.sidebar.appendChild(createBtn);
-
-        const loadedLabel = document.createElement('div');
-        loadedLabel.textContent = 'Loaded metamodels:';
-        loadedLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 16px; margin-bottom: 6px; color:#444;';
-        this.sidebar.appendChild(loadedLabel);
 
         this.loadedContainer = document.createElement('div');
         this.loadedContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
@@ -81,6 +96,51 @@ export class LeftSidebar {
         this.sidebar.appendChild(this.loadedContainer);
 
         this.renderLoadedMetamodels();
+
+        const loadVisualLabel = document.createElement('div');
+        loadVisualLabel.textContent = 'Visual configurations:';
+        loadVisualLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(loadVisualLabel);
+
+        const saveVisualBtn = document.createElement('button');
+        saveVisualBtn.textContent = 'Save Visual Mapping';
+        saveVisualBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #28a745;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+        saveVisualBtn.addEventListener('click', () => this.saveVisualConfiguration());
+        this.sidebar.appendChild(saveVisualBtn);
+
+        const loadVisualBtn = document.createElement('button');
+        loadVisualBtn.textContent = 'Load Visual Mapping';
+        loadVisualBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #6f42c1;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 6px;
+        `;
+        loadVisualBtn.addEventListener('click', () => this.loadVisualConfiguration());
+        this.sidebar.appendChild(loadVisualBtn);
+
+        this.loadedVisualContainer = document.createElement('div');
+        this.loadedVisualContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; margin-top:6px;';
+        this.loadedVisualList = document.createElement('div');
+        this.loadedVisualList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+        this.loadedVisualContainer.appendChild(this.loadedVisualList);
+        this.sidebar.appendChild(this.loadedVisualContainer);
+
+        this.renderLoadedVisualConfigurations();
     }
 
     public attach(): void {
@@ -167,6 +227,28 @@ export class LeftSidebar {
         }
     }
 
+    private async saveActiveMetamodel(): Promise<void> {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+
+        try {
+            const defaultFilename = 'metamodel.json';
+            const input = prompt('Enter filename for saving the metamodel:', defaultFilename);
+            if (input === null) {
+                return;
+            }
+            const trimmed = input.trim();
+            const filename = trimmed.length > 0 ? trimmed : defaultFilename;
+            await this.actionDispatcher.dispatch(createSaveMetamodelAction(filename));
+            alert(`Metamodel save requested for ${filename}.`);
+        } catch (error) {
+            console.error('Error saving metamodel:', error);
+            alert('Error saving metamodel: ' + error);
+        }
+    }
+
     private loadJSON(): void {
         if (!this.actionDispatcher) {
             console.warn('Action dispatcher not available');
@@ -248,11 +330,11 @@ export class LeftSidebar {
             text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
             row.appendChild(text);
 
-            const relBtn = document.createElement('button');
-            relBtn.textContent = 'Reload';
-            relBtn.style.cssText = 'font-size: 11px; padding:4px 6px; border:1px solid #dcdfe4; background:#f8f9fb; color:#333; border-radius:3px; cursor:pointer;';
-            relBtn.addEventListener('click', () => this.reloadFromStorageName(name));
-            row.appendChild(relBtn);
+            const controls = this.createRowControls(
+                () => this.reloadFromStorageName(name),
+                () => this.deleteStoredMetamodel(name)
+            );
+            row.appendChild(controls);
 
             this.loadedList.appendChild(row);
         }
@@ -277,6 +359,175 @@ export class LeftSidebar {
             console.error('Error reloading metamodel:', e);
             alert('Error reloading metamodel: ' + e);
         }
+    }
+
+    private deleteStoredMetamodel(name: string): void {
+        const confirmDelete = confirm(`Remove stored metamodel '${name}' from the list?`);
+        if (!confirmDelete) {
+            return;
+        }
+        const next = this.getStoredMetamodels().filter(entry => entry.name !== name);
+        try {
+            localStorage.setItem(LeftSidebar.STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // ignore storage failures
+        }
+        this.renderLoadedMetamodels();
+    }
+
+    private async saveVisualConfiguration(): Promise<void> {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+
+        try {
+            const defaultFilename = 'visual-configuration.json';
+            const input = prompt('Enter filename for saving the visual configuration:', defaultFilename);
+            if (input === null) {
+                return;
+            }
+            const trimmed = input.trim();
+            const filename = trimmed.length > 0 ? trimmed : defaultFilename;
+            await this.actionDispatcher.dispatch(createSaveVisualConfigurationAction(filename));
+            alert(`Visual configuration save requested for ${filename}.`);
+        } catch (error) {
+            console.error('Error saving visual configuration:', error);
+            alert('Error saving visual configuration: ' + error);
+        }
+    }
+
+    private loadVisualConfiguration(): void {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', async (event) => {
+            const target = event.target as HTMLInputElement;
+            const file = target.files?.[0];
+            if (!file) return;
+            try {
+                const content = await file.text();
+                const action = createLoadVisualConfigurationAction(file.name, content);
+                await this.actionDispatcher!.dispatch(action);
+                this.addLoadedVisualConfiguration({ name: file.name, content });
+            } catch (e) {
+                console.error('Error loading visual configuration:', e);
+                alert('Error loading visual configuration: ' + e);
+            }
+        });
+
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    }
+
+    private getStoredVisualConfigurations(): Array<{ name: string; content: string }> {
+        try {
+            const raw = localStorage.getItem(LeftSidebar.VISUAL_STORAGE_KEY);
+            if (!raw) return [];
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return [];
+            return arr
+                .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
+                .map(x => ({ name: x.name as string, content: x.content as string }));
+        } catch {
+            return [];
+        }
+    }
+
+    private addLoadedVisualConfiguration(entry: { name: string; content: string }): void {
+        const current = this.getStoredVisualConfigurations();
+        const without = current.filter(e => e.name !== entry.name);
+        const next = [entry, ...without].slice(0, LeftSidebar.MAX_STORED);
+        try {
+            localStorage.setItem(LeftSidebar.VISUAL_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // ignore storage failures
+        }
+        this.renderLoadedVisualConfigurations();
+    }
+
+    private renderLoadedVisualConfigurations(): void {
+        if (!this.loadedVisualList) return;
+        this.loadedVisualList.innerHTML = '';
+        const items = this.getStoredVisualConfigurations();
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'None';
+            empty.style.cssText = 'font-size: 12px; color:#777;';
+            this.loadedVisualList.appendChild(empty);
+            return;
+        }
+        for (const { name } of items) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
+            const text = document.createElement('span');
+            text.textContent = name;
+            text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            row.appendChild(text);
+
+            const controls = this.createRowControls(
+                () => this.reloadVisualConfiguration(name),
+                () => this.deleteStoredVisualConfiguration(name)
+            );
+            row.appendChild(controls);
+
+            this.loadedVisualList.appendChild(row);
+        }
+    }
+
+    private async reloadVisualConfiguration(name: string): Promise<void> {
+        if (!this.actionDispatcher) return;
+        const items = this.getStoredVisualConfigurations();
+        const match = items.find(e => e.name === name);
+        if (!match) return;
+        try {
+            const action = createLoadVisualConfigurationAction(match.name, match.content);
+            await this.actionDispatcher.dispatch(action);
+            this.addLoadedVisualConfiguration(match);
+        } catch (e) {
+            console.error('Error reloading visual configuration:', e);
+            alert('Error reloading visual configuration: ' + e);
+        }
+    }
+
+    private deleteStoredVisualConfiguration(name: string): void {
+        const confirmDelete = confirm(`Remove stored visual configuration '${name}' from the list?`);
+        if (!confirmDelete) {
+            return;
+        }
+        const next = this.getStoredVisualConfigurations().filter(entry => entry.name !== name);
+        try {
+            localStorage.setItem(LeftSidebar.VISUAL_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // ignore storage failures
+        }
+        this.renderLoadedVisualConfigurations();
+    }
+
+    private createRowControls(onReload: () => void, onDelete: () => void): HTMLDivElement {
+        const container = document.createElement('div');
+        container.style.cssText = 'display:flex; gap:4px;';
+
+        const relBtn = document.createElement('button');
+        relBtn.textContent = 'Reload';
+        relBtn.style.cssText = 'font-size: 11px; padding:4px 6px; border:1px solid #dcdfe4; background:#f8f9fb; color:#333; border-radius:3px; cursor:pointer;';
+        relBtn.addEventListener('click', onReload);
+        container.appendChild(relBtn);
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = 'Delete';
+        delBtn.style.cssText = 'font-size: 11px; padding:4px 6px; border:1px solid #dcdfe4; background:#f1f3f5; color:#555; border-radius:3px; cursor:pointer;';
+        delBtn.addEventListener('click', onDelete);
+        container.appendChild(delBtn);
+
+        return container;
     }
 }
 

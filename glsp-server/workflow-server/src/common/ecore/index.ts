@@ -29,5 +29,7 @@ export * from './visual-configuration-types';
 export * from './visual-configuration-storage';
 export * from './open-visual-configuration-action-handler';
 export * from './set-class-visual-configuration-action-handler';
+export * from './load-visual-configuration-action-handler';
+export * from './delete-visual-configuration-action-handler';
 export * from './edge-action-handlers';
 

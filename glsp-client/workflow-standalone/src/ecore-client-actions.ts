@@ -220,6 +220,22 @@ export interface VisualConfigurationResponse extends Action {
     availableColors: string[];
 }
 
+export interface LoadVisualConfigurationAction extends Action {
+    kind: 'loadVisualConfiguration';
+    filename?: string;
+    content?: string;
+}
+
+export interface DeleteVisualConfigurationAction extends Action {
+    kind: 'deleteVisualConfiguration';
+    filename: string;
+}
+
+export interface SaveVisualConfigurationAction extends Action {
+    kind: 'saveVisualConfiguration';
+    filename?: string;
+}
+
 // Client-side mirrors for Class Properties panel
 export interface ClassPropertiesResponse extends Action {
     kind: 'classPropertiesResponse';
@@ -263,6 +279,28 @@ export function createSetClassVisualConfigurationAction(
         color,
         showAttributes,
         showReferences
+    };
+}
+
+export function createLoadVisualConfigurationAction(filename?: string, content?: string): LoadVisualConfigurationAction {
+    return {
+        kind: 'loadVisualConfiguration',
+        filename,
+        content
+    };
+}
+
+export function createDeleteVisualConfigurationAction(filename: string): DeleteVisualConfigurationAction {
+    return {
+        kind: 'deleteVisualConfiguration',
+        filename
+    };
+}
+
+export function createSaveVisualConfigurationAction(filename?: string): SaveVisualConfigurationAction {
+    return {
+        kind: 'saveVisualConfiguration',
+        filename
     };
 }
 

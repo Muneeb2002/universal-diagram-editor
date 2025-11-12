@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher, EditorContextService } from '@eclipse-glsp/client';
-import { createSwitchModeAction, createCreateInstanceAction, createSaveMetamodelAction, createCreateInstanceReferenceAction, createRequestInstancesOverviewAction } from './ecore-client-actions';
+import { createSwitchModeAction, createCreateInstanceAction, createCreateInstanceReferenceAction, createRequestInstancesOverviewAction } from './ecore-client-actions';
 import { mustBeContained, getContainmentRequirements, getCreatableChildren, getContainmentReferenceName } from './containment-utils';
 import { ClassInfo, InstancesOverviewResponse } from './ecore-client-actions';
 import { GModelElement } from '@eclipse-glsp/sprotty';
@@ -132,26 +132,6 @@ export class EcoreToolbar {
         const separator2 = document.createElement('hr');
         separator2.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
         this.toolbar.appendChild(separator2);
-
-        // Create save section
-        const saveSection = document.createElement('div');
-        saveSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
-
-        const saveLabel = document.createElement('span');
-        saveLabel.textContent = 'Save Metamodel:';
-        saveLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
-        saveSection.appendChild(saveLabel);
-
-        const saveButton = this.createButton('💾 Save as JSON', () => this.saveMetamodel('json'));
-        saveButton.style.width = '100%';
-        saveSection.appendChild(saveButton);
-
-        this.toolbar.appendChild(saveSection);
-
-        // Create separator
-        const separator4 = document.createElement('hr');
-        separator4.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
-        this.toolbar.appendChild(separator4);
 
         // Create visual configuration section
         const visualConfigSection = document.createElement('div');
@@ -615,31 +595,6 @@ export class EcoreToolbar {
     }
 
 
-    private async saveMetamodel(format: 'json' | 'ecore'): Promise<void> {
-        if (!this.actionDispatcher) {
-            return;
-        }
-
-        try {
-            // Prompt user for filename
-            const defaultFilename = format === 'json' ? 'metamodel.json' : 'metamodel.ecore';
-            const filename = prompt(`Enter filename for saving metamodel:`, defaultFilename);
-            
-            if (!filename) {
-                return; // User cancelled
-            }
-
-            const action = createSaveMetamodelAction(filename, format);
-            await this.actionDispatcher.dispatch(action);
-
-            // For now, we'll show a success message
-            // In a full implementation, you'd listen for a response action
-            alert(`Metamodel save requested for ${filename}. Check server logs for the JSON content.`);
-        } catch (error) {
-            alert('Error saving metamodel: ' + error);
-        }
-    }
-
     private async openVisualConfiguration(): Promise<void> {
         if (!this.actionDispatcher) {
             return;
@@ -652,6 +607,7 @@ export class EcoreToolbar {
             alert('Error opening visual configuration: ' + error);
         }
     }
+
 
 
     public getElement(): HTMLDivElement {

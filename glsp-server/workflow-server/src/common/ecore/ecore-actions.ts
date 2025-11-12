@@ -689,6 +689,68 @@ export namespace SetClassVisualConfigurationAction {
     }
 }
 
+export interface LoadVisualConfigurationAction extends Action {
+    kind: typeof LoadVisualConfigurationAction.KIND;
+    filename?: string;
+    content?: string;
+}
+
+export namespace LoadVisualConfigurationAction {
+    export const KIND = 'loadVisualConfiguration';
+
+    export function is(object: any): object is LoadVisualConfigurationAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(filename?: string, content?: string): LoadVisualConfigurationAction {
+        return {
+            kind: KIND,
+            filename,
+            content
+        };
+    }
+}
+
+export interface DeleteVisualConfigurationAction extends Action {
+    kind: typeof DeleteVisualConfigurationAction.KIND;
+    filename: string;
+}
+
+export namespace DeleteVisualConfigurationAction {
+    export const KIND = 'deleteVisualConfiguration';
+
+    export function is(object: any): object is DeleteVisualConfigurationAction {
+        return Action.hasKind(object, KIND) && typeof (object as any).filename === 'string';
+    }
+
+    export function create(filename: string): DeleteVisualConfigurationAction {
+        return {
+            kind: KIND,
+            filename
+        };
+    }
+}
+
+export interface SaveVisualConfigurationAction extends Action {
+    kind: typeof SaveVisualConfigurationAction.KIND;
+    filename?: string;
+}
+
+export namespace SaveVisualConfigurationAction {
+    export const KIND = 'saveVisualConfiguration';
+
+    export function is(object: any): object is SaveVisualConfigurationAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(filename?: string): SaveVisualConfigurationAction {
+        return {
+            kind: KIND,
+            filename
+        };
+    }
+}
+
 export interface GetVisualConfigurationAction extends Action {
     kind: typeof GetVisualConfigurationAction.KIND;
 }

@@ -115,6 +115,9 @@ export class EditMetamodelActionHandler implements ActionHandler {
         
         try {
             const result = this.metamodelRegistry.saveMetamodel(action.filename, action.format);
+            if (result.success) {
+                console.log(`Metamodel saved to ${result.filePath}`);
+            }
             return result;
         } catch (error) {
             // Error in handleSaveMetamodel

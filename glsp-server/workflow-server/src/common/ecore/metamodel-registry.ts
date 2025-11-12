@@ -10,6 +10,8 @@
 
 import { injectable } from 'inversify';
 import { EcoreModel, isEClass, isEAttribute, isEReference, EClass, EAttribute, EReference, EString } from './ecore-types';
+import * as fs from 'fs';
+import * as path from 'path';
 
 function toArray(collection: any): any[] {
     if (!collection) {
@@ -937,7 +939,7 @@ export class MetamodelRegistry {
     /**
      * Save the active metamodel to a file.
      */
-    saveMetamodel(filename?: string, format: 'json' | 'ecore' = 'json'): { success: boolean; message: string; content?: string } {
+    saveMetamodel(filename?: string, format: 'json' | 'ecore' = 'json'): { success: boolean; message: string; filePath?: string } {
         
         const activeMetamodel = this.getActiveMetamodel();
         
@@ -964,11 +966,17 @@ export class MetamodelRegistry {
             }
 
             const finalFilename = filename || defaultFilename;
+            const targetPath = path.isAbsolute(finalFilename)
+                ? finalFilename
+                : path.resolve(process.cwd(), 'samples', 'metamodels', finalFilename);
+
+            fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+            fs.writeFileSync(targetPath, content, { encoding: 'utf8' });
 
             return {
                 success: true,
-                message: `Metamodel saved successfully as ${finalFilename}`,
-                content: content
+                message: `Metamodel saved successfully to ${targetPath}`,
+                filePath: targetPath
             };
         } catch (error) {
             return {
