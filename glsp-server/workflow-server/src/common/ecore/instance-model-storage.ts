@@ -83,6 +83,49 @@ export class InstanceModelStorage {
         return instanceModel;
     }
 
+    ensureRootContainers(): void {
+        const activeKey = this.metamodelRegistry.getActiveMetamodelKey();
+        if (!activeKey) {
+            return;
+        }
+
+        const instanceModel = this.getOrCreateActiveInstanceModel();
+        const classes = this.metamodelRegistry.getAllEClasses();
+
+        for (const eClass of classes) {
+            const className = eClass.get ? eClass.get('name') : eClass.name;
+            if (!className) {
+                continue;
+            }
+            const isAbstract = eClass.get ? eClass.get('abstract') : eClass.abstract;
+            const isInterface = eClass.get ? eClass.get('interface') : eClass.interface;
+            if (isAbstract || isInterface) {
+                continue;
+            }
+            const incoming = this.findIncomingContainmentRequirements(className);
+            if (incoming.length > 0) {
+                continue;
+            }
+            if (this.findRootInstance(className, instanceModel)) {
+                continue;
+            }
+
+            const rootInstance = this.instanceFactory.createInstance(
+                className,
+                activeKey,
+                { x: 0, y: 0 },
+                { hidden: true, isRoot: true }
+            );
+            this.initializeAttributes(rootInstance, eClass);
+            rootInstance.size = { width: 0, height: 0 };
+
+            instanceModel.instances.set(rootInstance.id, rootInstance);
+            instanceModel.rootInstances.add(rootInstance.id);
+
+            console.log(`Created hidden root instance '${rootInstance.id}' for class '${className}'`);
+        }
+    }
+
     /**
      * Creates a new instance of the specified EClass.
      * @param eClassName The name of the EClass
@@ -111,9 +154,20 @@ export class InstanceModelStorage {
         }
 
         // If this class requires containment, ensure container information is provided
+        this.ensureRootContainers();
+        const instanceModel = this.getOrCreateActiveInstanceModel();
+        let containerInstanceId = opts?.containerInstanceId;
+        let containmentReferenceName = opts?.containmentReferenceName;
         const incomingContainments = this.findIncomingContainmentRequirements(eClassName);
         const mustBeContained = incomingContainments.some(r => (r.lowerBound ?? 0) > 0);
-        if (mustBeContained && (!opts?.containerInstanceId || !opts?.containmentReferenceName)) {
+        if (mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
+            const defaultContainer = this.findDefaultContainer(incomingContainments, instanceModel);
+            if (defaultContainer) {
+                containerInstanceId = defaultContainer.instance.id;
+                containmentReferenceName = defaultContainer.referenceName;
+            }
+        }
+        if (mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
             const refs = incomingContainments
                 .map(r => `${r.containerClassName}.${r.referenceName}[${r.lowerBound}..${this.boundToString(r.upperBound)}]`)
                 .join(', ');
@@ -129,17 +183,16 @@ export class InstanceModelStorage {
         this.initializeAttributes(instance, eClass);
 
         // Add to instance model
-        const instanceModel = this.getOrCreateActiveInstanceModel();
         instanceModel.instances.set(instance.id, instance);
 
         // If container info provided, immediately create containment reference
         // But first, adjust position relative to container
-        if (opts?.containerInstanceId && opts?.containmentReferenceName) {
+        if (containerInstanceId && containmentReferenceName) {
             // Get container instance to calculate relative position
-            const containerInstance = this.getInstance(opts.containerInstanceId);
-            if (containerInstance && containerInstance.position) {
+            const containerInstance = this.getInstance(containerInstanceId);
+            if (containerInstance && !containerInstance.hidden && containerInstance.position) {
                 // Count existing children BEFORE creating the reference
-                const containmentRef = containerInstance.references.get(opts.containmentReferenceName);
+                const containmentRef = containerInstance.references.get(containmentReferenceName);
                 let existingChildrenCount = 0;
                 if (containmentRef) {
                     if (Array.isArray(containmentRef)) {
@@ -159,7 +212,7 @@ export class InstanceModelStorage {
                 };
             }
             
-            this.createReference(opts.containerInstanceId, opts.containmentReferenceName, instance.id);
+            this.createReference(containerInstanceId, containmentReferenceName, instance.id);
         } else {
             // Only add to root instances if it's not contained
             instanceModel.rootInstances.add(instance.id);
@@ -172,6 +225,24 @@ export class InstanceModelStorage {
     private boundToString(ub: number | undefined): string {
         if (ub === undefined) return '1';
         return ub === -1 ? '*' : String(ub);
+    }
+
+    private findDefaultContainer(
+        requirements: Array<{ containerClassName: string; referenceName: string; lowerBound: number; upperBound: number }>,
+        instanceModel: InstanceModel
+    ): { instance: EcoreInstance; referenceName: string } | undefined {
+        for (const requirement of requirements) {
+            const existing = this.findInstanceByClass(requirement.containerClassName, instanceModel);
+            if (existing) {
+                return { instance: existing, referenceName: requirement.referenceName };
+            }
+
+            const rootInstance = this.findRootInstance(requirement.containerClassName, instanceModel);
+            if (rootInstance) {
+                return { instance: rootInstance, referenceName: requirement.referenceName };
+            }
+        }
+        return undefined;
     }
 
     private findIncomingContainmentRequirements(targetClassName: string): Array<{
@@ -303,12 +374,30 @@ export class InstanceModelStorage {
      * @param instanceId The ID of the instance
      * @returns The instance or undefined if not found
      */
-    getInstance(instanceId: string): EcoreInstance | undefined {
+    private getInstance(instanceId: string): EcoreInstance | undefined {
         const instanceModel = this.getActiveInstanceModel();
         if (!instanceModel) {
             return undefined;
         }
         return instanceModel.instances.get(instanceId);
+    }
+
+    private findInstanceByClass(className: string, instanceModel: InstanceModel): EcoreInstance | undefined {
+        for (const instance of instanceModel.instances.values()) {
+            if (instance.eClassName === className && !instance.hidden) {
+                return instance;
+            }
+        }
+        return undefined;
+    }
+
+    private findRootInstance(className: string, instanceModel: InstanceModel): EcoreInstance | undefined {
+        for (const instance of instanceModel.instances.values()) {
+            if (instance.eClassName === className && instance.isRoot) {
+                return instance;
+            }
+        }
+        return undefined;
     }
 
     /**

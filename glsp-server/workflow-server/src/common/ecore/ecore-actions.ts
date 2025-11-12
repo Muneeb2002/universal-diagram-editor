@@ -200,6 +200,58 @@ export namespace CreateInstanceReferenceAction {
     }
 }
 
+export interface RequestInstancesOverviewAction extends Action {
+    kind: typeof RequestInstancesOverviewAction.KIND;
+    requestId: string;
+    classNames?: string[];
+}
+
+export namespace RequestInstancesOverviewAction {
+    export const KIND = 'requestInstancesOverview';
+
+    export function is(object: any): object is RequestInstancesOverviewAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'requestId');
+    }
+
+    export function create(requestId: string, classNames?: string[]): RequestInstancesOverviewAction {
+        return {
+            kind: KIND,
+            requestId,
+            classNames
+        };
+    }
+}
+
+export interface InstancesOverviewResponse extends Action {
+    kind: typeof InstancesOverviewResponse.KIND;
+    requestId: string;
+    success: boolean;
+    instances: Array<{ id: string; className: string; hidden?: boolean }>;
+    message?: string;
+}
+
+export namespace InstancesOverviewResponse {
+    export const KIND = 'instancesOverviewResponse';
+
+    export function is(object: any): object is InstancesOverviewResponse {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'requestId');
+    }
+
+    export function create(
+        requestId: string,
+        success: boolean,
+        instances: Array<{ id: string; className: string; hidden?: boolean }> = [],
+        message?: string
+    ): InstancesOverviewResponse {
+        return {
+            kind: KIND,
+            requestId,
+            success,
+            instances,
+            message
+        };
+    }
+}
 
 
 

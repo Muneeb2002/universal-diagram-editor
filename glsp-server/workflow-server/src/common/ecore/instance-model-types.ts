@@ -32,6 +32,12 @@ export interface EcoreInstance {
     
     /** Size in the diagram */
     size?: { width: number; height: number };
+
+    /** Whether this instance should be hidden from the diagram */
+    hidden?: boolean;
+
+    /** Marks synthetic root/container instances */
+    isRoot?: boolean;
 }
 
 /**
@@ -61,7 +67,12 @@ export class InstanceFactory {
      * @param position Optional initial position
      * @returns A new EcoreInstance with default values
      */
-    createInstance(eClassName: string, metamodelKey: string, position?: { x: number; y: number }): EcoreInstance {
+    createInstance(
+        eClassName: string,
+        metamodelKey: string,
+        position?: { x: number; y: number },
+        options?: { hidden?: boolean; isRoot?: boolean }
+    ): EcoreInstance {
         const id = this.generateInstanceId(eClassName);
         
         return {
@@ -71,7 +82,9 @@ export class InstanceFactory {
             attributes: new Map(),
             references: new Map(),
             position,
-            size: { width: 200, height: 100 }
+            size: { width: 200, height: 100 },
+            hidden: options?.hidden ?? false,
+            isRoot: options?.isRoot ?? false
         };
     }
 

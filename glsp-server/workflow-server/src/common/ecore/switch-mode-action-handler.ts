@@ -12,6 +12,7 @@ import { injectable, inject } from 'inversify';
 import { ActionHandler, ModelState, GModelFactory, GModelSerializer, GModelRoot } from '@eclipse-glsp/server';
 import { Action, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
 import { SwitchModeAction } from './ecore-actions';
+import { InstanceModelStorage } from './instance-model-storage';
 
 @injectable()
 export class SwitchModeActionHandler implements ActionHandler {
@@ -26,6 +27,9 @@ export class SwitchModeActionHandler implements ActionHandler {
     @inject(GModelSerializer)
     protected gmodelSerializer: GModelSerializer;
 
+    @inject(InstanceModelStorage)
+    protected instanceStorage: InstanceModelStorage;
+
     async execute(action: SwitchModeAction): Promise<Action[]> {
         console.log('SwitchModeActionHandler.execute()', action);
 
@@ -39,6 +43,10 @@ export class SwitchModeActionHandler implements ActionHandler {
         // Update the view mode
         this.modelState.set('viewMode', action.mode);
         console.log(`Switched to ${action.mode} mode`);
+
+        if (action.mode === 'instance') {
+            this.instanceStorage.ensureRootContainers();
+        }
 
         // Create the GModel with the new mode
         this.gmodelFactory.createModel();

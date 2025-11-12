@@ -9,10 +9,9 @@
  ********************************************************************************/
 
 import { GLSPActionDispatcher, EditorContextService } from '@eclipse-glsp/client';
-import { createSwitchModeAction, createCreateInstanceAction, createSaveMetamodelAction, createCreateInstanceReferenceAction } from './ecore-client-actions';
-import { getCreatableClasses, mustBeContained, getContainmentDescription } from './containment-utils';
-import { getCreatableChildren, getContainmentReferenceName } from './containment-utils';
-import { ClassInfo } from './ecore-client-actions';
+import { createSwitchModeAction, createCreateInstanceAction, createSaveMetamodelAction, createCreateInstanceReferenceAction, createRequestInstancesOverviewAction } from './ecore-client-actions';
+import { mustBeContained, getContainmentRequirements, getCreatableChildren, getContainmentReferenceName } from './containment-utils';
+import { ClassInfo, InstancesOverviewResponse } from './ecore-client-actions';
 import { GModelElement } from '@eclipse-glsp/sprotty';
 
 export class EcoreToolbar {
@@ -28,6 +27,12 @@ export class EcoreToolbar {
     private selectedContainerClassName: string | null = null;
     private editorContextService?: EditorContextService;
     private createdInstances: Set<string> = new Set(); // Track created instances
+    private instanceOverviewRequests: Map<string, {
+        resolve: (instances: Array<{ id: string; className: string }>) => void;
+        reject: (error: any) => void;
+        timeoutHandle: number;
+    }> = new Map();
+    private instanceOverviewRequestCounter = 0;
     // Removed reload metamodel state
 
     constructor() {
@@ -277,24 +282,52 @@ export class EcoreToolbar {
                     }
                 }
             } else {
-                // No container selected: only show root classes
-                const rootClasses = getCreatableClasses(this.allClasses)
-                    .filter(c => !c.isAbstract && !c.isInterface);
+                // No container selected: offer classes that can be contained directly by a root element
+                const rootContainers = this.allClasses.filter(cls => 
+                    getContainmentRequirements(cls.className, this.allClasses).length === 0
+                );
 
-                if (rootClasses.length === 0) {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = 'No root classes available';
-                    option.disabled = true;
-                    this.classesDropdown.appendChild(option);
-                } else {
-                    rootClasses.forEach(cls => {
+                const creatableFromRoot = new Map<string, ClassInfo>();
+
+                for (const rootClass of rootContainers) {
+                    const children = getCreatableChildren(rootClass.className, this.allClasses);
+                    children
+                        .filter(child => !child.isAbstract && !child.isInterface)
+                        .forEach(child => creatableFromRoot.set(child.className, child));
+                }
+
+                if (creatableFromRoot.size === 0) {
+                    // Fallback: allow creation of concrete root classes themselves
+                    const concreteRootClasses = rootContainers.filter(cls => !cls.isAbstract && !cls.isInterface);
+
+                    if (concreteRootClasses.length === 0) {
+                        const option = document.createElement('option');
+                        option.value = '';
+                        option.textContent = 'No creatable classes available';
+                        option.disabled = true;
+                        this.classesDropdown.appendChild(option);
+                        return;
+                    }
+
+                    concreteRootClasses
+                        .sort((a, b) => a.className.localeCompare(b.className))
+                        .forEach(cls => {
+                            const option = document.createElement('option');
+                            option.value = cls.className;
+                            option.textContent = cls.className;
+                            this.classesDropdown.appendChild(option);
+                        });
+                    return;
+                }
+
+                Array.from(creatableFromRoot.values())
+                    .sort((a, b) => a.className.localeCompare(b.className))
+                    .forEach(cls => {
                         const option = document.createElement('option');
                         option.value = cls.className;
-                        option.textContent = `${cls.className} (root)`;
+                        option.textContent = cls.className;
                         this.classesDropdown.appendChild(option);
                     });
-                }
             }
         } else {
             // In metamodel mode, show all classes with visual indicators
@@ -322,7 +355,6 @@ export class EcoreToolbar {
 
     private async switchMode(mode: 'metamodel' | 'instance'): Promise<void> {
         if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not set');
             return;
         }
 
@@ -341,14 +373,12 @@ export class EcoreToolbar {
             await this.actionDispatcher.dispatch(action);
             
         } catch (error) {
-            console.error('Error switching mode:', error);
             alert('Error switching mode: ' + error);
         }
     }
 
     private async createInstance(): Promise<void> {
         if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not set');
             return;
         }
 
@@ -381,14 +411,12 @@ export class EcoreToolbar {
             containerInstanceId = this.selectedContainerInstanceId;
             containmentReferenceName = containmentRefName;
         } else {
-            // No explicit container: only allow root classes
-            const rootClasses = getCreatableClasses(this.allClasses);
-            const isRootClass = rootClasses.some(cls => cls.className === selectedClass);
+            // No explicit container: allow server to select default container (hidden root or existing instance)
+            const requirements = getContainmentRequirements(selectedClass, this.allClasses);
+            const isRootClass = requirements.length === 0;
 
-            if (!isRootClass) {
-                const description = getContainmentDescription(selectedClass, this.allClasses);
-                alert(`Please select a container first for '${selectedClass}'.\n\n${description}`);
-                return;
+            if (isRootClass) {
+                // Nothing to do, class can exist at root level
             }
         }
 
@@ -442,7 +470,6 @@ export class EcoreToolbar {
                 this.refreshAvailableClasses();
             }, 2000); // Second attempt
         } catch (error) {
-            console.error('Error creating instance:', error);
             alert('Error creating instance: ' + error);
         }
     }
@@ -476,49 +503,46 @@ export class EcoreToolbar {
 
     private findInstancesOfClassByName(className: string): string[] {
         const instanceIds: string[] = [];
-        
-        
-        
-        // Note: We check createdInstances in hasInstancesOfClass first,
-        // so if we get here, we're looking for the actual instance IDs in the model
-        
-        // Fallback to model root if available
+        const normalizedClass = this.normalizeClassName(className);
+        if (!normalizedClass) {
+            return instanceIds;
+        }
+
         if (!this.editorContextService) {
             return instanceIds;
         }
-        
+
         try {
             const modelRoot = this.editorContextService.modelRoot;
-            
+
             if (!modelRoot) {
                 return instanceIds;
             }
-            
-            
-            
-            // First, try to find instances using the dedicated method
-            const instances = this.findInstancesOfClass(modelRoot, className);
-            
-            // Extract instance IDs that match the class name pattern
+
+            const instances = this.findInstancesOfClass(modelRoot, normalizedClass);
+
             instances.forEach(instance => {
-                if (instance.id && instance.id.startsWith(className + '_')) {
+                if (instance.id && instance.id.startsWith(normalizedClass + '_')) {
                     instanceIds.push(instance.id);
                 }
             });
-            
-            // Always also try aggressive search to catch any instances we might have missed
+
+            if (instanceIds.length === 0) {
+                // No matching instances found yet; continue with full traversal
+            }
+
             const allElements = this.findAllElements(modelRoot);
-            
+
             allElements.forEach(element => {
-                if (element.id && element.id.startsWith(className + '_')) {
+                if (element.id && element.id.startsWith(normalizedClass + '_')) {
                     if (!instanceIds.includes(element.id)) {
                         instanceIds.push(element.id);
                     }
                 }
             });
+
             return instanceIds;
         } catch (error) {
-            console.warn('Could not access model root:', error);
             return instanceIds;
         }
     }
@@ -551,26 +575,23 @@ export class EcoreToolbar {
      */
     private findInstancesOfClass(element: GModelElement, className: string): GModelElement[] {
         const instances: GModelElement[] = [];
-        
-        // Safety check - ensure element exists and has the required properties
+
         if (!element || typeof element !== 'object') {
             return instances;
         }
-        
-        // Check if this element is an instance of the target class
+
         if (element.type === 'ecore:instance' && element.id && element.id.startsWith(className + '_')) {
             instances.push(element);
         }
-        
-        // Recursively check children
+
         if ('children' in element && element.children && Array.isArray(element.children)) {
             for (const child of element.children) {
-                if (child) { // Ensure child is not null/undefined
+                if (child) {
                     instances.push(...this.findInstancesOfClass(child, className));
                 }
             }
         }
-        
+
         return instances;
     }
 
@@ -596,7 +617,6 @@ export class EcoreToolbar {
 
     private async saveMetamodel(format: 'json' | 'ecore'): Promise<void> {
         if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not set');
             return;
         }
 
@@ -616,14 +636,12 @@ export class EcoreToolbar {
             // In a full implementation, you'd listen for a response action
             alert(`Metamodel save requested for ${filename}. Check server logs for the JSON content.`);
         } catch (error) {
-            console.error('Error saving metamodel:', error);
             alert('Error saving metamodel: ' + error);
         }
     }
 
     private async openVisualConfiguration(): Promise<void> {
         if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not set');
             return;
         }
 
@@ -631,7 +649,6 @@ export class EcoreToolbar {
             const action = { kind: 'openVisualConfiguration' };
             await this.actionDispatcher.dispatch(action);
         } catch (error) {
-            console.error('Error opening visual configuration:', error);
             alert('Error opening visual configuration: ' + error);
         }
     }
@@ -680,8 +697,8 @@ export class EcoreToolbar {
         await this.waitForModelRoot(800);
 
         // Find all available source and target instances
-        const sourceInstances = this.findAvailableInstancesForReference(sourceRef.type);
-        const targetInstances = this.findAvailableInstancesForReference(targetRef.type);
+        const sourceInstances = await this.findAvailableInstancesForReference(sourceRef.type);
+        const targetInstances = await this.findAvailableInstancesForReference(targetRef.type);
 
         if (sourceInstances.length === 0) {
             alert(`No ${sourceRef.type} instances available for source. Please create some first.`);
@@ -710,39 +727,51 @@ export class EcoreToolbar {
         await this.createInstanceWithReferences(selectedClass, selection.sourceId, selection.targetId, sourceRef.name, targetRef.name);
     }
 
-    /**
-     * Finds all available instances that can be used for a specific reference type.
-     */
-    private findAvailableInstancesForReference(referenceType: string): Array<{id: string, className: string}> {
-        const instances: Array<{id: string, className: string}> = [];
-        
+    private async findAvailableInstancesForReference(referenceType: string): Promise<Array<{id: string, className: string}>> {
+        const collected = new Map<string, { id: string; className: string }>();
 
-        // Build allowed class set: reference type + all its subtypes (robust to qualified names)
         const allowedClassNames = new Set<string>();
-        allowedClassNames.add(referenceType);
+        const addAllowedClass = (name?: string) => {
+            const normalized = this.normalizeClassName(name);
+            if (normalized) {
+                allowedClassNames.add(normalized);
+            }
+        };
+
+        addAllowedClass(referenceType);
         for (const ci of this.allClasses) {
             if (this.isSubtypeOf(ci.className, referenceType)) {
-                allowedClassNames.add(ci.className);
+                addAllowedClass(ci.className);
             }
         }
 
+        const modelInstances = this.collectInstancesFromModel(allowedClassNames);
+        modelInstances.forEach(instance => collected.set(instance.id, instance));
 
-        // Scan model (or DOM fallback) for each allowed class
-        for (const allowed of allowedClassNames) {
-            let ids = this.findInstancesOfClassByName(allowed);
-            if (ids.length === 0) {
-                // DOM-based fallback if modelRoot not available
+        if (collected.size === 0) {
+            for (const allowed of allowedClassNames) {
                 const domIds = this.findDomInstancesByPrefix(allowed + '_');
                 if (domIds.length > 0) {
-                    
-                    ids = domIds;
+                    domIds.forEach(id => collected.set(id, { id, className: allowed }));
                 }
             }
-            
-            ids.forEach(id => instances.push({ id, className: allowed }));
         }
 
-        return instances;
+        if (collected.size === 0) {
+            try {
+                const remoteInstances = await this.requestInstancesOverview(Array.from(allowedClassNames));
+                remoteInstances.forEach(instance => {
+                    const normalizedClass = this.normalizeClassName(instance.className) || instance.className;
+                    if (instance.id) {
+                        collected.set(instance.id, { id: instance.id, className: normalizedClass });
+                    }
+                });
+            } catch (error) {
+                // Ignore failures when fetching remote instances; fall back to any locally discovered ones.
+            }
+        }
+
+        return Array.from(collected.values());
     }
 
     /**
@@ -960,10 +989,10 @@ export class EcoreToolbar {
 
                         
                     } else {
-                        console.warn(`Could not find newly created ${className} instance to set references`);
+                        alert(`Could not connect ${className} because the new instance id was not available yet.`);
                     }
                 } catch (refError) {
-                    console.error('Error creating references:', refError);
+                    alert('Error creating references: ' + refError);
                 }
             }, 500);
 
@@ -973,7 +1002,6 @@ export class EcoreToolbar {
             setTimeout(() => this.refreshAvailableClasses(), 2000);
 
         } catch (error) {
-            console.error('Error creating instance with references:', error);
             alert('Error creating instance: ' + error);
         }
     }
@@ -1005,18 +1033,32 @@ export class EcoreToolbar {
      * Finds the ID of the most recently created instance of a given class.
      */
     private async findNewlyCreatedInstanceId(className: string): Promise<string | null> {
-        // Get all instances of this class
-        const instances = this.findInstancesOfClassByName(className);
-        
+        const normalizedClass = this.normalizeClassName(className);
+        if (!normalizedClass) {
+            return null;
+        }
+
+        let instances = this.findInstancesOfClassByName(normalizedClass);
+
+        if (instances.length === 0) {
+            try {
+                const remoteInstances = await this.requestInstancesOverview([normalizedClass]);
+                instances = remoteInstances
+                    .filter(inst => this.normalizeClassName(inst.className) === normalizedClass)
+                    .map(inst => inst.id);
+            } catch (error) {
+                return null;
+            }
+        }
+
         if (instances.length === 0) {
             return null;
         }
 
-        // Sort by instance number (assuming format: ClassName_1, ClassName_2, etc.)
         const sortedInstances = instances.sort((a, b) => {
             const aNum = parseInt(a.split('_')[1]) || 0;
             const bNum = parseInt(b.split('_')[1]) || 0;
-            return bNum - aNum; // Descending order (newest first)
+            return bNum - aNum;
         });
 
         return sortedInstances[0];
@@ -1026,31 +1068,105 @@ export class EcoreToolbar {
      * Checks if one class is a subtype of another (for reference type matching).
      */
     private isSubtypeOf(className: string, superTypeName: string): boolean {
-        const normalize = (name: string) => {
-            if (!name) return name;
-            // Handle qualified names like pkg.Node or a::b::Node
-            const parts = name.split(/[:.#]/).filter(p => p && p !== ':');
-            return parts.length > 0 ? parts[parts.length - 1] : name;
-        };
+        const clsName = this.normalizeClassName(className);
+        const supName = this.normalizeClassName(superTypeName);
 
-        const clsName = normalize(className);
-        const supName = normalize(superTypeName);
+        if (!clsName || !supName) {
+            return false;
+        }
 
         if (clsName === supName) {
             return true;
         }
-        
-        const cls = this.allClasses.find(c => normalize(c.className) === clsName);
+
+        const cls = this.allClasses.find(c => this.normalizeClassName(c.className) === clsName);
         if (!cls || !cls.eSuperTypes || cls.eSuperTypes.length === 0) {
             return false;
         }
-        
-        // Check direct supertypes
-        if (cls.eSuperTypes.some(st => normalize(st) === supName)) {
+
+        if (cls.eSuperTypes.some(st => this.normalizeClassName(st) === supName)) {
             return true;
         }
-        
-        // Recursively check supertypes of supertypes
-        return cls.eSuperTypes.some(st => this.isSubtypeOf(normalize(st), supName));
+
+        return cls.eSuperTypes.some(st => this.isSubtypeOf(st, supName));
+    }
+
+    private normalizeClassName(name?: string): string {
+        if (!name) {
+            return '';
+        }
+        const parts = name.split(/[:.#]/).filter(part => part && part !== ':');
+        return parts.length > 0 ? parts[parts.length - 1] : name;
+    }
+
+    private collectInstancesFromModel(allowedClassNames: Set<string>): Array<{ id: string; className: string }> {
+        const results = new Map<string, { id: string; className: string }>();
+
+        if (!this.editorContextService || !this.editorContextService.modelRoot) {
+            return Array.from(results.values());
+        }
+
+        for (const allowed of allowedClassNames) {
+            const ids = this.findInstancesOfClassByName(allowed);
+            ids.forEach(id => {
+                if (!results.has(id)) {
+                    results.set(id, { id, className: allowed });
+                }
+            });
+        }
+
+        return Array.from(results.values());
+    }
+
+    private requestInstancesOverview(classNames: string[]): Promise<Array<{ id: string; className: string }>> {
+        if (!this.actionDispatcher) {
+            return Promise.resolve([]);
+        }
+
+        const sanitized = Array.from(new Set(classNames.map(name => this.normalizeClassName(name)).filter(Boolean)));
+        const requestId = `instances_${++this.instanceOverviewRequestCounter}_${Date.now()}`;
+
+        return new Promise((resolve, reject) => {
+            const timeoutHandle = window.setTimeout(() => {
+                this.instanceOverviewRequests.delete(requestId);
+                reject(new Error('Timed out waiting for instances overview response'));
+            }, 5000);
+
+            this.instanceOverviewRequests.set(requestId, { resolve, reject, timeoutHandle });
+
+            const action = createRequestInstancesOverviewAction(requestId, sanitized);
+            this.actionDispatcher!.dispatch(action).catch(error => {
+                const pending = this.instanceOverviewRequests.get(requestId);
+                if (pending) {
+                    window.clearTimeout(pending.timeoutHandle);
+                    this.instanceOverviewRequests.delete(requestId);
+                    reject(error);
+                }
+            });
+        });
+    }
+
+    public handleInstancesOverviewResponse(response: InstancesOverviewResponse): void {
+        const pending = this.instanceOverviewRequests.get(response.requestId);
+        if (!pending) {
+            return;
+        }
+
+        window.clearTimeout(pending.timeoutHandle);
+        this.instanceOverviewRequests.delete(response.requestId);
+
+        if (!response.success) {
+            pending.reject(new Error(response.message ?? 'Failed to retrieve instances overview'));
+            return;
+        }
+
+        const instances = (response.instances ?? [])
+            .filter(instance => !instance.hidden)
+            .map(instance => ({
+                id: instance.id,
+                className: this.normalizeClassName(instance.className) || instance.className
+            }));
+
+        pending.resolve(instances);
     }
 }

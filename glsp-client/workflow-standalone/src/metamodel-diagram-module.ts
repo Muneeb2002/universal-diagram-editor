@@ -39,6 +39,7 @@ import { MultiplicityInputActionHandler } from './multiplicity-input-action-hand
 import { BidirectionalMultiplicityInputActionHandler } from './bidirectional-multiplicity-input-action-handler';
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
 import { VisualConfigurationResponseHandler } from './visual-configuration-response-handler';
+import { InstancesOverviewResponseHandler } from './instances-overview-response-handler';
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 import { ClassPropertiesResponseHandler } from './class-properties-response-handler';
 
@@ -139,6 +140,7 @@ export const metamodelDiagramModule = new FeatureModule(
                 configureActionHandler(context, 'visualConfigurationResponse', VisualConfigurationResponseHandler);
                 // Configure ClassPropertiesResponse handler
                 configureActionHandler(context, 'classPropertiesResponse', ClassPropertiesResponseHandler);
+                configureActionHandler(context, 'instancesOverviewResponse', InstancesOverviewResponseHandler);
     },
     { featureId: Symbol('metamodelDiagram') }
 );

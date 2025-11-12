@@ -20,6 +20,10 @@ export function setGlobalToolbar(toolbar: any): void {
     
 }
 
+export function getGlobalToolbar(): any {
+    return globalToolbar;
+}
+
 /**
  * Client-side handler for LoadMetamodelResponse actions.
  * Updates the toolbar with available class names when a metamodel is loaded.

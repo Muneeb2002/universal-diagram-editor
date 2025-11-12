@@ -84,7 +84,7 @@ export const SHAPE_DEFINITIONS: Record<ShapeType, string> = {
  * Predefined color schemes with CSS values
  */
 export const COLOR_SCHEMES: Record<ColorScheme, { fill: string; stroke: string; text: string }> = {
-    black: { fill: '#000000', stroke: '#000000', text: '#FFFFFF' },
+    black: { fill: '#1B1B1B', stroke: '#000000', text: '#FFFFFF' },
     blue: { fill: '#E3F2FD', stroke: '#1976D2', text: '#0D47A1' },
     red: { fill: '#FFEBEE', stroke: '#D32F2F', text: '#B71C1C' },
     white: { fill: '#FFFFFF', stroke: '#9E9E9E', text: '#000000' },
@@ -97,7 +97,7 @@ export const COLOR_SCHEMES: Record<ColorScheme, { fill: string; stroke: string; 
 export const DEFAULT_CLASS_VISUAL_CONFIG: ClassVisualConfiguration = {
     className: '',
     shape: 'rectangle',
-    color: 'blue',
+    color: 'black',
     filled: true,
     showAttributes: true,
     showReferences: false

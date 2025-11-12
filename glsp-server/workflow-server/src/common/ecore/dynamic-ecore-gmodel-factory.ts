@@ -106,14 +106,23 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         root.revision = 0;
 
         const instances = this.instanceStorage.getAllInstances();
-        // Create nodes for each instance
-        instances.forEach(instance => {
+        const visibleInstances = instances.filter(instance => !(instance as any).hidden);
+        const arcInstances = visibleInstances.filter(instance => this.isArcInstance(instance));
+        const nodeInstances = visibleInstances.filter(instance => !this.isArcInstance(instance));
+
+        nodeInstances.forEach(instance => {
             const node = this.createNodeForInstance(instance);
             root.children.push(node);
         });
 
-        // Create edges for references
-        instances.forEach(instance => {
+        arcInstances.forEach(instance => {
+            const arcEdge = this.createEdgeForArcInstance(instance);
+            if (arcEdge) {
+                root.children.push(arcEdge);
+            }
+        });
+
+        nodeInstances.forEach(instance => {
             const edges = this.createEdgesForInstanceReferences(instance);
             edges.forEach(edge => root.children.push(edge));
         });
@@ -597,20 +606,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         // Get EClass definition for structure
         const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
 
-        // Add header compartment with instance ID and class name
-        const headerCompartment = new GCompartment();
-        headerCompartment.id = `${instance.id}_header`;
-        headerCompartment.type = 'comp:header';
-        headerCompartment.layout = 'hbox';
-
-        const headerLabel = new GLabel();
-        headerLabel.type = 'label:heading';
-        headerLabel.id = `${instance.id}_header_label`;
-        headerLabel.text = `${instance.id}: ${instance.eClassName}`;
-
-        headerCompartment.children.push(headerLabel);
-        node.children.push(headerCompartment);
-
         // Add attributes compartment with values (only if configured to show)
         if (visualConfig.showAttributes && eClass && instance.attributes.size > 0) {
             const attributesCompartment = new GCompartment();
@@ -703,6 +698,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     private createEdgesForInstanceReferences(instance: EcoreInstance): GEdge[] {
         const edges: GEdge[] = [];
 
+        if (this.isArcInstance(instance)) {
+            return edges;
+        }
+
+        if ((instance as any).hidden) {
+            return edges;
+        }
+
         instance.references.forEach((value, refName) => {
             if (typeof value === 'string' && value) {
                 // Single reference
@@ -747,6 +750,80 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         edge.children.push(label);
 
         return edge;
+    }
+
+    private createEdgeForArcInstance(instance: EcoreInstance): GEdge | null {
+        const { sourceId, targetId } = this.findArcEndpoints(instance);
+        if (!sourceId || !targetId) {
+            return null;
+        }
+
+        const edge = new GEdge();
+        edge.type = 'edge:inst-reference';
+        edge.id = `${instance.id}_${sourceId}_to_${targetId}`;
+        edge.sourceId = sourceId;
+        edge.targetId = targetId;
+        edge.cssClasses = ['ecore-reference', 'ecore-instance-arc'];
+
+        return edge;
+    }
+
+    private findArcEndpoints(instance: EcoreInstance): { sourceId?: string; targetId?: string } {
+        let sourceId: string | undefined;
+        let targetId: string | undefined;
+
+        instance.references.forEach((value, refName) => {
+            const normalized = refName.toLowerCase();
+            if (normalized.includes('source')) {
+                sourceId ??= this.extractReferenceValue(value);
+            } else if (normalized.includes('target')) {
+                targetId ??= this.extractReferenceValue(value);
+            }
+        });
+
+        if ((!sourceId || !targetId) && instance.references.size > 0) {
+            const entries = Array.from(instance.references.entries());
+            entries.forEach(([name, value]) => {
+                if (!sourceId) {
+                    sourceId = this.extractReferenceValue(value);
+                } else if (!targetId) {
+                    targetId = this.extractReferenceValue(value);
+                }
+            });
+        }
+
+        return { sourceId, targetId };
+    }
+
+    private extractReferenceValue(value: string | string[] | undefined): string | undefined {
+        if (!value) {
+            return undefined;
+        }
+        if (Array.isArray(value)) {
+            return value.length > 0 ? value[0] : undefined;
+        }
+        return value;
+    }
+
+    private isArcInstance(instance: EcoreInstance): boolean {
+        const className = instance.eClassName;
+        if (!className) {
+            return false;
+        }
+        if (className.toLowerCase() === 'arc') {
+            return true;
+        }
+
+        const eClass = this.metamodelRegistry.findEClass(className);
+        if (!eClass) {
+            return false;
+        }
+
+        const superTypes = this.toArray(this.getProp<any>(eClass, 'eSuperTypes'));
+        return superTypes.some(superType => {
+            const name = this.getProp<string>(superType, 'name');
+            return name?.toLowerCase() === 'arc';
+        });
     }
 
     private toArray(collection: any): any[] {

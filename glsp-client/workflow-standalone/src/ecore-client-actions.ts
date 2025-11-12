@@ -83,6 +83,20 @@ export interface CreateInstanceReferenceAction {
     referenceName: string;
 }
 
+export interface RequestInstancesOverviewAction {
+    kind: 'requestInstancesOverview';
+    requestId: string;
+    classNames?: string[];
+}
+
+export interface InstancesOverviewResponse extends Action {
+    kind: 'instancesOverviewResponse';
+    requestId: string;
+    success: boolean;
+    instances: Array<{ id: string; className: string; hidden?: boolean }>;
+    message?: string;
+}
+
 // Metamodel editing actions
 export interface RenameClassAction {
     kind: 'renameClass';
@@ -164,6 +178,17 @@ export function createCreateInstanceReferenceAction(
         sourceInstanceId,
         targetInstanceId,
         referenceName
+    };
+}
+
+export function createRequestInstancesOverviewAction(
+    requestId: string,
+    classNames?: string[]
+): RequestInstancesOverviewAction {
+    return {
+        kind: 'requestInstancesOverview',
+        requestId,
+        classNames
     };
 }
 

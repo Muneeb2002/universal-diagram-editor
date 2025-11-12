@@ -49,12 +49,17 @@ export class OpenVisualConfigurationActionHandler implements ActionHandler {
             
             // Get all class names from the active metamodel
             const classes = this.metamodelRegistry.getAllEClasses();
-            const classNames = classes
-                .filter(c => {
+            const eligibleClasses = classes
+                .map(c => {
                     const isAbstract = c.get ? c.get('abstract') : c.abstract;
-                    return !isAbstract;
+                    const isInterface = c.get ? c.get('interface') : c.interface;
+                    const name = c.get ? c.get('name') : c.name;
+                    return { raw: c, name, isAbstract, isInterface };
                 })
-                .map(c => c.get ? c.get('name') : c.name);
+                .filter(info => !!info.name && !info.isAbstract && !info.isInterface)
+                .filter(info => this.hasIncomingContainment(info.name!, classes))
+                .filter(info => !this.isArcClass(info.name!, classes));
+            const classNames = eligibleClasses.map(info => info.name!);
 
             // Build configurations array
             const configurations = classNames.map(className => {
@@ -97,5 +102,109 @@ export class OpenVisualConfigurationActionHandler implements ActionHandler {
                 )
             ];
         }
+    }
+
+    private hasIncomingContainment(className: string, classes: any[]): boolean {
+        for (const cls of classes) {
+            const structuralFeatures = cls.get ? cls.get('eStructuralFeatures') : cls.eStructuralFeatures;
+            const references = cls.get ? cls.get('eReferences') : cls.eReferences;
+            const candidates = this.toArray(references ?? structuralFeatures ?? []);
+            for (const ref of candidates) {
+                const containment = ref.get ? ref.get('containment') : ref.containment;
+                if (!containment) {
+                    continue;
+                }
+                const eType = ref.get ? ref.get('eType') : ref.eType;
+                const typeName = eType?.get ? eType.get('name') : eType?.name;
+                if (!typeName) {
+                    continue;
+                }
+                if (typeName === className || this.isSubtypeOf(className, typeName, classes)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    private isSubtypeOf(className: string, superTypeName: string, classes: any[]): boolean {
+        if (className === superTypeName) {
+            return true;
+        }
+
+        const cls = classes.find(c => {
+            const name = c.get ? c.get('name') : c.name;
+            return name === className;
+        });
+        if (!cls) {
+            return false;
+        }
+
+        const eSuperTypes = cls.get ? cls.get('eSuperTypes') : cls.eSuperTypes;
+        const superTypesArray = this.toArray(eSuperTypes ?? []);
+        for (const st of superTypesArray) {
+            const stName = st?.get ? st.get('name') : st?.name;
+            if (!stName) {
+                continue;
+            }
+            if (stName === superTypeName || this.isSubtypeOf(stName, superTypeName, classes)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private isArcClass(className: string, classes: any[]): boolean {
+        if (!className) {
+            return false;
+        }
+
+        if (className.toLowerCase() === 'arc') {
+            return true;
+        }
+
+        const cls = classes.find(c => {
+            const name = c.get ? c.get('name') : c.name;
+            return name === className;
+        });
+        if (!cls) {
+            return false;
+        }
+
+        const eSuperTypes = cls.get ? cls.get('eSuperTypes') : cls.eSuperTypes;
+        const superTypesArray = this.toArray(eSuperTypes ?? []);
+        for (const st of superTypesArray) {
+            const stName = st?.get ? st.get('name') : st?.name;
+            if (!stName) {
+                continue;
+            }
+            if (stName.toLowerCase() === 'arc' || this.isArcClass(stName, classes)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private toArray(collection: any): any[] {
+        if (!collection) {
+            return [];
+        }
+        if (Array.isArray(collection)) {
+            return collection;
+        }
+        if (typeof collection.forEach === 'function') {
+            const result: any[] = [];
+            collection.forEach((item: any) => result.push(item));
+            return result;
+        }
+        if (typeof collection.length === 'number') {
+            try {
+                return Array.from(collection);
+            } catch {
+                return [];
+            }
+        }
+        return [];
     }
 }
