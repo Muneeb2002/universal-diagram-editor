@@ -77,6 +77,8 @@ const leftSidebar = new LeftSidebar();
 const contextMenu = new EcoreContextMenu();
 const edgeContextMenu = new EcoreEdgeContextMenu();
 
+toolbar.onModeChange(mode => leftSidebar.setMode(mode));
+
 let metamodelAvailable = false;
 let desiredToolPaletteVisible = false;
 let paletteVisibilityRetryHandle: number | undefined;
@@ -371,7 +373,7 @@ function setupCustomActionHandling(): void {
                 if (panel && panel.parentElement) panel.parentElement.removeChild(panel);
                 document.body.style.paddingBottom = '0px';
                 document.body.style.setProperty('--bottom-panel-height', '0px');
-                setToolPaletteVisible(false);
+                setToolPaletteVisible(metamodelAvailable);
             } else if (mode === 'metamodel') {
                 try { await actionDispatcher.dispatch({ kind: 'openClassProperties' }); } catch {}
                 setToolPaletteVisible(metamodelAvailable);

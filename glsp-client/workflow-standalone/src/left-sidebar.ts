@@ -1,5 +1,5 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createLoadVisualConfigurationAction, createSaveMetamodelAction, createSaveVisualConfigurationAction } from './ecore-client-actions';
+import { createLoadVisualConfigurationAction, createSaveMetamodelAction, createSaveVisualConfigurationAction, createSwitchModeAction } from './ecore-client-actions';
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
@@ -9,9 +9,12 @@ export class LeftSidebar {
     private loadedVisualContainer: HTMLDivElement;
     private loadedVisualList: HTMLDivElement;
     private configureAppearanceButton: HTMLButtonElement | null = null;
+    private metamodelViewButton: HTMLButtonElement | null = null;
     private saveVisualButton: HTMLButtonElement | null = null;
     private loadVisualButton: HTMLButtonElement | null = null;
     private loadVisualLabel: HTMLDivElement | null = null;
+    private metamodelInstancesLabel: HTMLDivElement | null = null;
+    private createInstanceButton: HTMLButtonElement | null = null;
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
     private static readonly VISUAL_STORAGE_KEY = 'wf_loaded_visual_configs';
     // Keep at most N recent entries to avoid exceeding localStorage limits
@@ -92,6 +95,23 @@ export class LeftSidebar {
         createBtn.addEventListener('click', () => this.createCustomMetamodel());
         this.sidebar.appendChild(createBtn);
 
+        const metamodelViewBtn = document.createElement('button');
+        metamodelViewBtn.textContent = 'Metamodel View';
+        metamodelViewBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 6px;
+        `;
+        metamodelViewBtn.addEventListener('click', () => this.switchToMetamodelMode());
+        this.metamodelViewButton = metamodelViewBtn;
+        this.sidebar.appendChild(metamodelViewBtn);
+        this.updateMetamodelViewButtonVisibility('metamodel');
         this.loadedContainer = document.createElement('div');
         this.loadedContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
         this.loadedList = document.createElement('div');
@@ -131,6 +151,10 @@ export class LeftSidebar {
 
     public setVisualConfigurationAvailable(available: boolean): void {
         this.createVisualConfigurationSection(available);
+    }
+
+    public setMode(mode: 'metamodel' | 'instance'): void {
+        this.updateMetamodelViewButtonVisibility(mode);
     }
 
     private createCustomMetamodel(): void {
@@ -463,6 +487,31 @@ export class LeftSidebar {
             this.renderLoadedVisualConfigurations();
         }
 
+        if (!this.metamodelInstancesLabel) {
+            const instancesLabel = document.createElement('div');
+            instancesLabel.textContent = 'Metamodel Instances:';
+            instancesLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
+            this.sidebar.appendChild(instancesLabel);
+            this.metamodelInstancesLabel = instancesLabel;
+        }
+        if (!this.createInstanceButton) {
+            const createInstanceBtn = document.createElement('button');
+            createInstanceBtn.textContent = 'Create Instance';
+            createInstanceBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+            `;
+            createInstanceBtn.addEventListener('click', () => this.switchToInstanceMode());
+            this.sidebar.appendChild(createInstanceBtn);
+            this.createInstanceButton = createInstanceBtn;
+        }
+
         const display = visible ? '' : 'none';
         if (this.loadVisualLabel) {
             this.loadVisualLabel.style.display = display;
@@ -479,6 +528,12 @@ export class LeftSidebar {
         if (this.loadedVisualContainer) {
             this.loadedVisualContainer.style.display = display;
         }
+        if (this.metamodelInstancesLabel) {
+            this.metamodelInstancesLabel.style.display = display;
+        }
+        if (this.createInstanceButton) {
+            this.createInstanceButton.style.display = display;
+        }
     }
 
     private async openVisualConfiguration(): Promise<void> {
@@ -493,6 +548,61 @@ export class LeftSidebar {
             alert('Error opening visual configuration: ' + error);
         }
     }
+
+    private async switchToInstanceMode(): Promise<void> {
+        const toolbar: any = (window as any).globalToolbar;
+        if (toolbar && typeof toolbar.switchToMode === 'function') {
+            try {
+                await toolbar.switchToMode('instance');
+                return;
+            } catch (error) {
+                console.error('Error switching mode via toolbar:', error);
+            }
+        }
+
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+        try {
+            await this.actionDispatcher.dispatch(createSwitchModeAction('instance'));
+        } catch (error) {
+            console.error('Error switching to instance mode:', error);
+            alert('Error switching to instance mode: ' + error);
+        }
+    }
+
+    private async switchToMetamodelMode(): Promise<void> {
+        const toolbar: any = (window as any).globalToolbar;
+        if (toolbar && typeof toolbar.switchToMode === 'function') {
+            try {
+                await toolbar.switchToMode('metamodel');
+                return;
+            } catch (error) {
+                console.error('Error switching mode via toolbar:', error);
+            }
+        }
+
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+        try {
+            await this.actionDispatcher.dispatch(createSwitchModeAction('metamodel'));
+        } catch (error) {
+            console.error('Error switching to metamodel mode:', error);
+            alert('Error switching to metamodel mode: ' + error);
+        }
+    }
+
+    private updateMetamodelViewButtonVisibility(mode: 'metamodel' | 'instance'): void {
+        if (!this.metamodelViewButton) {
+            return;
+        }
+        this.metamodelViewButton.style.display = mode === 'instance' ? '' : 'none';
+    }
+
+
 
     private getStoredVisualConfigurations(): Array<{ name: string; content: string }> {
         try {

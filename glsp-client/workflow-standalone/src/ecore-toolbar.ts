@@ -10,16 +10,14 @@
 
 import { GLSPActionDispatcher, EditorContextService } from '@eclipse-glsp/client';
 import { createSwitchModeAction, createCreateInstanceAction, createCreateInstanceReferenceAction, createRequestInstancesOverviewAction } from './ecore-client-actions';
-import { mustBeContained, getContainmentRequirements, getCreatableChildren, getContainmentReferenceName } from './containment-utils';
+import { getContainmentRequirements, getCreatableChildren, getContainmentReferenceName } from './containment-utils';
 import { ClassInfo, InstancesOverviewResponse } from './ecore-client-actions';
 import { GModelElement } from '@eclipse-glsp/sprotty';
 
 export class EcoreToolbar {
     private toolbar: HTMLDivElement;
-    private modeLabel: HTMLSpanElement;
-    private classesDropdown: HTMLSelectElement;
-    private containerInfo: HTMLDivElement;
-    private clearContainerButton: HTMLButtonElement;
+    private containerInfo: HTMLDivElement | null = null;
+    private clearContainerButton: HTMLButtonElement | null = null;
     private currentMode: 'metamodel' | 'instance' = 'metamodel';
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private allClasses: ClassInfo[] = [];
@@ -33,7 +31,9 @@ export class EcoreToolbar {
         timeoutHandle: number;
     }> = new Map();
     private instanceOverviewRequestCounter = 0;
-    // Removed reload metamodel state
+    private paletteOriginalContent: string | null = null;
+    private instancePaletteContainer: HTMLDivElement | null = null;
+    private modeListeners: Array<(mode: 'metamodel' | 'instance') => void> = [];
 
     constructor() {
         this.toolbar = document.createElement('div');
@@ -53,107 +53,6 @@ export class EcoreToolbar {
             font-size: 14px;
         `;
 
-        // Create mode toggle section
-        const modeSection = document.createElement('div');
-        modeSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
-
-        this.modeLabel = document.createElement('span');
-        this.modeLabel.textContent = 'Mode: Metamodel';
-        this.modeLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
-        modeSection.appendChild(this.modeLabel);
-
-        const modeButtonsContainer = document.createElement('div');
-        modeButtonsContainer.style.cssText = 'display: flex; gap: 5px;';
-
-        const metamodelButton = this.createButton('Metamodel View', () => this.switchMode('metamodel'));
-        const instanceButton = this.createButton('Instance View', () => this.switchMode('instance'));
-
-        modeButtonsContainer.appendChild(metamodelButton);
-        modeButtonsContainer.appendChild(instanceButton);
-        modeSection.appendChild(modeButtonsContainer);
-
-        this.toolbar.appendChild(modeSection);
-
-        // Separator after mode section
-        const separator = document.createElement('hr');
-        separator.style.cssText = 'width: 100%; border: none; border-top: 1px solid #ccc; margin: 0;';
-        this.toolbar.appendChild(separator);
-
-        // Create instance creation section
-        const instanceSection = document.createElement('div');
-        instanceSection.style.cssText = 'display: flex; flex-direction: column; gap: 5px;';
-
-        const instanceLabel = document.createElement('span');
-        instanceLabel.textContent = 'Create Instance:';
-        instanceLabel.style.cssText = 'font-weight: bold; font-size: 12px;';
-        instanceSection.appendChild(instanceLabel);
-
-
-        // Add container info display
-        this.containerInfo = document.createElement('div');
-        this.containerInfo.style.cssText = 'font-size: 10px; color: #0066cc; margin-bottom: 5px; padding: 5px; background-color: #e6f3ff; border-radius: 3px; display: none;';
-        instanceSection.appendChild(this.containerInfo);
-
-        const clearContainerButton = document.createElement('button');
-        clearContainerButton.textContent = 'Clear Container';
-        clearContainerButton.style.cssText = `
-            padding: 3px 8px;
-            background-color: #ccc;
-            color: black;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 10px;
-            margin-bottom: 5px;
-            display: none;
-        `;
-        clearContainerButton.addEventListener('click', () => this.clearContainer());
-        instanceSection.appendChild(clearContainerButton);
-        this.clearContainerButton = clearContainerButton;
-
-        this.classesDropdown = document.createElement('select');
-        this.classesDropdown.style.cssText = `
-            padding: 5px;
-            border: 1px solid #ccc;
-            border-radius: 3px;
-            background-color: white;
-            font-size: 12px;
-        `;
-        this.classesDropdown.innerHTML = '<option value="">No classes available</option>';
-        instanceSection.appendChild(this.classesDropdown);
-
-        const createButton = this.createButton('Create Instance', () => this.createInstance());
-        createButton.style.width = '100%';
-        instanceSection.appendChild(createButton);
-
-        this.toolbar.appendChild(instanceSection);
-
-    }
-
-    private createButton(text: string, onClick: () => void): HTMLButtonElement {
-        const button = document.createElement('button');
-        button.textContent = text;
-        button.style.cssText = `
-            padding: 5px 10px;
-            background-color: #007acc;
-            color: white;
-            border: none;
-            border-radius: 3px;
-            cursor: pointer;
-            font-size: 12px;
-        `;
-
-        button.addEventListener('mouseover', () => {
-            button.style.backgroundColor = '#005a9e';
-        });
-
-        button.addEventListener('mouseout', () => {
-            button.style.backgroundColor = '#007acc';
-        });
-
-        button.addEventListener('click', onClick);
-
-        return button;
     }
 
     public setActionDispatcher(dispatcher: GLSPActionDispatcher): void {
@@ -165,28 +64,10 @@ export class EcoreToolbar {
     }
 
     public updateAvailableClasses(classes: string[]): void {
-        this.classesDropdown.innerHTML = '';
-
-        if (classes.length === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No classes available';
-            this.classesDropdown.appendChild(option);
-        } else {
-            // Add placeholder option
-            const placeholderOption = document.createElement('option');
-            placeholderOption.value = '';
-            placeholderOption.textContent = '-- Select a class --';
-            this.classesDropdown.appendChild(placeholderOption);
-
-            // Add class options
-            classes.forEach(className => {
-                const option = document.createElement('option');
-                option.value = className;
-                option.textContent = className;
-                this.classesDropdown.appendChild(option);
-            });
-        }
+        this.renderInstancePalette(
+            this.currentMode === 'instance' ? classes.slice().sort((a, b) => a.localeCompare(b)) : [],
+            this.currentMode === 'instance'
+        );
     }
 
     public updateClassInfo(allClasses: ClassInfo[]): void {
@@ -195,56 +76,19 @@ export class EcoreToolbar {
     }
 
     private updateAvailableClassesForMode(): void {
-        this.classesDropdown.innerHTML = '';
-
-        if (this.allClasses.length === 0) {
-            const option = document.createElement('option');
-            option.value = '';
-            option.textContent = 'No classes available';
-            this.classesDropdown.appendChild(option);
-            return;
-        }
-
-        // Add placeholder option
-        const placeholderOption = document.createElement('option');
-        placeholderOption.value = '';
-        placeholderOption.textContent = '-- Select a class --';
-        this.classesDropdown.appendChild(placeholderOption);
-
         if (this.currentMode === 'instance') {
-            // Check if a container is selected
+            const paletteClasses: string[] = [];
+
             if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
-                // Show children of the selected container
                 const children = getCreatableChildren(this.selectedContainerClassName, this.allClasses);
-                
-                if (children.length === 0) {
-                    const option = document.createElement('option');
-                    option.value = '';
-                    option.textContent = `No children available for ${this.selectedContainerClassName}`;
-                    option.disabled = true;
-                    this.classesDropdown.appendChild(option);
-                } else {
-                    // Filter out abstract classes
-                    const creatableChildren = children.filter(c => !c.isAbstract && !c.isInterface);
-                    
-                    if (creatableChildren.length === 0) {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = `No creatable children (all abstract)`;
-                        option.disabled = true;
-                        this.classesDropdown.appendChild(option);
-                    } else {
-                        creatableChildren.forEach(cls => {
-                            const option = document.createElement('option');
-                            option.value = cls.className;
-                            option.textContent = cls.className;
-                            this.classesDropdown.appendChild(option);
-                        });
-                    }
-                }
+
+                const creatableChildren = children
+                    .filter(c => !c.isAbstract && !c.isInterface)
+                    .map(c => c.className);
+
+                paletteClasses.push(...creatableChildren);
             } else {
-                // No container selected: offer classes that can be contained directly by a root element
-                const rootContainers = this.allClasses.filter(cls => 
+                const rootContainers = this.allClasses.filter(cls =>
                     getContainmentRequirements(cls.className, this.allClasses).length === 0
                 );
 
@@ -258,59 +102,19 @@ export class EcoreToolbar {
                 }
 
                 if (creatableFromRoot.size === 0) {
-                    // Fallback: allow creation of concrete root classes themselves
-                    const concreteRootClasses = rootContainers.filter(cls => !cls.isAbstract && !cls.isInterface);
-
-                    if (concreteRootClasses.length === 0) {
-                        const option = document.createElement('option');
-                        option.value = '';
-                        option.textContent = 'No creatable classes available';
-                        option.disabled = true;
-                        this.classesDropdown.appendChild(option);
-                        return;
-                    }
-
-                    concreteRootClasses
-                        .sort((a, b) => a.className.localeCompare(b.className))
-                        .forEach(cls => {
-                            const option = document.createElement('option');
-                            option.value = cls.className;
-                            option.textContent = cls.className;
-                            this.classesDropdown.appendChild(option);
-                        });
-                    return;
+                    rootContainers
+                        .filter(cls => !cls.isAbstract && !cls.isInterface)
+                        .forEach(cls => creatableFromRoot.set(cls.className, cls));
                 }
 
-                Array.from(creatableFromRoot.values())
-                    .sort((a, b) => a.className.localeCompare(b.className))
-                    .forEach(cls => {
-                        const option = document.createElement('option');
-                        option.value = cls.className;
-                        option.textContent = cls.className;
-                        this.classesDropdown.appendChild(option);
-                    });
+                creatableFromRoot.forEach((cls) => {
+                    paletteClasses.push(cls.className);
+                });
             }
+
+            this.renderInstancePalette(paletteClasses.sort((a, b) => a.localeCompare(b)), true);
         } else {
-            // In metamodel mode, show all classes with visual indicators
-            this.allClasses.forEach(cls => {
-                const option = document.createElement('option');
-                option.value = cls.className;
-                
-                // Add visual indicators for containment requirements
-                let displayText = cls.className;
-                if (mustBeContained(cls.className, this.allClasses)) {
-                    displayText += ' 🔒'; // Lock icon for contained classes
-                }
-                if (cls.isAbstract) {
-                    displayText += ' (abstract)';
-                }
-                if (cls.isInterface) {
-                    displayText += ' (interface)';
-                }
-                
-                option.textContent = displayText;
-                this.classesDropdown.appendChild(option);
-            });
+            this.renderInstancePalette([], false);
         }
     }
 
@@ -324,7 +128,7 @@ export class EcoreToolbar {
         }
 
         this.currentMode = mode;
-        this.modeLabel.textContent = `Mode: ${mode === 'metamodel' ? 'Metamodel' : 'Instance'}`;
+        this.notifyModeChange();
 
         // Update available classes based on new mode
         this.updateAvailableClassesForMode();
@@ -338,14 +142,8 @@ export class EcoreToolbar {
         }
     }
 
-    private async createInstance(): Promise<void> {
+    private async createInstance(selectedClass: string): Promise<void> {
         if (!this.actionDispatcher) {
-            return;
-        }
-
-        const selectedClass = this.classesDropdown.value;
-        if (!selectedClass) {
-            alert('Please select a class to instantiate');
             return;
         }
 
@@ -443,9 +241,13 @@ export class EcoreToolbar {
     public setContainer(instanceId: string, className: string): void {
         this.selectedContainerInstanceId = instanceId;
         this.selectedContainerClassName = className;
-        this.containerInfo.textContent = `Container: ${className} (${instanceId})`;
-        this.containerInfo.style.display = 'block';
-        this.clearContainerButton.style.display = 'block';
+        if (this.containerInfo) {
+            this.containerInfo.textContent = `Container: ${className} (${instanceId})`;
+            this.containerInfo.style.display = 'block';
+        }
+        if (this.clearContainerButton) {
+            this.clearContainerButton.style.display = 'block';
+        }
         this.updateAvailableClassesForMode();
     }
 
@@ -455,8 +257,12 @@ export class EcoreToolbar {
     public clearContainer(): void {
         this.selectedContainerInstanceId = null;
         this.selectedContainerClassName = null;
-        this.containerInfo.style.display = 'none';
-        this.clearContainerButton.style.display = 'none';
+        if (this.containerInfo) {
+            this.containerInfo.style.display = 'none';
+        }
+        if (this.clearContainerButton) {
+            this.clearContainerButton.style.display = 'none';
+        }
         this.updateAvailableClassesForMode();
     }
 
@@ -578,6 +384,100 @@ export class EcoreToolbar {
 
     public getElement(): HTMLDivElement {
         return this.toolbar;
+    }
+
+    public switchToMode(mode: 'metamodel' | 'instance'): Promise<void> {
+        return this.switchMode(mode);
+    }
+
+    public onModeChange(listener: (mode: 'metamodel' | 'instance') => void): void {
+        this.modeListeners.push(listener);
+        listener(this.currentMode);
+    }
+
+    private notifyModeChange(): void {
+        for (const listener of this.modeListeners) {
+            try {
+                listener(this.currentMode);
+            } catch (error) {
+                console.error('Error in mode change listener:', error);
+            }
+        }
+    }
+
+    private renderInstancePalette(classNames: string[], isInstanceMode: boolean): void {
+        const paletteBody = document.querySelector('.tool-palette .palette-body') as HTMLElement | null;
+
+        if (!paletteBody) {
+            if (isInstanceMode) {
+                setTimeout(() => this.renderInstancePalette(classNames, isInstanceMode), 100);
+            }
+            return;
+        }
+
+        if (!isInstanceMode) {
+            if (this.paletteOriginalContent !== null) {
+                paletteBody.innerHTML = this.paletteOriginalContent;
+                this.paletteOriginalContent = null;
+            }
+            this.instancePaletteContainer = null;
+            return;
+        }
+
+        if (this.paletteOriginalContent === null) {
+            this.paletteOriginalContent = paletteBody.innerHTML;
+        }
+
+        paletteBody.innerHTML = '';
+
+        if (!this.instancePaletteContainer) {
+            this.instancePaletteContainer = document.createElement('div');
+            this.instancePaletteContainer.classList.add('instance-palette-container');
+        }
+
+        this.instancePaletteContainer.innerHTML = '';
+
+        if (!this.instancePaletteContainer) {
+            this.instancePaletteContainer = document.createElement('div');
+            this.instancePaletteContainer.classList.add('instance-palette-container');
+        }
+
+        const container = this.instancePaletteContainer;
+        container.innerHTML = '';
+
+        const header = document.createElement('div');
+        header.textContent = 'Create Instance';
+        header.style.cssText = 'font-weight: bold; padding: 6px 8px;';
+        container.appendChild(header);
+
+        if (classNames.length === 0) {
+            const empty = document.createElement('div');
+            empty.classList.add('tool-button');
+            empty.style.opacity = '0.6';
+            empty.textContent = 'No creatable classes available';
+            container.appendChild(empty);
+        } else {
+            const list = document.createElement('div');
+            list.style.display = 'flex';
+            list.style.flexDirection = 'column';
+            list.style.gap = '4px';
+
+            classNames.forEach(className => {
+                const item = document.createElement('div');
+                item.classList.add('tool-button', 'instance-palette-item');
+                item.textContent = className;
+                item.addEventListener('click', () => this.handleInstancePaletteClick(className));
+                list.appendChild(item);
+            });
+
+            container.appendChild(list);
+        }
+
+        paletteBody.appendChild(container);
+    }
+
+    private async handleInstancePaletteClick(className: string): Promise<void> {
+        await this.createInstance(className);
     }
 
     /**
