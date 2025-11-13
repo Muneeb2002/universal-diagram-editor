@@ -521,9 +521,6 @@ export namespace CreateCustomMetamodelAction {
 export interface CreateEClassAction extends Action {
     kind: typeof CreateEClassAction.KIND;
     className: string;
-    isAbstract: boolean;
-    isInterface: boolean;
-    hasAttributes: boolean;
     position?: { x: number; y: number };
 }
 
@@ -532,25 +529,16 @@ export namespace CreateEClassAction {
 
     export function is(object: any): object is CreateEClassAction {
         return Action.hasKind(object, KIND) && 
-               hasStringProp(object, 'className') && 
-               hasBooleanProp(object, 'isAbstract') && 
-               hasBooleanProp(object, 'isInterface') && 
-               hasBooleanProp(object, 'hasAttributes');
+               hasStringProp(object, 'className');
     }
 
     export function create(
-        className: string, 
-        isAbstract: boolean, 
-        isInterface: boolean, 
-        hasAttributes: boolean,
+        className: string,
         position?: { x: number; y: number }
     ): CreateEClassAction {
         return {
             kind: KIND,
             className,
-            isAbstract,
-            isInterface,
-            hasAttributes,
             position
         };
     }

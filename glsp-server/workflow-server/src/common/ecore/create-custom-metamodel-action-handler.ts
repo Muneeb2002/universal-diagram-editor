@@ -122,9 +122,6 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
             // Create a new EClass in the active custom metamodel
             const result = this.metamodelRegistry.createEClass(
                 action.className,
-                action.isAbstract,
-                action.isInterface,
-                action.hasAttributes,
                 action.position
             );
 

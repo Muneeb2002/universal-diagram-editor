@@ -1099,7 +1099,7 @@ export class MetamodelRegistry {
     /**
      * Creates a new EClass in the active custom metamodel.
      */
-    createEClass(className: string, isAbstract: boolean, isInterface: boolean, hasAttributes: boolean, position?: { x: number; y: number }): { success: boolean; message?: string } {
+    createEClass(className: string, position?: { x: number; y: number }): { success: boolean; message?: string } {
         try {
             const activeMetamodel = this.getActiveMetamodel();
             if (!activeMetamodel) {
@@ -1130,31 +1130,17 @@ export class MetamodelRegistry {
                     // ecore-ts EPackage object - create proper ecore-ts EClass
                     eClass = EClass.create({
                         name: className,
-                        abstract: isAbstract,
-                        interface: isInterface
+                        abstract: false,
+                        interface: false
                     });
-                    
-                    // Add default attribute if requested
-                    if (hasAttributes) {
-                        const defaultAttribute = EAttribute.create({
-                            name: 'name',
-                            eType: EString,
-                            lowerBound: 0,
-                            upperBound: 1,
-                            unique: true,
-                            ordered: false
-                        });
-                        (eClass as any).get('eStructuralFeatures').add(defaultAttribute);
-                    }
-                    
                     // Add to ecore-ts EPackage using .add()
                     (pkg as any).get('eClassifiers').add(eClass);
                 } else {
                     // Plain JavaScript object - create plain JS object with get/set
                     eClass = {
                         name: className,
-                        abstract: isAbstract,
-                        interface: isInterface,
+                        abstract: false,
+                        interface: false,
                         eStructuralFeatures: [] as any[],
                         eSuperTypes: [] as any[],
                         get: function(key: string) {
@@ -1164,32 +1150,12 @@ export class MetamodelRegistry {
                             (this as any)[key] = value;
                         }
                     };
-                    
-                    // Add default attribute if requested
-                    if (hasAttributes) {
-                        const defaultAttribute = {
-                            name: 'name',
-                            eType: { name: 'EString' },
-                            lowerBound: 0,
-                            upperBound: 1,
-                            unique: true,
-                            ordered: false,
-                            get: function(key: string) {
-                                return (this as any)[key];
-                            },
-                            set: function(key: string, value: any) {
-                                (this as any)[key] = value;
-                            }
-                        };
-                        eClass.eStructuralFeatures.push(defaultAttribute);
-                    }
-                    
                     // Add to plain JS package using .push()
                     pkg.eClassifiers.push(eClass);
                 }
             }
 
-            console.log(`Created EClass: ${className} (abstract: ${isAbstract}, interface: ${isInterface})`);
+            console.log(`Created EClass: ${className}`);
 
             return {
                 success: true,

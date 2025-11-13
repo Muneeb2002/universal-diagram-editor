@@ -472,9 +472,6 @@ export interface CreateCustomMetamodelAction {
 export interface CreateEClassAction {
     kind: 'createEClass';
     className: string;
-    isAbstract: boolean;
-    isInterface: boolean;
-    hasAttributes: boolean;
     position?: { x: number; y: number };
 }
 
@@ -493,17 +490,11 @@ export function createCreateCustomMetamodelAction(
 
 export function createCreateEClassAction(
     className: string,
-    isAbstract: boolean,
-    isInterface: boolean,
-    hasAttributes: boolean,
     position?: { x: number; y: number }
 ): CreateEClassAction {
     return {
         kind: 'createEClass',
         className,
-        isAbstract,
-        isInterface,
-        hasAttributes,
         position
     };
 }

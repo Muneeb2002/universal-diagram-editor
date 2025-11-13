@@ -489,47 +489,6 @@ function showEClassCreationDialog(): void {
     nameInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
     dialog.appendChild(nameInput);
 
-    // Class type checkboxes
-    const typeLabel = document.createElement('label');
-    typeLabel.textContent = 'Class Type:';
-    typeLabel.style.cssText = 'display: block; margin-bottom: 10px; font-weight: bold;';
-    dialog.appendChild(typeLabel);
-
-    const abstractCheckbox = document.createElement('input');
-    abstractCheckbox.type = 'checkbox';
-    abstractCheckbox.id = 'abstract-checkbox';
-    const abstractLabel = document.createElement('label');
-    abstractLabel.htmlFor = 'abstract-checkbox';
-    abstractLabel.textContent = 'Abstract';
-    abstractLabel.style.cssText = 'margin-right: 15px; cursor: pointer;';
-    dialog.appendChild(abstractCheckbox);
-    dialog.appendChild(abstractLabel);
-
-    const interfaceCheckbox = document.createElement('input');
-    interfaceCheckbox.type = 'checkbox';
-    interfaceCheckbox.id = 'interface-checkbox';
-    const interfaceLabel = document.createElement('label');
-    interfaceLabel.htmlFor = 'interface-checkbox';
-    interfaceLabel.textContent = 'Interface';
-    interfaceLabel.style.cssText = 'margin-right: 15px; cursor: pointer;';
-    dialog.appendChild(interfaceCheckbox);
-    dialog.appendChild(interfaceLabel);
-
-    const br = document.createElement('br');
-    dialog.appendChild(br);
-
-    // Attributes checkbox
-    const attributesCheckbox = document.createElement('input');
-    attributesCheckbox.type = 'checkbox';
-    attributesCheckbox.id = 'attributes-checkbox';
-    attributesCheckbox.checked = true; // Default to true
-    const attributesLabel = document.createElement('label');
-    attributesLabel.htmlFor = 'attributes-checkbox';
-    attributesLabel.textContent = 'Include default attributes';
-    attributesLabel.style.cssText = 'cursor: pointer;';
-    dialog.appendChild(attributesCheckbox);
-    dialog.appendChild(attributesLabel);
-
     // Buttons
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
@@ -557,13 +516,9 @@ function showEClassCreationDialog(): void {
             return;
         }
 
-        const isAbstract = abstractCheckbox.checked;
-        const isInterface = interfaceCheckbox.checked;
-        const hasAttributes = attributesCheckbox.checked;
-
         // Create the EClass
         if (actionDispatcher) {
-            const action = createCreateEClassAction(className, isAbstract, isInterface, hasAttributes);
+            const action = createCreateEClassAction(className);
             actionDispatcher.dispatch(action);
         }
 
