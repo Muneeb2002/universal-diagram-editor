@@ -633,19 +633,6 @@ export namespace DeleteAttributeAction {
 }
 
 // Visual Configuration Actions
-export interface OpenVisualConfigurationAction extends Action {
-    kind: typeof OpenVisualConfigurationAction.KIND;
-}
-
-export namespace OpenVisualConfigurationAction {
-    export const KIND = 'openVisualConfiguration';
-    
-    export function create(): OpenVisualConfigurationAction {
-        return {
-            kind: KIND
-        };
-    }
-}
 
 export interface SetClassVisualConfigurationAction extends Action {
     kind: typeof SetClassVisualConfigurationAction.KIND;
@@ -677,27 +664,6 @@ export namespace SetClassVisualConfigurationAction {
     }
 }
 
-export interface LoadVisualConfigurationAction extends Action {
-    kind: typeof LoadVisualConfigurationAction.KIND;
-    filename?: string;
-    content?: string;
-}
-
-export namespace LoadVisualConfigurationAction {
-    export const KIND = 'loadVisualConfiguration';
-
-    export function is(object: any): object is LoadVisualConfigurationAction {
-        return Action.hasKind(object, KIND);
-    }
-
-    export function create(filename?: string, content?: string): LoadVisualConfigurationAction {
-        return {
-            kind: KIND,
-            filename,
-            content
-        };
-    }
-}
 
 export interface DeleteVisualConfigurationAction extends Action {
     kind: typeof DeleteVisualConfigurationAction.KIND;
@@ -719,22 +685,67 @@ export namespace DeleteVisualConfigurationAction {
     }
 }
 
-export interface SaveVisualConfigurationAction extends Action {
-    kind: typeof SaveVisualConfigurationAction.KIND;
-    filename?: string;
+
+export interface SaveGraphicalModelAction extends Action {
+    kind: typeof SaveGraphicalModelAction.KIND;
+    filename: string;
+    content: string;
 }
 
-export namespace SaveVisualConfigurationAction {
-    export const KIND = 'saveVisualConfiguration';
+export namespace SaveGraphicalModelAction {
+    export const KIND = 'saveGraphicalModel';
 
-    export function is(object: any): object is SaveVisualConfigurationAction {
+    export function is(object: any): object is SaveGraphicalModelAction {
         return Action.hasKind(object, KIND);
     }
 
-    export function create(filename?: string): SaveVisualConfigurationAction {
+    export function create(filename: string, content: string): SaveGraphicalModelAction {
         return {
             kind: KIND,
-            filename
+            filename,
+            content
+        };
+    }
+}
+
+export interface SaveShapeMappingsAction extends Action {
+    kind: typeof SaveShapeMappingsAction.KIND;
+    filename: string;
+    content: string;
+}
+
+export namespace SaveShapeMappingsAction {
+    export const KIND = 'saveShapeMappings';
+
+    export function is(object: any): object is SaveShapeMappingsAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(filename: string, content: string): SaveShapeMappingsAction {
+        return {
+            kind: KIND,
+            filename,
+            content
+        };
+    }
+}
+
+export interface ApplyShapeMappingsAction extends Action {
+    kind: typeof ApplyShapeMappingsAction.KIND;
+    content: string;
+}
+
+export namespace ApplyShapeMappingsAction {
+    export const KIND = 'applyShapeMappings';
+
+    export function is(object: any): object is ApplyShapeMappingsAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(content: string): ApplyShapeMappingsAction {
+        return {
+            kind: KIND,
+            content
         };
     }
 }

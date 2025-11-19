@@ -42,6 +42,23 @@ import {
     Dimension
 } from '@eclipse-glsp/sprotty';
 
+interface NodeShapeConfig {
+    type: string;
+    width: number;
+    height: number;
+    color: string;
+    fillColor: string;
+    lineThickness: number;
+    lineStyle: 'solid' | 'dashed' | 'dotted';
+}
+
+interface ShapeRenderStyle {
+    fill?: string;
+    stroke?: string;
+    strokeWidth?: number;
+    lineStyle?: 'solid' | 'dashed' | 'dotted';
+}
+
 /**
  * Custom view for Ecore classes - renders as a rectangle with rounded corners
  * Differentiates between regular classes, abstract classes, and interfaces
@@ -197,32 +214,64 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             return undefined;
         }
 
-        // Get CSS classes to determine shape and color
         const cssClasses = (node as any).cssClasses || [];
-        const shapeClass = cssClasses.find((cls: string) => cls.startsWith('shape-'));
-        
+        const shapeConfig = this.getShapeConfig(node);
+        const cssShapeClass = cssClasses.find((cls: string) => cls.startsWith('shape-'));
 
-        // Check if custom size is configured
-        const customSize = (node as any).customSize;
+        const customSize = (node as any).customSize || (shapeConfig ? { width: shapeConfig.width, height: shapeConfig.height } : undefined);
         const nodeWidth = customSize?.width || Math.max(0, node.size.width);
         const nodeHeight = customSize?.height || Math.max(0, node.size.height);
 
-        // Render different shapes based on configuration
-        let shapeElement: VNode;
-        
-        if (shapeClass === 'shape-circle') {
-            shapeElement = this.renderCircle(node, nodeWidth, nodeHeight);
-        } else if (shapeClass === 'shape-ellipse') {
-            shapeElement = this.renderEllipse(node, nodeWidth, nodeHeight);
-        } else if (shapeClass === 'shape-arrow') {
-            shapeElement = this.renderArrow(node, nodeWidth, nodeHeight);
-        } else {
-            // Default rectangle
-            shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight);
+        let shapeType = shapeConfig?.type;
+        if (!shapeType && cssShapeClass) {
+            shapeType = cssShapeClass.replace('shape-', '');
         }
 
+        const shapeStyle = this.getShapeRenderStyle(shapeConfig);
+
+        let shapeElement: VNode;
+        switch (shapeType) {
+            case 'circle':
+                shapeElement = this.renderCircle(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'ellipse':
+                shapeElement = this.renderEllipse(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'arrow':
+                shapeElement = this.renderArrow(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'triangle':
+                shapeElement = this.renderTriangle(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'diamond':
+                shapeElement = this.renderDiamond(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'hexagon':
+                shapeElement = this.renderHexagon(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            default:
+                shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+        }
+
+        const hasMapping = cssClasses.includes('color-mapped');
+        
+        // Set CSS variables on the parent group if node has mapping
+        const groupAttrs: any = {
+            'class-node': true,
+            'class-ecore-instance': true
+        };
+        
+        if (hasMapping && shapeConfig) {
+            groupAttrs.style = {
+                '--instance-node-fill': shapeConfig.fillColor || 'transparent',
+                '--instance-node-stroke': shapeConfig.color || '#444',
+                '--instance-node-stroke-width': (shapeConfig.lineThickness || 2) + 'px'
+            };
+        }
+        
         const vnode = (
-            <g class-node={true} class-ecore-instance={true}>
+            <g {...groupAttrs}>
                 {shapeElement}
                 {node.selected ? this.renderResizeHandles(node, nodeWidth, nodeHeight) : null}
                 {context.renderChildren(node)}
@@ -351,92 +400,121 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         );
     }
 
-    private renderRectangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+    private renderRectangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
         const cssClasses = (node as any).cssClasses || [];
         const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
+        const strokeDasharray = this.resolveDashArray(style.lineStyle, borderClass);
+        const attrs: any = {
+            'class-sprotty-node': true,
+            'class-selected': node.selected,
+            'class-mouseover': node.hoverFeedback,
+            x: "0",
+            y: "0",
+            width: width,
+            height: height,
+            rx: "5",
+            ry: "5",
+            strokeDasharray: strokeDasharray
+        };
         
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
+        // Set fill and stroke as inline attributes to override CSS !important rules
+        if (style.fill) {
+            attrs.fill = style.fill;
+            // Also set as CSS variable for nodes with mapping
+            attrs.style = { '--instance-node-fill': style.fill };
+        }
+        if (style.stroke) {
+            attrs.stroke = style.stroke;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke'] = style.stroke;
+        }
+        if (style.strokeWidth !== undefined) {
+            attrs.strokeWidth = style.strokeWidth;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
         }
         
-        return (
-            <rect
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                x="0"
-                y="0"
-                width={width}
-                height={height}
-                rx="5"
-                ry="5"
-                strokeDasharray={strokeDasharray}
-            />
-        );
+        return <rect {...attrs} />;
     }
 
-    private renderCircle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+    private renderCircle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
         const radius = Math.min(width, height) / 2 - 10; // Leave more margin for circle
         const centerX = width / 2;
         const centerY = height / 2;
         
         const cssClasses = (node as any).cssClasses || [];
         const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
+        const strokeDasharray = this.resolveDashArray(style.lineStyle, borderClass);
         
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
+        const attrs: any = {
+            'class-sprotty-node': true,
+            'class-selected': node.selected,
+            'class-mouseover': node.hoverFeedback,
+            cx: centerX,
+            cy: centerY,
+            r: radius,
+            strokeDasharray: strokeDasharray
+        };
+        
+        // Set fill and stroke as inline attributes to override CSS !important rules
+        if (style.fill) {
+            attrs.fill = style.fill;
+            attrs.style = { '--instance-node-fill': style.fill };
+        }
+        if (style.stroke) {
+            attrs.stroke = style.stroke;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke'] = style.stroke;
+        }
+        if (style.strokeWidth !== undefined) {
+            attrs.strokeWidth = style.strokeWidth;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
         }
         
-        return (
-            <circle
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                cx={centerX}
-                cy={centerY}
-                r={radius}
-                strokeDasharray={strokeDasharray}
-            />
-        );
+        return <circle {...attrs} />;
     }
 
-    private renderEllipse(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+    private renderEllipse(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
         const centerX = width / 2;
         const centerY = height / 2;
-        const radiusX = width / 2 - 10; // Leave more margin for ellipse
-        const radiusY = height / 2 - 10; // Leave more margin for ellipse
+        const radiusX = Math.max(0, width / 2 - 5);
+        const radiusY = Math.max(0, height / 2 - 5);
         
         const cssClasses = (node as any).cssClasses || [];
         const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
+        const strokeDasharray = this.resolveDashArray(style.lineStyle, borderClass);
         
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
+        const attrs: any = {
+            'class-sprotty-node': true,
+            'class-selected': node.selected,
+            'class-mouseover': node.hoverFeedback,
+            cx: centerX,
+            cy: centerY,
+            rx: radiusX,
+            ry: radiusY,
+            strokeDasharray: strokeDasharray
+        };
+        
+        if (style.fill) {
+            attrs.fill = style.fill;
+            attrs.style = { '--instance-node-fill': style.fill };
+        }
+        if (style.stroke) {
+            attrs.stroke = style.stroke;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke'] = style.stroke;
+        }
+        if (style.strokeWidth !== undefined) {
+            attrs.strokeWidth = style.strokeWidth;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
         }
         
-        return (
-            <ellipse
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                cx={centerX}
-                cy={centerY}
-                rx={radiusX}
-                ry={radiusY}
-                strokeDasharray={strokeDasharray}
-            />
-        );
+        return <ellipse {...attrs} />;
     }
 
-    private renderArrow(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
+    private renderArrow(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
         // Create a line with an open arrowhead
         const lineY = height / 2;
         const lineStart = width * 0.1;
@@ -451,13 +529,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         // Check for border style configuration
         const cssClasses = (node as any).cssClasses || [];
         const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        let strokeDasharray = "none";
-        
-        if (borderClass === 'border-dashed') {
-            strokeDasharray = "5,5";
-        } else if (borderClass === 'border-dotted') {
-            strokeDasharray = "2,2";
-        }
+        const strokeDasharray = this.resolveDashArray(style.lineStyle, borderClass);
         
         return (
             <path
@@ -465,14 +537,140 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
                 class-selected={node.selected}
                 class-mouseover={node.hoverFeedback}
                 d={arrowPath}
-                stroke="black"
-                strokeWidth={3}
+                stroke={style.stroke || 'black'}
+                strokeWidth={style.strokeWidth || 3}
                 fill="none"
                 strokeLinecap="round"
                 strokeLinejoin="round"
                 strokeDasharray={strokeDasharray}
             />
         );
+    }
+
+    private renderTriangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
+        const padding = 10;
+        const points = [
+            `${width / 2},${padding}`,
+            `${width - padding},${height - padding}`,
+            `${padding},${height - padding}`
+        ].join(' ');
+        const strokeDasharray = this.resolveDashArray(style.lineStyle);
+        const attrs: any = {
+            'class-sprotty-node': true,
+            'class-selected': node.selected,
+            'class-mouseover': node.hoverFeedback,
+            points: points,
+            strokeDasharray: strokeDasharray
+        };
+        
+        if (style.fill) {
+            attrs.fill = style.fill;
+            attrs.style = { '--instance-node-fill': style.fill };
+        }
+        if (style.stroke) {
+            attrs.stroke = style.stroke;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke'] = style.stroke;
+        }
+        if (style.strokeWidth !== undefined) {
+            attrs.strokeWidth = style.strokeWidth;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
+        }
+        
+        return <polygon {...attrs} />;
+    }
+
+    private renderDiamond(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
+        const padding = 10;
+        const cx = width / 2;
+        const cy = height / 2;
+        const points = [
+            `${cx},${padding}`,
+            `${width - padding},${cy}`,
+            `${cx},${height - padding}`,
+            `${padding},${cy}`
+        ].join(' ');
+        const strokeDasharray = this.resolveDashArray(style.lineStyle);
+        const attrs: any = {
+            'class-sprotty-node': true,
+            'class-selected': node.selected,
+            'class-mouseover': node.hoverFeedback,
+            points: points,
+            strokeDasharray: strokeDasharray
+        };
+        
+        if (style.fill) {
+            attrs.fill = style.fill;
+            attrs.style = { '--instance-node-fill': style.fill };
+        }
+        if (style.stroke) {
+            attrs.stroke = style.stroke;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke'] = style.stroke;
+        }
+        if (style.strokeWidth !== undefined) {
+            attrs.strokeWidth = style.strokeWidth;
+            attrs.style = attrs.style || {};
+            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
+        }
+        
+        return <polygon {...attrs} />;
+    }
+
+    private renderHexagon(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
+        const padding = 10;
+        const w = width - padding * 2;
+        const h = height - padding * 2;
+        const x = padding;
+        const y = padding;
+        const points = [
+            `${x + w * 0.25},${y}`,
+            `${x + w * 0.75},${y}`,
+            `${x + w},${y + h / 2}`,
+            `${x + w * 0.75},${y + h}`,
+            `${x + w * 0.25},${y + h}`,
+            `${x},${y + h / 2}`
+        ].join(' ');
+        const strokeDasharray = this.resolveDashArray(style.lineStyle);
+        return (
+            <polygon
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                points={points}
+                fill={style.fill}
+                stroke={style.stroke}
+                strokeWidth={style.strokeWidth}
+                strokeDasharray={strokeDasharray}
+            />
+        );
+    }
+
+    private getShapeConfig(node: any): NodeShapeConfig | undefined {
+        return node?.shapeConfig as NodeShapeConfig | undefined;
+    }
+
+    private getShapeRenderStyle(shapeConfig?: NodeShapeConfig): ShapeRenderStyle {
+        if (!shapeConfig) {
+            return {};
+        }
+        return {
+            fill: shapeConfig.fillColor,
+            stroke: shapeConfig.color,
+            strokeWidth: shapeConfig.lineThickness,
+            lineStyle: shapeConfig.lineStyle
+        };
+    }
+
+    private resolveDashArray(lineStyle?: string, cssBorderClass?: string): string | undefined {
+        if (lineStyle === 'dashed' || cssBorderClass === 'border-dashed') {
+            return '5,5';
+        }
+        if (lineStyle === 'dotted' || cssBorderClass === 'border-dotted') {
+            return '2,2';
+        }
+        return undefined;
     }
 }
 

@@ -40,11 +40,12 @@ import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-contex
 import { createOpenClassPropertiesAction } from './ecore-client-actions';
 import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
-import { VisualConfigurationDialog } from './visual-configuration-dialog';
-import { setGlobalVisualConfigDialog } from './visual-configuration-response-handler';
 import { LeftSidebar } from './left-sidebar';
 import { setupInteractiveResize } from './interactive-resize';
-import { SelectAction, SetModelAction, UpdateModelAction } from '@eclipse-glsp/protocol';
+import { SelectAction, SetModelAction, UpdateModelAction, SetEditModeAction, EditMode, TriggerEdgeCreationAction, DeleteElementOperation } from '@eclipse-glsp/protocol';
+import { EnableDefaultToolsAction } from '@eclipse-glsp/client';
+import { GraphicalModelEditor } from './graphical-model-editor';
+import { ShapeMappingDialog } from './shape-mapping-dialog';
 
 let editorContextServiceRef: EditorContextService | undefined;
 let lastKnownModelRoot: GModelRoot | undefined;
@@ -53,6 +54,9 @@ declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
         debugVisualConfigurations?: () => void;
+        globalGraphicalModelEditor?: GraphicalModelEditor;
+        globalShapeMappingDialog?: ShapeMappingDialog;
+        globalLeftSidebar?: LeftSidebar;
     }
 }
 
@@ -184,9 +188,16 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     // Also set it on window for context menu access
     (window as any).globalToolbar = toolbar;
     
-    // Create and set up visual configuration dialog
-    const visualConfigDialog = new VisualConfigurationDialog(actionDispatcher);
-    setGlobalVisualConfigDialog(visualConfigDialog);
+    // Create and set up graphical model editor
+    const graphicalModelEditor = new GraphicalModelEditor(actionDispatcher);
+    (window as any).globalGraphicalModelEditor = graphicalModelEditor;
+    
+    // Create and set up shape mapping dialog
+    const shapeMappingDialog = new ShapeMappingDialog(actionDispatcher);
+    (window as any).globalShapeMappingDialog = shapeMappingDialog;
+    
+    // Set global left sidebar reference
+    (window as any).globalLeftSidebar = leftSidebar;
     
     // Set up context menu for class elements
     setupContextMenu();
@@ -338,6 +349,32 @@ function setupCustomActionHandling(): void {
     // Listen for various custom actions
     // This is a workaround - in a full implementation you'd use proper action handlers
     const originalDispatch = actionDispatcher.dispatch.bind(actionDispatcher);
+    const originalDispatchAll = (actionDispatcher as any).dispatchAll?.bind(actionDispatcher);
+    
+    // Intercept dispatchAll to handle actions that come through the tool palette
+    if (originalDispatchAll) {
+        (actionDispatcher as any).dispatchAll = async (...args: any[]) => {
+            // Handle both array and variadic arguments
+            let actionsArray: any[];
+            if (args.length === 1 && Array.isArray(args[0])) {
+                actionsArray = args[0];
+            } else {
+                actionsArray = args;
+            }
+            
+            // Check if any action is triggerEClassCreation
+            for (const action of actionsArray) {
+                if (action && action.kind === 'triggerEClassCreation') {
+                    showEClassCreationDialog();
+                    return Promise.resolve();
+                }
+            }
+            
+            // Otherwise, call original dispatchAll with the same arguments
+            return originalDispatchAll(...args);
+        };
+    }
+    
     actionDispatcher.dispatch = async (action: any) => {
         
         // Check if this is the trigger EClass creation action
@@ -367,6 +404,9 @@ function setupCustomActionHandling(): void {
         // Hide/show docked panels depending on mode
         else if (action.kind === 'switchMode') {
             const mode = action.mode as 'metamodel' | 'instance';
+            // Track current view mode globally
+            (window as any).currentViewMode = mode;
+            
             if (mode === 'instance') {
                 forwardSelectionToClassProperties(null);
                 const panel = document.getElementById('class-properties-panel');
@@ -377,6 +417,163 @@ function setupCustomActionHandling(): void {
             } else if (mode === 'metamodel') {
                 try { await actionDispatcher.dispatch({ kind: 'openClassProperties' }); } catch {}
                 setToolPaletteVisible(metamodelAvailable);
+                
+                // Force editor context to be editable by directly setting it
+                // This bypasses any potential issues with action dispatching
+                if (editorContextServiceRef) {
+                    // Use reflection to access the protected _editMode property
+                    const oldValue = (editorContextServiceRef as any)._editMode || EditMode.READONLY;
+                    (editorContextServiceRef as any)._editMode = EditMode.EDITABLE;
+                    // Trigger the edit mode change event manually
+                    if ((editorContextServiceRef as any).onEditModeChangedEmitter) {
+                        (editorContextServiceRef as any).onEditModeChangedEmitter.fire({
+                            newValue: EditMode.EDITABLE,
+                            oldValue: oldValue
+                        });
+                    }
+                }
+                
+                // Immediately set edit mode to EDITABLE and enable tools
+                // This ensures edges can be created when switching to metamodel view
+                try {
+                    await actionDispatcher.dispatch(SetEditModeAction.create(EditMode.EDITABLE));
+                    await actionDispatcher.dispatch(EnableDefaultToolsAction.create());
+                } catch (e) {
+                    console.warn('Could not set edit mode:', e);
+                }
+                
+                // Force tool palette buttons to be clickable by intercepting clicks
+                setTimeout(() => {
+                    // Force editor context again after DOM updates
+                    if (editorContextServiceRef) {
+                        const oldValue = (editorContextServiceRef as any)._editMode || EditMode.READONLY;
+                        (editorContextServiceRef as any)._editMode = EditMode.EDITABLE;
+                        if ((editorContextServiceRef as any).onEditModeChangedEmitter) {
+                            (editorContextServiceRef as any).onEditModeChangedEmitter.fire({
+                                newValue: EditMode.EDITABLE,
+                                oldValue: oldValue
+                            });
+                        }
+                        console.log('Editor context edit mode after switch:', editorContextServiceRef.editMode, 'isReadonly:', editorContextServiceRef.isReadonly);
+                    }
+                    
+                    const palette = getToolPaletteElement();
+                    if (palette) {
+                        // Override click handlers on all tool buttons to bypass readonly check
+                        const buttons = palette.querySelectorAll('.tool-button');
+                        buttons.forEach((button: Element) => {
+                            const htmlButton = button as HTMLElement;
+                            const buttonToUse = htmlButton;
+                            
+                            // Remove existing click listeners by replacing the onclick handler
+                            htmlButton.onclick = null;
+                            
+                            // Find the palette item data from the button
+                            const itemId = buttonToUse.getAttribute('data-item-id') || 
+                                         buttonToUse.id || 
+                                         buttonToUse.textContent?.trim();
+                            
+                            // Create a new click handler that bypasses readonly check
+                            buttonToUse.addEventListener('click', (e) => {
+                                e.stopPropagation();
+                                e.preventDefault();
+                                
+                                console.log('Button clicked:', itemId, 'editor readonly:', editorContextServiceRef?.isReadonly);
+                                
+                                // Force editable before any action
+                                if (editorContextServiceRef) {
+                                    (editorContextServiceRef as any)._editMode = EditMode.EDITABLE;
+                                }
+                                
+                                // If it's the EClass button, trigger the creation dialog directly
+                                if (itemId && (itemId.includes('eclass') || itemId.includes('EClass') || 
+                                    buttonToUse.textContent?.includes('EClass'))) {
+                                    showEClassCreationDialog();
+                                    return;
+                                }
+                                
+                                // For edge creation, dispatch TriggerEdgeCreationAction directly
+                                // Check for edge-related buttons (edge, inheritance, reference, containment)
+                                const buttonText = (buttonToUse.textContent?.toLowerCase() || '').trim();
+                                const isEdgeButton = itemId && (
+                                    itemId.includes('edge') || 
+                                    itemId.includes('Edge') || 
+                                    buttonText.includes('edge') ||
+                                    buttonText.includes('inheritance') ||
+                                    buttonText.includes('reference') ||
+                                    buttonText.includes('containment')
+                                );
+                                
+                                if (isEdgeButton) {
+                                    console.log('Dispatching TriggerEdgeCreationAction for edge');
+                                    // Find the edge type from the button or use default
+                                    let edgeType = buttonToUse.getAttribute('data-edge-type') || 
+                                                 buttonToUse.getAttribute('data-element-type-id') ||
+                                                 'edge:ecore-reference';
+                                    
+                                    // Try to find edge type from button's text content
+                                    if (buttonText.includes('inheritance') || buttonText.includes('generalization')) {
+                                        edgeType = 'edge:ecore-inheritance';
+                                    } else if (buttonText.includes('containment') || buttonText.includes('composition')) {
+                                        edgeType = 'edge:ecore-containment';
+                                    } else if (buttonText.includes('reference') || buttonText.includes('association')) {
+                                        edgeType = 'edge:ecore-reference';
+                                    } else if (buttonText.includes('bidirectional')) {
+                                        edgeType = 'edge:ecore-bidirectional';
+                                    }
+                                    
+                                    console.log('Edge type determined:', edgeType, 'from button text:', buttonText);
+                                    
+                                    // Ensure editor is editable before dispatching
+                                    if (editorContextServiceRef) {
+                                        (editorContextServiceRef as any)._editMode = EditMode.EDITABLE;
+                                    }
+                                    
+                                    // Dispatch the edge creation action
+                                    actionDispatcher.dispatch(TriggerEdgeCreationAction.create(edgeType));
+                                    
+                                    // Also enable the edge creation tool explicitly
+                                    actionDispatcher.dispatch(EnableDefaultToolsAction.create());
+                                    
+                                    return;
+                                }
+                                
+                                // Try to find and dispatch the original action from the button's data
+                                const actionData = buttonToUse.getAttribute('data-action');
+                                if (actionData) {
+                                    try {
+                                        const action = JSON.parse(actionData);
+                                        actionDispatcher.dispatch(action);
+                                        return;
+                                    } catch (e) {
+                                        console.warn('Could not parse action data:', e);
+                                    }
+                                }
+                                
+                                // Fallback: try to trigger via the tool palette's original mechanism
+                                // by finding the palette item and dispatching its actions
+                                const paletteItemId = buttonToUse.getAttribute('data-palette-item-id');
+                                if (paletteItemId) {
+                                    // The tool palette should handle this, but we'll try to dispatch manually
+                                    console.log('Attempting to dispatch action for palette item:', paletteItemId);
+                                }
+                            }, { capture: true });
+                            
+                            // Ensure button is visually clickable
+                            buttonToUse.style.pointerEvents = 'auto';
+                            buttonToUse.style.cursor = 'pointer';
+                            buttonToUse.removeAttribute('disabled');
+                        });
+                    }
+                    // Also ensure edit mode and tools are still enabled after DOM updates
+                    try {
+                        actionDispatcher.dispatch(SetEditModeAction.create(EditMode.EDITABLE));
+                        actionDispatcher.dispatch(EnableDefaultToolsAction.create());
+                        console.log('Dispatched SetEditModeAction and EnableDefaultToolsAction');
+                    } catch (e) {
+                        console.warn('Could not set edit mode:', e);
+                    }
+                }, 200);
             }
         }
         // Check if this is a LoadMetamodelResponse
@@ -396,8 +593,10 @@ function setupCustomActionHandling(): void {
                 setToolPaletteVisible(true);
                 leftSidebar.setVisualConfigurationAvailable(true);
                 if (action.classInfo && action.classInfo.length > 0) {
+                    console.log('Updating toolbar with classInfo:', action.classInfo.length, 'classes');
                     toolbar.updateClassInfo(action.classInfo);
                 } else if (action.classNames && action.classNames.length > 0) {
+                    console.log('Updating toolbar with classNames only:', action.classNames.length, 'classes');
                     toolbar.updateAvailableClasses(action.classNames);
                 } else {
                     console.warn('LoadMetamodelResponse received but no classes found:', action);
@@ -415,10 +614,38 @@ function setupCustomActionHandling(): void {
         }
         else if (SetModelAction.is(action)) {
             const result = originalDispatch(action);
-            result.then(() => {
+            result.then(async () => {
                 const contextRoot = editorContextServiceRef?.modelRoot as unknown as GModelRoot | undefined;
                 lastKnownModelRoot = contextRoot ?? (action.newRoot as unknown as GModelRoot);
                 scheduleBoundsUpdate();
+                
+                // After model is set (especially after mode switch), ensure editor is in editable mode
+                // Check current mode to determine if we should set edit mode
+                const currentMode = (window as any).currentViewMode || 'metamodel';
+                if (metamodelAvailable && currentMode === 'metamodel') {
+                    // Use multiple attempts to ensure edit mode is set
+                    const setEditMode = async (attempt = 0) => {
+                        try {
+                            await actionDispatcher.dispatch(SetEditModeAction.create(EditMode.EDITABLE));
+                            await actionDispatcher.dispatch(EnableDefaultToolsAction.create());
+                            
+                            // Verify edit mode was set correctly
+                            if (editorContextServiceRef && editorContextServiceRef.isReadonly && attempt < 3) {
+                                setTimeout(() => setEditMode(attempt + 1), 100);
+                            }
+                        } catch (e) {
+                            console.warn('Could not set edit mode to EDITABLE or enable default tools after SetModelAction:', e);
+                            if (attempt < 3) {
+                                setTimeout(() => setEditMode(attempt + 1), 100);
+                            }
+                        }
+                    };
+                    
+                    // Try immediately and with delays to ensure it sticks
+                    setEditMode();
+                    setTimeout(() => setEditMode(), 50);
+                    setTimeout(() => setEditMode(), 200);
+                }
             }, () => {
                 scheduleBoundsUpdate();
             });
@@ -898,6 +1125,18 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
     const toolbar = (window as any).globalToolbar;
     const hasMetamodel = toolbar && toolbar.hasClassInfo && toolbar.hasClassInfo();
     
+    // Create backdrop first so it's accessible in all click handlers
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        z-index: 9999;
+        background: transparent;
+    `;
+    
     // Create a simple context menu for instances
     const menu = document.createElement('div');
     menu.style.cssText = `
@@ -913,6 +1152,18 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
         font-family: Arial, sans-serif;
         padding: 5px 0;
     `;
+    
+    // Function to close the menu
+    const closeMenu = () => {
+        if (backdrop.parentNode) {
+            document.body.removeChild(backdrop);
+        }
+        if (menu.parentNode) {
+            document.body.removeChild(menu);
+        }
+    };
+    
+    backdrop.addEventListener('click', closeMenu);
 
     // Add menu item to edit attributes
     const editAttributesItem = document.createElement('div');
@@ -929,12 +1180,40 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
         editAttributesItem.style.background = 'transparent';
     });
     editAttributesItem.addEventListener('click', () => {
-        document.body.removeChild(backdrop);
-        document.body.removeChild(menu);
+        closeMenu();
         showEditInstanceAttributeDialog(instanceId);
     });
 
     menu.appendChild(editAttributesItem);
+
+    // Add menu item to delete element
+    const deleteElementItem = document.createElement('div');
+    deleteElementItem.textContent = 'Delete Element';
+    deleteElementItem.style.cssText = `
+        padding: 10px 15px;
+        cursor: pointer;
+        font-size: 14px;
+        border-top: 1px solid #eee;
+        color: #000000;
+    `;
+    deleteElementItem.addEventListener('mouseenter', () => {
+        deleteElementItem.style.background = '#f0f0f0';
+    });
+    deleteElementItem.addEventListener('mouseleave', () => {
+        deleteElementItem.style.background = 'transparent';
+    });
+    deleteElementItem.addEventListener('click', () => {
+        closeMenu();
+        
+        // Confirm deletion
+        const confirmed = confirm('Are you sure you want to delete this element?');
+        if (confirmed && actionDispatcher) {
+            // Dispatch delete operation
+            actionDispatcher.dispatch(DeleteElementOperation.create([instanceId]));
+        }
+    });
+
+    menu.appendChild(deleteElementItem);
 
     // Add menu item to set as container (only if metamodel is loaded)
     if (hasMetamodel) {
@@ -972,44 +1251,12 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
 
     // Only show instance creation options if metamodel is loaded
     if (!hasMetamodel) {
-        // Add backdrop to close menu
-        const backdrop = document.createElement('div');
-        backdrop.style.cssText = `
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            z-index: 9999;
-            background: transparent;
-        `;
-        backdrop.addEventListener('click', () => {
-            document.body.removeChild(backdrop);
-            document.body.removeChild(menu);
-        });
-
         document.body.appendChild(backdrop);
         document.body.appendChild(menu);
         return;
     }
 
-
-
-    // Add backdrop to close menu
-    const backdrop = document.createElement('div');
-    backdrop.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 9999;
-    `;
-    backdrop.addEventListener('click', () => {
-        document.body.removeChild(backdrop);
-        document.body.removeChild(menu);
-    });
-
+    // The backdrop is already created above, just append it here
     document.body.appendChild(backdrop);
     document.body.appendChild(menu);
 }

@@ -63,6 +63,13 @@
     stroke-width: 2px !important;
 }
 
+/* Instance nodes with mapping - use CSS variables to override !important rules */
+.ecore-instance.color-mapped .sprotty-node {
+    fill: var(--instance-node-fill) !important;
+    stroke: var(--instance-node-stroke) !important;
+    stroke-width: var(--instance-node-stroke-width) !important;
+}
+
 
 /* Visual configuration color overrides */
 .ecore-instance.color-black .sprotty-node {
@@ -140,6 +147,29 @@
 .sprotty-edge>path {
     stroke: #444 !important;
     stroke-width: 2px !important;
+}
+
+/* Instance edges - override default !important rules using CSS variables */
+.sprotty-edge[data-edge-type="instance"]>path {
+    stroke: var(--instance-edge-stroke, #444) !important;
+    stroke-width: var(--instance-edge-stroke-width, 2px) !important;
+    stroke-dasharray: var(--instance-edge-dasharray, none) !important;
+}
+
+/* Instance edge arrows - use CSS variables for different arrowhead types */
+/* Open arrow (V-shape) and open triangle - path elements with no fill */
+.sprotty-edge[data-edge-type="instance"] path[data-direction] {
+    fill: none !important;
+    stroke: var(--instance-edge-stroke, #444) !important;
+    stroke-width: var(--instance-edge-stroke-width, 2px) !important;
+    stroke-dasharray: var(--instance-edge-dasharray, none) !important;
+}
+
+/* Filled triangle and diamond arrowheads - polygon elements with fill */
+.sprotty-edge[data-edge-type="instance"] polygon[data-direction] {
+    fill: var(--instance-edge-fill, #444) !important;
+    stroke: var(--instance-edge-stroke, #444) !important;
+    stroke-width: var(--instance-edge-stroke-width, 2px) !important;
 }
 
 /* Bidirectional reference edges - keep dash but no extra color */

@@ -110,6 +110,13 @@ export class InstanceModelStorage {
                 continue;
             }
 
+            // Only create root instances for classes that have containment references (are containers)
+            // This prevents newly created classes without containment refs from being treated as root
+            const hasContainmentRefs = this.hasContainmentReferences(eClass);
+            if (!hasContainmentRefs) {
+                continue;
+            }
+
             const rootInstance = this.instanceFactory.createInstance(
                 className,
                 activeKey,
@@ -121,9 +128,33 @@ export class InstanceModelStorage {
 
             instanceModel.instances.set(rootInstance.id, rootInstance);
             instanceModel.rootInstances.add(rootInstance.id);
-
-            console.log(`Created hidden root instance '${rootInstance.id}' for class '${className}'`);
         }
+    }
+
+    /**
+     * Checks if an EClass has any containment references (i.e., can contain other instances)
+     */
+    private hasContainmentReferences(eClass: any): boolean {
+        const eReferences = eClass.get ? eClass.get('eReferences') : eClass.eReferences;
+        if (!eReferences) {
+            return false;
+        }
+
+        let refs: any[] = [];
+        if (Array.isArray(eReferences)) {
+            refs = eReferences;
+        } else if (eReferences.forEach) {
+            eReferences.forEach((ref: any) => refs.push(ref));
+        }
+
+        for (const ref of refs) {
+            const containment = ref.get ? ref.get('containment') : ref.containment;
+            if (containment === true) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -278,7 +309,11 @@ export class InstanceModelStorage {
                     const containment = ref.containment ?? ref.get?.('containment');
                     const eType = ref.eType || ref.get?.('eType');
                     const typeName = eType?.name || eType?.get?.('name');
-                    if (containment && typeName === targetClassName) {
+                    const matchesType =
+                        containment &&
+                        typeName &&
+                        (typeName === targetClassName || this.isSubtypeOf(targetClassName, typeName));
+                    if (matchesType) {
                         results.push({
                             containerClassName: className,
                             referenceName: ref.name || ref.get?.('name'),
@@ -620,7 +655,6 @@ export class InstanceModelStorage {
             instanceModel.rootInstances.delete(instanceId);
 
             // TODO: Clean up references to this instance from other instances
-            console.log(`Deleted instance ${instanceId}`);
         }
 
         return deleted;

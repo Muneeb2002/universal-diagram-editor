@@ -1,0 +1,67 @@
+{
+  "version": "1.0",
+  "mappings": [
+    {
+      "className": "Transition",
+      "shapeId": "element_1",
+      "shapeName": "T",
+      "shapeConfig": {
+        "name": "T",
+        "type": "rectangle",
+        "width": 100,
+        "height": 1,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "lineThickness": 1,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "Place",
+      "shapeId": "element_2",
+      "shapeName": "P",
+      "shapeConfig": {
+        "name": "P",
+        "type": "circle",
+        "width": 100,
+        "height": 80,
+        "color": "#333333",
+        "fillColor": "#ffffff",
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "Token",
+      "shapeId": "element_3",
+      "shapeName": "T",
+      "shapeConfig": {
+        "name": "T",
+        "type": "circle",
+        "width": 100,
+        "height": 18,
+        "color": "#333333",
+        "fillColor": "#050505",
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "Arc",
+      "shapeId": "element_4",
+      "shapeName": "A",
+      "shapeConfig": {
+        "name": "A",
+        "type": "arrow",
+        "width": 70,
+        "height": 24,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "arrowType": "open-arrow"
+      }
+    }
+  ],
+  "savedAt": "2025-11-18T12:52:34.346Z"
+}

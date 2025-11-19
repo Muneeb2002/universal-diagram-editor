@@ -38,7 +38,6 @@ import { EcoreEdgeView } from './ecore-edge-views';
 import { MultiplicityInputActionHandler } from './multiplicity-input-action-handler';
 import { BidirectionalMultiplicityInputActionHandler } from './bidirectional-multiplicity-input-action-handler';
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
-import { VisualConfigurationResponseHandler } from './visual-configuration-response-handler';
 import { InstancesOverviewResponseHandler } from './instances-overview-response-handler';
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 import { ClassPropertiesResponseHandler } from './class-properties-response-handler';
@@ -78,7 +77,7 @@ export class EcoreInstanceNode extends GNode {
 }
 
 export class EcoreInstanceEdge extends GEdge {
-    static readonly TYPE = 'edge:inst-reference';
+    static readonly TYPE = 'edge:instance';
 }
 
 export const metamodelDiagramModule = new FeatureModule(
@@ -99,7 +98,7 @@ export const metamodelDiagramModule = new FeatureModule(
 
         // Configure Ecore instance elements with custom views
         configureModelElement(context, 'ecore:instance', EcoreInstanceNode, EcoreInstanceNodeView);
-        configureModelElement(context, 'edge:inst-reference', EcoreInstanceEdge, EcoreEdgeView);
+        configureModelElement(context, 'edge:instance', EcoreInstanceEdge, EcoreEdgeView);
 
         // Configure generic elements
         configureModelElement(context, 'edge', GEdge, EcoreEdgeView);
@@ -136,8 +135,6 @@ export const metamodelDiagramModule = new FeatureModule(
                 // Configure LoadMetamodelResponse handler
                 configureActionHandler(context, 'loadMetamodelResponse', LoadMetamodelResponseHandler);
                 
-                // Configure VisualConfigurationResponse handler
-                configureActionHandler(context, 'visualConfigurationResponse', VisualConfigurationResponseHandler);
                 // Configure ClassPropertiesResponse handler
                 configureActionHandler(context, 'classPropertiesResponse', ClassPropertiesResponseHandler);
                 configureActionHandler(context, 'instancesOverviewResponse', InstancesOverviewResponseHandler);

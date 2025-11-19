@@ -29,12 +29,14 @@ import { EcoreParser } from './ecore-parser';
 import { EcoreToolPaletteItemProvider } from './ecore-tool-palette-item-provider';
 import { InstanceModelStorage } from './instance-model-storage';
 import { VisualConfigurationStorage } from './visual-configuration-storage';
+import { ShapeMappingStorage } from './shape-mapping-storage';
 import { LoadMetamodelActionHandler } from './load-metamodel-action-handler';
 import { MetamodelRegistry } from './metamodel-registry';
 import { SwitchModeActionHandler } from './switch-mode-action-handler';
 import { EditMetamodelActionHandler } from './edit-metamodel-action-handler';
 import { DeleteEdgeActionHandler } from './edge-action-handlers';
 import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
+import { GModelDeleteOperationHandler } from '@eclipse-glsp/server';
 import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-action-handler';
 import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
 import { EcoreEdgeCreationHandler } from './ecore-edge-creation-handler';
@@ -47,13 +49,13 @@ import { UpdateAttributeActionHandler } from './update-attribute-action-handler'
 import { SetInstanceAttributeActionHandler } from './set-instance-attribute-action-handler';
 import { CreateInstanceReferenceActionHandler } from './create-instance-reference-action-handler';
 import { LoadMetamodelResponseHandler } from './load-metamodel-response-handler';
-import { OpenVisualConfigurationActionHandler } from './open-visual-configuration-action-handler';
 import { SetClassVisualConfigurationActionHandler } from './set-class-visual-configuration-action-handler';
-import { SaveVisualConfigurationActionHandler } from './save-visual-configuration-action-handler';
-import { LoadVisualConfigurationActionHandler } from './load-visual-configuration-action-handler';
 import { DeleteVisualConfigurationActionHandler } from './delete-visual-configuration-action-handler';
 import { OpenClassPropertiesActionHandler } from './open-class-properties-action-handler';
 import { RequestInstancesOverviewActionHandler } from './request-instances-overview-action-handler';
+import { SaveGraphicalModelActionHandler } from './save-graphical-model-action-handler';
+import { SaveShapeMappingsActionHandler } from './save-shape-mappings-action-handler';
+import { ApplyShapeMappingsActionHandler } from './apply-shape-mappings-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -75,6 +77,8 @@ export class EcoreDiagramModule extends GModelDiagramModule {
 
     protected override configureOperationHandlers(binding: InstanceMultiBinding<OperationHandlerConstructor>): void {
         super.configureOperationHandlers(binding);
+        // Remove the default GModelDeleteOperationHandler so our custom handler can take its place
+        binding.remove(GModelDeleteOperationHandler);
         binding.add(DynamicCreateNodeHandler);
         binding.add(EcoreDeleteOperationHandler);
         binding.add(EcoreEdgeCreationHandler);
@@ -88,11 +92,11 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(CreateInstanceActionHandler);
         binding.add(SetInstanceAttributeActionHandler);
         binding.add(CreateInstanceReferenceActionHandler);
-        binding.add(OpenVisualConfigurationActionHandler);
         binding.add(SetClassVisualConfigurationActionHandler);
-        binding.add(LoadVisualConfigurationActionHandler);
-        binding.add(SaveVisualConfigurationActionHandler);
         binding.add(DeleteVisualConfigurationActionHandler);
+        binding.add(SaveGraphicalModelActionHandler);
+        binding.add(SaveShapeMappingsActionHandler);
+        binding.add(ApplyShapeMappingsActionHandler);
         binding.add(OpenClassPropertiesActionHandler);
         binding.add(RequestInstancesOverviewActionHandler);
         binding.add(EditMetamodelActionHandler);
@@ -119,5 +123,6 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         bind(MetamodelRegistry).toSelf().inSingletonScope();
         bind(InstanceModelStorage).toSelf().inSingletonScope();
         bind(VisualConfigurationStorage).toSelf().inSingletonScope();
+        bind(ShapeMappingStorage).toSelf().inSingletonScope();
     }
 }

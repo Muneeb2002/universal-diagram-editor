@@ -68,6 +68,30 @@ export class EcoreToolbar {
             this.currentMode === 'instance' ? classes.slice().sort((a, b) => a.localeCompare(b)) : [],
             this.currentMode === 'instance'
         );
+
+        if (!classes || classes.length === 0) {
+            return;
+        }
+
+        const existingNames = new Set(this.allClasses.map(cls => cls.className));
+        let updated = false;
+
+        for (const className of classes) {
+            if (!existingNames.has(className)) {
+                this.allClasses.push({
+                    className,
+                    isAbstract: false,
+                    isInterface: false,
+                    attributes: [],
+                    references: []
+                });
+                updated = true;
+            }
+        }
+
+        if (updated) {
+            this.updateAvailableClassesForMode();
+        }
     }
 
     public updateClassInfo(allClasses: ClassInfo[]): void {
@@ -101,11 +125,9 @@ export class EcoreToolbar {
                         .forEach(child => creatableFromRoot.set(child.className, child));
                 }
 
-                if (creatableFromRoot.size === 0) {
-                    rootContainers
-                        .filter(cls => !cls.isAbstract && !cls.isInterface)
-                        .forEach(cls => creatableFromRoot.set(cls.className, cls));
-                }
+                rootContainers
+                    .filter(cls => !cls.isAbstract && !cls.isInterface && !this.isContainerClass(cls))
+                    .forEach(cls => creatableFromRoot.set(cls.className, cls));
 
                 creatableFromRoot.forEach((cls) => {
                     paletteClasses.push(cls.className);
@@ -249,6 +271,14 @@ export class EcoreToolbar {
             this.clearContainerButton.style.display = 'block';
         }
         this.updateAvailableClassesForMode();
+    }
+
+    private isContainerClass(cls: ClassInfo): boolean {
+        if (!cls.references || cls.references.length === 0) {
+            return false;
+        }
+
+        return cls.references.some(ref => ref.containment === true);
     }
 
     /**

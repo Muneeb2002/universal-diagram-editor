@@ -255,11 +255,32 @@ export class MetamodelRegistry {
 
         const eClasses: any[] = [];
         for (const pkg of activeMetamodel.ePackages) {
-            (pkg.get('eClassifiers') as any).forEach((classifier: any) => {
-                if (isEClass(classifier)) {
-                    eClasses.push(classifier);
-                }
-            });
+            // Handle both ecore-ts objects (with .get()) and plain JS objects
+            let classifiers: any;
+            if (typeof (pkg as any).get === 'function') {
+                classifiers = (pkg as any).get('eClassifiers');
+            } else {
+                classifiers = (pkg as any).eClassifiers;
+            }
+            
+            if (!classifiers) {
+                continue;
+            }
+            
+            // Handle both array-like and collection-like objects
+            if (Array.isArray(classifiers)) {
+                classifiers.forEach((classifier: any) => {
+                    if (isEClass(classifier)) {
+                        eClasses.push(classifier);
+                    }
+                });
+            } else if (classifiers.forEach) {
+                classifiers.forEach((classifier: any) => {
+                    if (isEClass(classifier)) {
+                        eClasses.push(classifier);
+                    }
+                });
+            }
         }
 
         return eClasses;

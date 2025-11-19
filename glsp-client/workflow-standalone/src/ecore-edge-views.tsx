@@ -23,6 +23,13 @@ import type { Point } from '@eclipse-glsp/sprotty';
 import { injectable } from 'inversify';
 import { VNode } from 'snabbdom';
 
+interface EdgeShapeStyle {
+    stroke?: string;
+    strokeWidth?: number;
+    dashArray?: string;
+    fill?: string;
+}
+
 /**
  * Custom view that renders Ecore edges with proper styling and markers
  */
@@ -37,6 +44,12 @@ export class EcoreEdgeView extends PolylineEdgeView {
                 vnode.data!.class = vnode.data!.class || {};
                 vnode.data!.class[cssClass] = true;
             });
+            
+            // Add data attribute for instance edges to allow CSS targeting
+            if (edge.type === 'edge:instance') {
+                vnode.data!.attrs = vnode.data!.attrs || {};
+                vnode.data!.attrs['data-edge-type'] = 'instance';
+            }
         }
 
         return vnode;
@@ -49,18 +62,47 @@ export class EcoreEdgeView extends PolylineEdgeView {
             const p = segments[i];
             path += ` L ${p.x},${p.y}`;
         }
-        return <path d={path} />;
+        
+        // Apply mapping-based styles for instance edges
+        const attrs: any = {
+            d: path,
+            fill: "none"
+        };
+        
+        if (edge.type === 'edge:instance') {
+            const style = this.getEdgeShapeStyle(edge);
+            // Always set styles for instance edges (with fallbacks)
+            attrs.stroke = style.stroke || '#444';
+            attrs['stroke-width'] = style.strokeWidth !== undefined ? String(style.strokeWidth) : '2';
+            if (style.dashArray) {
+                attrs['stroke-dasharray'] = style.dashArray;
+            }
+            // Set CSS variables as well to override !important rules
+            const stroke = style.stroke || '#444';
+            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth + 'px' : '2px';
+            const dashArray = style.dashArray || 'none';
+            attrs.style = {
+                '--instance-edge-stroke': stroke,
+                '--instance-edge-stroke-width': strokeWidth,
+                '--instance-edge-dasharray': dashArray
+            };
+        }
+        
+        return <path {...attrs} />;
     }
 
     protected override renderAdditionals(edge: GEdge, segments: Point[], context: RenderingContext): VNode[] {
         const additionals: VNode[] = [];
         const type = edge.type ?? '';
+        
+        // Get mapping styles for instance edges
+        const shapeStyle = type === 'edge:instance' ? this.getEdgeShapeStyle(edge) : {};
 
         if (segments.length >= 2) {
             if (type !== 'edge:ecore-containment') {
                 const tail = segments[segments.length - 2];
                 const tip = segments[segments.length - 1];
-                const head = this.createArrowForEdge(edge, tail, tip, 'end');
+                const head = this.createArrowForEdge(edge, tail, tip, 'end', shapeStyle);
                 if (head) {
                     additionals.push(head);
                 }
@@ -69,7 +111,7 @@ export class EcoreEdgeView extends PolylineEdgeView {
             if (type === 'edge:ecore-containment') {
                 const startTip = segments[0];
                 const startTail = segments[1] ?? startTip;
-                const startArrow = this.createArrowForEdge(edge, startTail, startTip, 'start');
+                const startArrow = this.createArrowForEdge(edge, startTail, startTip, 'start', shapeStyle);
                 if (startArrow) {
                     additionals.push(startArrow);
                 }
@@ -79,100 +121,234 @@ export class EcoreEdgeView extends PolylineEdgeView {
         return additionals;
     }
 
-    private createArrowForEdge(edge: GEdge, from: Point, to: Point, direction: 'start' | 'end', segments?: Point[]): VNode | undefined {
+    private createArrowForEdge(edge: GEdge, from: Point, to: Point, direction: 'start' | 'end', style: EdgeShapeStyle = {}): VNode | undefined {
         const type = edge.type ?? '';
+        
+        // For instance edges, determine arrow style from mapping model
+        if (type === 'edge:instance') {
+            const shapeConfig = (edge as any).shapeConfig as { 
+                type?: string; 
+                width?: number; 
+                height?: number;
+                arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
+            } | undefined;
+            const shapeType = shapeConfig?.type;
+            const arrowType = shapeConfig?.arrowType;
+            
+            // Use dimensions from graphical model if available, otherwise use defaults
+            const arrowLength = shapeConfig?.width ? Math.max(10, shapeConfig.width * 0.3) : 14;
+            const arrowWidth = shapeConfig?.height ? Math.max(3, shapeConfig.height * 0.2) : 5;
+            
+            // If shape type is 'arrow', use arrowType from graphical model
+            if (shapeType === 'arrow' && arrowType) {
+                switch (arrowType) {
+                    case 'filled-triangle':
+                        return this.createFilledTriangle(from, to, type, direction, style, arrowLength, arrowWidth);
+                    case 'open-triangle':
+                        return this.createOpenTriangle(from, to, type, direction, style, arrowLength, arrowWidth);
+                    case 'open-arrow':
+                        return this.createOpenArrow(from, to, type, direction, style, arrowLength, arrowWidth);
+                    case 'diamond':
+                        return this.createDiamond(from, to, type, direction, style, arrowLength, arrowWidth);
+                    case 'none':
+                        return undefined; // No arrow, just the line
+                    default:
+                        // Default to filled triangle if arrowType is not recognized
+                        return this.createFilledTriangle(from, to, type, direction, style, arrowLength, arrowWidth);
+                }
+            }
+            
+            // Fallback: if shape type is 'arrow' but no arrowType specified, default to filled triangle
+            if (shapeType === 'arrow') {
+                return this.createFilledTriangle(from, to, type, direction, style, arrowLength, arrowWidth);
+            }
+            
+            // For other shape types or no shape type, no arrow
+            return undefined;
+        }
+        
+        // For metamodel edges, use standard logic
         switch (type) {
             case 'edge:ecore-inheritance':
-                return this.createOpenTriangle(from, to, type, direction);
+                return this.createOpenTriangle(from, to, type, direction, {}, 16, 6);
             case 'edge:ecore-containment':
-                return this.createDiamond(from, to, type, direction);
+                return this.createDiamond(from, to, type, direction, {}, 16, 6);
             case 'edge:ecore-bidirectional':
                 return undefined;
-            case 'edge:inst-reference':
             case 'edge:ecore-reference':
-                return this.createOpenArrow(from, to, type, direction, 14, 5);
+                return this.createOpenArrow(from, to, type, direction, {}, 14, 5);
             default:
-                return this.createFilledTriangle(from, to, type, direction, 11, 5);
+                return this.createFilledTriangle(from, to, type, direction, {}, 11, 5);
         }
     }
 
-    private createFilledTriangle(from: Point, to: Point, type: string, direction: 'start' | 'end', length: number, halfWidth: number): VNode | undefined {
+    private createFilledTriangle(from: Point, to: Point, type: string, direction: 'start' | 'end', style: EdgeShapeStyle, length: number, halfWidth: number): VNode | undefined {
         const geometry = this.computeArrowGeometry(from, to, length, halfWidth);
         if (!geometry) {
             return undefined;
         }
         const { tip, baseLeft, baseRight } = geometry;
         const points = `${tip.x},${tip.y} ${baseLeft.x},${baseLeft.y} ${baseRight.x},${baseRight.y}`;
-        return (
-            <polygon
-                class-edge-arrow={true}
-                class-edge-arrow-reference={type === 'edge:ecore-reference' || type === 'edge:inst-reference'}
-                class-edge-arrow-bidirectional={type === 'edge:ecore-bidirectional'}
-                data-direction={direction}
-                points={points}
-                pointer-events="none"
-                stroke-linejoin="round"
-            />
-        );
+        const attrs: any = {
+            'data-direction': direction,
+            points: points,
+            'pointer-events': "none",
+            'stroke-linejoin': "round"
+        };
+        
+        // For instance edges, use mapping-based styles
+        if (type === 'edge:instance') {
+            const stroke = style.stroke || '#444';
+            const fill = style.fill || stroke || '#444';
+            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth : 2;
+            
+            attrs.stroke = stroke;
+            attrs.fill = fill;
+            attrs['stroke-width'] = String(strokeWidth);
+            
+            // Set CSS variables for the arrow
+            attrs.style = {
+                '--instance-edge-stroke': stroke,
+                '--instance-edge-fill': fill,
+                '--instance-edge-stroke-width': strokeWidth + 'px'
+            };
+        } else {
+            // Metamodel edges use CSS classes
+            attrs['class-edge-arrow'] = true;
+            attrs['class-edge-arrow-reference'] = type === 'edge:ecore-reference';
+            attrs['class-edge-arrow-bidirectional'] = type === 'edge:ecore-bidirectional';
+            attrs.fill = style.fill || style.stroke || 'currentColor';
+            if (style.stroke) {
+                attrs.stroke = style.stroke;
+            }
+            if (style.strokeWidth !== undefined) {
+                attrs['stroke-width'] = String(style.strokeWidth);
+            }
+        }
+        
+        return <polygon {...attrs} />;
     }
 
-    private createOpenTriangle(from: Point, to: Point, type: string, direction: 'start' | 'end', length = 16, halfWidth = 6): VNode | undefined {
+    private createOpenTriangle(from: Point, to: Point, type: string, direction: 'start' | 'end', style: EdgeShapeStyle, length = 16, halfWidth = 6): VNode | undefined {
         const geometry = this.computeArrowGeometry(from, to, length, halfWidth);
         if (!geometry) {
             return undefined;
         }
         const { tip, baseLeft, baseRight } = geometry;
         const d = `M ${baseLeft.x},${baseLeft.y} L ${tip.x},${tip.y} L ${baseRight.x},${baseRight.y} Z`;
-        return (
-            <path
-                class-edge-arrow={true}
-                class-edge-arrow-inheritance={type === 'edge:ecore-inheritance'}
-                data-direction={direction}
-                d={d}
-                fill="none"
-                pointer-events="none"
-                stroke-linejoin="round"
-            />
-        );
+        const attrs: any = {
+            'data-direction': direction,
+            d: d,
+            fill: "none",
+            'pointer-events': "none",
+            'stroke-linejoin': "round"
+        };
+        
+        // For instance edges, use mapping-based styles
+        if (type === 'edge:instance') {
+            const stroke = style.stroke || '#444';
+            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth : 2;
+            
+            attrs.stroke = stroke;
+            attrs['stroke-width'] = String(strokeWidth);
+            
+            // Set CSS variables for the arrow
+            attrs.style = {
+                '--instance-edge-stroke': stroke,
+                '--instance-edge-stroke-width': strokeWidth + 'px'
+            };
+        } else {
+            // Metamodel edges use CSS classes
+            attrs['class-edge-arrow'] = true;
+            attrs['class-edge-arrow-inheritance'] = type === 'edge:ecore-inheritance';
+        }
+        
+        return <path {...attrs} />;
     }
 
-    private createDiamond(from: Point, to: Point, type: string, direction: 'start' | 'end', length = 16, halfWidth = 6): VNode | undefined {
+    private createDiamond(from: Point, to: Point, type: string, direction: 'start' | 'end', style: EdgeShapeStyle, length = 16, halfWidth = 6): VNode | undefined {
         const geometry = this.computeArrowGeometry(from, to, length, halfWidth);
         if (!geometry) {
             return undefined;
         }
         const { tip, midLeft, tail, midRight } = geometry;
         const points = `${tip.x},${tip.y} ${midLeft.x},${midLeft.y} ${tail.x},${tail.y} ${midRight.x},${midRight.y}`;
-        return (
-            <polygon
-                class-edge-arrow={true}
-                class-edge-arrow-containment={type === 'edge:ecore-containment'}
-                data-direction={direction}
-                points={points}
-                pointer-events="none"
-                stroke-linejoin="round"
-            />
-        );
+        const attrs: any = {
+            'data-direction': direction,
+            points: points,
+            'pointer-events': "none",
+            'stroke-linejoin': "round"
+        };
+        
+        // For instance edges, use mapping-based styles
+        if (type === 'edge:instance') {
+            const stroke = style.stroke || '#444';
+            const fill = style.fill || stroke || '#444';
+            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth : 2;
+            
+            attrs.stroke = stroke;
+            attrs.fill = fill;
+            attrs['stroke-width'] = String(strokeWidth);
+            
+            // Set CSS variables for the arrow
+            attrs.style = {
+                '--instance-edge-stroke': stroke,
+                '--instance-edge-fill': fill,
+                '--instance-edge-stroke-width': strokeWidth + 'px'
+            };
+        } else {
+            // Metamodel edges use CSS classes
+            attrs['class-edge-arrow'] = true;
+            attrs['class-edge-arrow-containment'] = type === 'edge:ecore-containment';
+        }
+        
+        return <polygon {...attrs} />;
     }
 
-    private createOpenArrow(from: Point, to: Point, type: string, direction: 'start' | 'end', length = 14, halfWidth = 5): VNode | undefined {
+    private createOpenArrow(from: Point, to: Point, type: string, direction: 'start' | 'end', style: EdgeShapeStyle, length = 14, halfWidth = 5): VNode | undefined {
         const geometry = this.computeArrowGeometry(from, to, length, halfWidth);
         if (!geometry) {
             return undefined;
         }
         const { tip, baseLeft, baseRight } = geometry;
+        // Create open arrow (V-shaped) - two lines meeting at the tip
         const d = `M ${baseLeft.x},${baseLeft.y} L ${tip.x},${tip.y} M ${baseRight.x},${baseRight.y} L ${tip.x},${tip.y}`;
-        return (
-            <path
-                class-edge-arrow={true}
-                class-edge-arrow-reference={type === 'edge:ecore-reference' || type === 'edge:inst-reference'}
-                data-direction={direction}
-                d={d}
-                fill="none"
-                pointer-events="none"
-                stroke-linejoin="round"
-            />
-        );
+        const attrs: any = {
+            'data-direction': direction,
+            d: d,
+            fill: "none", // Open arrow - no fill
+            'pointer-events': "none",
+            'stroke-linejoin': "round",
+            'stroke-linecap': "round"
+        };
+        
+        // For instance edges, use CSS variables to override !important rules
+        // For metamodel edges, use the CSS classes
+        if (type === 'edge:instance') {
+            // Instance edges use CSS variables to override !important rules
+            const stroke = style.stroke || '#444';
+            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth : 2;
+            const dashArray = style.dashArray || 'none';
+            
+            // Set inline attributes
+            attrs.stroke = stroke;
+            attrs['stroke-width'] = String(strokeWidth);
+            if (style.dashArray) {
+                attrs['stroke-dasharray'] = dashArray;
+            }
+            // Set CSS variables for the arrow as well
+            attrs.style = {
+                '--instance-edge-stroke': stroke,
+                '--instance-edge-stroke-width': strokeWidth + 'px',
+                '--instance-edge-dasharray': dashArray
+            };
+        } else {
+            // Metamodel edges use CSS classes
+            attrs['class-edge-arrow'] = true;
+            attrs['class-edge-arrow-reference'] = type === 'edge:ecore-reference';
+        }
+        
+        return <path {...attrs} />;
     }
 
     private computeArrowGeometry(from: Point, to: Point, length: number, halfWidth: number):
@@ -206,6 +382,32 @@ export class EcoreEdgeView extends PolylineEdgeView {
             midRight,
             tail
         };
+    }
+
+    private getEdgeShapeStyle(edge: GEdge): EdgeShapeStyle {
+        const config = (edge as any).shapeConfig as { color?: string; fillColor?: string; lineThickness?: number; lineStyle?: string } | undefined;
+        if (!config) {
+            return {};
+        }
+        return {
+            stroke: config.color,
+            fill: config.fillColor,
+            strokeWidth: config.lineThickness,
+            dashArray: this.resolveDashArray(config.lineStyle)
+        };
+    }
+
+    private resolveDashArray(lineStyle?: string): string | undefined {
+        if (!lineStyle) {
+            return undefined;
+        }
+        if (lineStyle === 'dashed') {
+            return '5,5';
+        }
+        if (lineStyle === 'dotted') {
+            return '2,2';
+        }
+        return undefined;
     }
 }
 

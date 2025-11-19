@@ -23,6 +23,7 @@ import { EcoreModel, isEClass, isEDataType, isEEnum, isEAttribute, isEReference 
 import { MetamodelRegistry } from './metamodel-registry';
 import { InstanceModelStorage } from './instance-model-storage';
 import { VisualConfigurationStorage } from './visual-configuration-storage';
+import { ShapeMappingStorage, ShapeMapping } from './shape-mapping-storage';
 import { EcoreInstance } from './instance-model-types';
 
 @injectable()
@@ -38,6 +39,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     @inject(VisualConfigurationStorage)
     protected visualConfigStorage: VisualConfigurationStorage;
+
+    @inject(ShapeMappingStorage)
+    protected shapeMappingStorage: ShapeMappingStorage;
 
     createModel(): void {
         const modelType = this.modelState.get('modelType') as string;
@@ -579,8 +583,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         // Get visual configuration for this class
         const visualConfig = this.visualConfigStorage.getClassVisualConfiguration(instance.eClassName);
         
-        // Apply visual configuration
+        // Apply visual configuration (attributes/references, fallback styling)
         this.applyVisualConfiguration(node, visualConfig);
+
+        // Apply mapping-based visuals if available
+        const shapeMapping = this.shapeMappingStorage.getMapping(instance.eClassName);
+        if (shapeMapping) {
+            this.applyShapeMapping(node, shapeMapping);
+        }
 
         // Set position if available
         if (instance.position) {
@@ -656,6 +666,63 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         return node;
+    }
+
+    private applyShapeMapping(node: GNode, mapping: ShapeMapping): void {
+        const config = mapping.shapeConfig;
+        if (!config) {
+            return;
+        }
+
+        // Remove previous shape/color classes to avoid conflicts
+        node.cssClasses = (node.cssClasses || []).filter(cls => !cls.startsWith('shape-') && !cls.startsWith('color-'));
+
+        node.cssClasses.push(`shape-${config.type}`);
+        node.cssClasses.push(`color-mapped`);
+
+        (node as any).shapeConfig = {
+            type: config.type,
+            width: config.width,
+            height: config.height,
+            color: config.color,
+            fillColor: config.fillColor,
+            lineThickness: config.lineThickness,
+            lineStyle: config.lineStyle
+        };
+
+        const width = config.width || node.size?.width || 150;
+        const height = config.height || node.size?.height || 100;
+        (node as any).customSize = { width, height };
+        node.size = { width, height };
+    }
+
+    private applyShapeMappingToArc(edge: GEdge, mapping: ShapeMapping): void {
+        const config = mapping.shapeConfig;
+        if (!config) {
+            console.log('[DynamicEcoreGModelFactory] No shapeConfig in mapping for edge:', edge.id);
+            return;
+        }
+
+        const shapeConfig = {
+            type: config.type,
+            color: config.color,
+            fillColor: config.fillColor,
+            lineThickness: config.lineThickness,
+            lineStyle: config.lineStyle,
+            arrowType: config.arrowType
+        };
+        
+        // Explicitly set as enumerable property to ensure serialization
+        Object.defineProperty(edge, 'shapeConfig', {
+            value: shapeConfig,
+            enumerable: true,
+            writable: true,
+            configurable: true
+        });
+        
+        console.log('[DynamicEcoreGModelFactory] Applied shapeConfig to edge:', edge.id, 'config:', shapeConfig);
+        console.log('[DynamicEcoreGModelFactory] Edge shapeConfig property:', (edge as any).shapeConfig);
+        console.log('[DynamicEcoreGModelFactory] Edge has shapeConfig?', 'shapeConfig' in edge);
     }
 
     /**
@@ -759,11 +826,20 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         const edge = new GEdge();
-        edge.type = 'edge:inst-reference';
+        edge.type = 'edge:instance';
         edge.id = `${instance.id}_${sourceId}_to_${targetId}`;
         edge.sourceId = sourceId;
         edge.targetId = targetId;
-        edge.cssClasses = ['ecore-reference', 'ecore-instance-arc'];
+        // No CSS classes - styling comes from mapping model
+
+        console.log('[DynamicEcoreGModelFactory] Looking for mapping for arc instance:', instance.eClassName);
+        const mapping = this.shapeMappingStorage.getMapping(instance.eClassName);
+        if (mapping) {
+            console.log('[DynamicEcoreGModelFactory] Found mapping for arc:', instance.eClassName, mapping);
+            this.applyShapeMappingToArc(edge, mapping);
+        } else {
+            console.log('[DynamicEcoreGModelFactory] No mapping found for arc:', instance.eClassName);
+        }
 
         return edge;
     }

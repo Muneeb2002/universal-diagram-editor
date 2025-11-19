@@ -27,9 +27,9 @@ export * from './set-instance-attribute-action-handler';
 export * from './create-instance-reference-action-handler';
 export * from './visual-configuration-types';
 export * from './visual-configuration-storage';
-export * from './open-visual-configuration-action-handler';
 export * from './set-class-visual-configuration-action-handler';
-export * from './load-visual-configuration-action-handler';
 export * from './delete-visual-configuration-action-handler';
 export * from './edge-action-handlers';
+export * from './shape-mapping-storage';
+export * from './apply-shape-mappings-action-handler';
 

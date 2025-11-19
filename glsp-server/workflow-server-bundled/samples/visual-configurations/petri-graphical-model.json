@@ -1,0 +1,52 @@
+{
+  "version": "1.0",
+  "type": "graphical-shapes",
+  "shapes": [
+    {
+      "id": "element_1",
+      "name": "T",
+      "type": "rectangle",
+      "width": 100,
+      "height": 1,
+      "color": "#333333",
+      "fillColor": "#e3f2fd",
+      "lineThickness": 1,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "element_2",
+      "name": "P",
+      "type": "circle",
+      "width": 100,
+      "height": 80,
+      "color": "#333333",
+      "fillColor": "#fafafa",
+      "lineThickness": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "element_3",
+      "name": "T",
+      "type": "circle",
+      "width": 100,
+      "height": 20,
+      "color": "#333333",
+      "fillColor": "#000000",
+      "lineThickness": 2,
+      "lineStyle": "solid"
+    },
+    {
+      "id": "element_4",
+      "name": "Element 4",
+      "type": "arrow",
+      "width": 100,
+      "height": 80,
+      "color": "#333333",
+      "fillColor": "#e3f2fd",
+      "lineThickness": 2,
+      "lineStyle": "solid",
+      "arrowType": "open-arrow"
+    }
+  ],
+  "savedAt": "2025-11-18T12:52:20.295Z"
+}

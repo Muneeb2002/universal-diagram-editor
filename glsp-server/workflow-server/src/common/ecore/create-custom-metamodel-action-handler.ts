@@ -6,7 +6,8 @@ import { MetamodelRegistry } from './metamodel-registry';
 import { 
     CreateCustomMetamodelAction,
     CreateEClassAction,
-    LoadMetamodelResponse
+    LoadMetamodelResponse,
+    ClassInfo
 } from './ecore-actions';
 
 /**
@@ -49,18 +50,166 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                 this.gmodelFactory.createModel();
                 const gmodel = this.modelState.get('gmodel') as GModelRoot;
                 if (gmodel && gmodel.type && gmodel.id) {
-                    // Get available classes for the toolbar
+                    // Get available classes for the toolbar (with full ClassInfo, same as LoadMetamodelActionHandler)
                     const allClasses = this.metamodelRegistry.getAllEClasses();
-                    const classNames = allClasses
-                        .filter(c => {
-                            // Filter out abstract classes
-                            const isAbstract = c.get ? c.get('abstract') : c.abstract;
-                            return !isAbstract;
-                        })
-                        .map(c => {
-                            // Handle both ecore-ts objects and plain objects
-                            return c.get ? c.get('name') : c.name;
-                        });
+                    const classInfo: ClassInfo[] = allClasses.map(c => {
+                        const className = c.get ? c.get('name') : c.name;
+                        const isAbstract = c.get ? c.get('abstract') : c.abstract;
+                        const isInterface = c.get ? c.get('interface') : c.interface;
+                        
+                        // Extract supertypes
+                        const eSuperTypes = c.get ? c.get('eSuperTypes') : c.eSuperTypes;
+                        const superTypeNames: string[] = [];
+                        if (eSuperTypes) {
+                            let superTypes: any[] = [];
+                            if (Array.isArray(eSuperTypes)) {
+                                superTypes = eSuperTypes;
+                            } else if (eSuperTypes.forEach) {
+                                eSuperTypes.forEach((st: any) => superTypes.push(st));
+                            }
+                            
+                            for (const superType of superTypes) {
+                                const stName = superType.get ? superType.get('name') : superType.name;
+                                if (stName) {
+                                    superTypeNames.push(stName);
+                                }
+                            }
+                        }
+                        
+                        // Extract structural features
+                        const structuralFeatures = c.get ? c.get('eStructuralFeatures') : c.eStructuralFeatures;
+                        const eAttributes = c.get ? c.get('eAttributes') : c.eAttributes;
+                        const eReferences = c.get ? c.get('eReferences') : c.eReferences;
+                        const attributes: any[] = [];
+                        const references: any[] = [];
+                        
+                        // Process attributes
+                        if (eAttributes) {
+                            let attrs: any[] = [];
+                            if (Array.isArray(eAttributes)) {
+                                attrs = eAttributes;
+                            } else if (eAttributes.forEach) {
+                                eAttributes.forEach((f: any) => attrs.push(f));
+                            }
+                            
+                            for (const attr of attrs) {
+                                const name = attr.get ? attr.get('name') : attr.name;
+                                const lowerBound = attr.get ? attr.get('lowerBound') : attr.lowerBound;
+                                const upperBound = attr.get ? attr.get('upperBound') : attr.upperBound;
+                                const unique = attr.get ? attr.get('unique') : attr.unique;
+                                const ordered = attr.get ? attr.get('ordered') : attr.ordered;
+                                
+                                const eType = attr.get ? attr.get('eType') : attr.eType;
+                                const typeName = eType ? (eType.get ? eType.get('name') : eType.name) : 'EString';
+                                
+                                attributes.push({
+                                    name,
+                                    type: typeName,
+                                    lowerBound: lowerBound || 0,
+                                    upperBound: upperBound || 1,
+                                    unique: unique !== false,
+                                    ordered: ordered === true
+                                });
+                            }
+                        }
+                        
+                        // Process references
+                        if (eReferences) {
+                            let refs: any[] = [];
+                            if (Array.isArray(eReferences)) {
+                                refs = eReferences;
+                            } else if (eReferences.forEach) {
+                                eReferences.forEach((f: any) => refs.push(f));
+                            }
+                            
+                            for (const ref of refs) {
+                                const name = ref.get ? ref.get('name') : ref.name;
+                                const lowerBound = ref.get ? ref.get('lowerBound') : ref.lowerBound;
+                                const upperBound = ref.get ? ref.get('upperBound') : ref.upperBound;
+                                const unique = ref.get ? ref.get('unique') : ref.unique;
+                                const ordered = ref.get ? ref.get('ordered') : ref.ordered;
+                                
+                                const eType = ref.get ? ref.get('eType') : ref.eType;
+                                const typeName = eType ? (eType.get ? eType.get('name') : eType.name) : 'EString';
+                                
+                                const containment = ref.get ? ref.get('containment') : ref.containment;
+                                const container = ref.get ? ref.get('container') : ref.container;
+                                
+                                references.push({
+                                    name,
+                                    type: typeName,
+                                    lowerBound: lowerBound || 0,
+                                    upperBound: upperBound || 1,
+                                    containment: containment === true,
+                                    container: container === true,
+                                    unique: unique !== false,
+                                    ordered: ordered === true
+                                });
+                            }
+                        }
+                        
+                        // Fallback: if eStructuralFeatures exists, process it
+                        if (structuralFeatures && !eAttributes && !eReferences) {
+                            let features: any[] = [];
+                            if (Array.isArray(structuralFeatures)) {
+                                features = structuralFeatures;
+                            } else if (structuralFeatures.forEach) {
+                                structuralFeatures.forEach((f: any) => features.push(f));
+                            }
+                            
+                            for (const feature of features) {
+                                const name = feature.get ? feature.get('name') : feature.name;
+                                const lowerBound = feature.get ? feature.get('lowerBound') : feature.lowerBound;
+                                const upperBound = feature.get ? feature.get('upperBound') : feature.upperBound;
+                                const unique = feature.get ? feature.get('unique') : feature.unique;
+                                const ordered = feature.get ? feature.get('ordered') : feature.ordered;
+                                
+                                const eType = feature.get ? feature.get('eType') : feature.eType;
+                                const typeName = eType ? (eType.get ? eType.get('name') : eType.name) : 'EString';
+                                
+                                const containment = feature.get ? feature.get('containment') : feature.containment;
+                                const container = feature.get ? feature.get('container') : feature.container;
+                                
+                                // Determine if it's an attribute or reference based on type
+                                const isPrimitive = typeName.startsWith('E') && ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'].includes(typeName);
+                                
+                                if (isPrimitive) {
+                                    attributes.push({
+                                        name,
+                                        type: typeName,
+                                        lowerBound: lowerBound || 0,
+                                        upperBound: upperBound || 1,
+                                        unique: unique !== false,
+                                        ordered: ordered === true
+                                    });
+                                } else {
+                                    references.push({
+                                        name,
+                                        type: typeName,
+                                        lowerBound: lowerBound || 0,
+                                        upperBound: upperBound || 1,
+                                        containment: containment === true,
+                                        container: container === true,
+                                        unique: unique !== false,
+                                        ordered: ordered === true
+                                    });
+                                }
+                            }
+                        }
+                        
+                        return {
+                            className,
+                            isAbstract: isAbstract === true,
+                            isInterface: isInterface === true,
+                            eSuperTypes: superTypeNames.length > 0 ? superTypeNames : undefined,
+                            attributes,
+                            references
+                        };
+                    });
+                    
+                    const classNames = classInfo
+                        .filter(c => !c.isAbstract)
+                        .map(c => c.className);
 
                     const activeMetamodelKey = this.metamodelRegistry.getActiveMetamodelKey();
                     
@@ -70,7 +219,8 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                             true,
                             activeMetamodelKey || 'custom',
                             `Successfully updated metamodel with ${classNames.length} classes`,
-                            classNames
+                            classNames,
+                            classInfo
                         )
                     ];
                 }

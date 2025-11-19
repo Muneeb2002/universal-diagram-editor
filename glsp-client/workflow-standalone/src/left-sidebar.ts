@@ -1,22 +1,23 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createLoadVisualConfigurationAction, createSaveMetamodelAction, createSaveVisualConfigurationAction, createSwitchModeAction } from './ecore-client-actions';
+import { createSaveMetamodelAction, createSwitchModeAction } from './ecore-client-actions';
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private loadedContainer: HTMLDivElement;
     private loadedList: HTMLDivElement;
-    private loadedVisualContainer: HTMLDivElement;
-    private loadedVisualList: HTMLDivElement;
-    private configureAppearanceButton: HTMLButtonElement | null = null;
+    private savedGraphicalModelsContainer: HTMLDivElement | null = null;
+    private savedGraphicalModelsList: HTMLDivElement | null = null;
+    private savedMappingModelsContainer: HTMLDivElement | null = null;
+    private savedMappingModelsList: HTMLDivElement | null = null;
     private metamodelViewButton: HTMLButtonElement | null = null;
-    private saveVisualButton: HTMLButtonElement | null = null;
-    private loadVisualButton: HTMLButtonElement | null = null;
-    private loadVisualLabel: HTMLDivElement | null = null;
     private metamodelInstancesLabel: HTMLDivElement | null = null;
     private createInstanceButton: HTMLButtonElement | null = null;
+    private metamodelLoadedInSession: boolean = false; // Track if metamodel was actively loaded/created in this session
+    private graphicalModelLoadedInSession: boolean = false; // Track if graphical model was actively loaded/created in this session
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
-    private static readonly VISUAL_STORAGE_KEY = 'wf_loaded_visual_configs';
+    private static readonly GRAPHICAL_MODEL_STORAGE_KEY = 'wf_saved_graphical_models';
+    private static readonly MAPPING_MODEL_STORAGE_KEY = 'wf_saved_mapping_models';
     // Keep at most N recent entries to avoid exceeding localStorage limits
     private static readonly MAX_STORED = 10;
 
@@ -75,9 +76,12 @@ export class LeftSidebar {
             cursor: pointer;
             font-size: 12px;
             margin-top: 6px;
+            display: none;
         `;
         saveMetamodelBtn.addEventListener('click', () => this.saveActiveMetamodel());
         this.sidebar.appendChild(saveMetamodelBtn);
+        // Store reference for visibility updates
+        (this as any).saveMetamodelBtn = saveMetamodelBtn;
 
         const createBtn = document.createElement('button');
         createBtn.textContent = 'Create Metamodel';
@@ -112,6 +116,13 @@ export class LeftSidebar {
         this.metamodelViewButton = metamodelViewBtn;
         this.sidebar.appendChild(metamodelViewBtn);
         this.updateMetamodelViewButtonVisibility('metamodel');
+
+        // Loaded Metamodels list
+        const savedMetamodelsLabel = document.createElement('div');
+        savedMetamodelsLabel.textContent = 'Loaded Metamodels:';
+        savedMetamodelsLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(savedMetamodelsLabel);
+
         this.loadedContainer = document.createElement('div');
         this.loadedContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
         this.loadedList = document.createElement('div');
@@ -120,6 +131,95 @@ export class LeftSidebar {
         this.sidebar.appendChild(this.loadedContainer);
 
         this.renderLoadedMetamodels();
+
+        // Graphical Model Section
+        const graphicalModelLabel = document.createElement('div');
+        graphicalModelLabel.textContent = 'Graphical Model:';
+        graphicalModelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(graphicalModelLabel);
+
+        const createGraphicalModelBtn = document.createElement('button');
+        createGraphicalModelBtn.textContent = 'Create Graphical Model';
+        createGraphicalModelBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+        createGraphicalModelBtn.addEventListener('click', () => this.openGraphicalModelEditor('create'));
+        this.sidebar.appendChild(createGraphicalModelBtn);
+
+        const editGraphicalModelBtn = document.createElement('button');
+        editGraphicalModelBtn.textContent = 'Edit Graphical Model';
+        editGraphicalModelBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 6px;
+            display: none;
+        `;
+        editGraphicalModelBtn.addEventListener('click', () => this.openGraphicalModelEditor('edit'));
+        this.sidebar.appendChild(editGraphicalModelBtn);
+        // Store reference for visibility updates
+        (this as any).editGraphicalModelBtn = editGraphicalModelBtn;
+
+        // Loaded Graphical Models list
+        const savedGraphicalModelsLabel = document.createElement('div');
+        savedGraphicalModelsLabel.textContent = 'Loaded Graphical Models:';
+        savedGraphicalModelsLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(savedGraphicalModelsLabel);
+
+        this.savedGraphicalModelsContainer = document.createElement('div');
+        this.savedGraphicalModelsContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+        this.savedGraphicalModelsList = document.createElement('div');
+        this.savedGraphicalModelsList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+        this.savedGraphicalModelsContainer.appendChild(this.savedGraphicalModelsList);
+        this.sidebar.appendChild(this.savedGraphicalModelsContainer);
+        this.renderSavedGraphicalModels();
+
+        // Mapping Model Section
+        const mappingModelLabel = document.createElement('div');
+        mappingModelLabel.textContent = 'Mapping Model:';
+        mappingModelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(mappingModelLabel);
+
+        const mapShapesBtn = document.createElement('button');
+        mapShapesBtn.textContent = 'Creating Mapping Model';
+        mapShapesBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+        `;
+        mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog());
+        this.sidebar.appendChild(mapShapesBtn);
+
+        // Loaded Mapping Models list
+        const savedMappingModelsLabel = document.createElement('div');
+        savedMappingModelsLabel.textContent = 'Loaded Mapping Models:';
+        savedMappingModelsLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444;';
+        this.sidebar.appendChild(savedMappingModelsLabel);
+
+        this.savedMappingModelsContainer = document.createElement('div');
+        this.savedMappingModelsContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+        this.savedMappingModelsList = document.createElement('div');
+        this.savedMappingModelsList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+        this.savedMappingModelsContainer.appendChild(this.savedMappingModelsList);
+        this.sidebar.appendChild(this.savedMappingModelsContainer);
+        this.renderSavedMappingModels();
 
         this.createVisualConfigurationSection(false);
     }
@@ -210,6 +310,10 @@ export class LeftSidebar {
                 nsPrefix: trimmedPrefix
             };
             this.actionDispatcher.dispatch(action);
+            // Mark that a metamodel has been loaded/created in this session
+            this.metamodelLoadedInSession = true;
+            // Show save button after creating metamodel
+            setTimeout(() => this.updateSaveMetamodelButtonVisibility(), 500);
         } catch (error) {
             console.error('Error creating custom metamodel:', error);
             alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
@@ -230,7 +334,10 @@ export class LeftSidebar {
             }
             const trimmed = input.trim();
             const filename = trimmed.length > 0 ? trimmed : defaultFilename;
+            
             await this.actionDispatcher.dispatch(createSaveMetamodelAction(filename));
+            
+            // Don't cache on save - only cache when loading
             alert(`Metamodel save requested for ${filename}.`);
         } catch (error) {
             console.error('Error saving metamodel:', error);
@@ -262,6 +369,9 @@ export class LeftSidebar {
                 } as any;
                 await this.actionDispatcher!.dispatch(action);
                 this.addLoadedMetamodel({ name: file.name, content });
+                // Mark that a metamodel has been loaded/created in this session
+                this.metamodelLoadedInSession = true;
+                this.updateSaveMetamodelButtonVisibility();
             } catch (e) {
                 console.error('Error loading metamodel:', e);
                 alert('Error loading metamodel: ' + e);
@@ -304,6 +414,7 @@ export class LeftSidebar {
         if (!this.loadedList) return;
         this.loadedList.innerHTML = '';
         const items = this.getStoredMetamodels();
+        this.updateSaveMetamodelButtonVisibility();
         if (items.length === 0) {
             const empty = document.createElement('div');
             empty.textContent = 'None';
@@ -344,6 +455,9 @@ export class LeftSidebar {
             await this.actionDispatcher.dispatch(action);
             // bump to most recent
             this.addLoadedMetamodel({ name: match.name, content: match.content });
+            // Mark that a metamodel has been loaded/created in this session
+            this.metamodelLoadedInSession = true;
+            this.updateSaveMetamodelButtonVisibility();
         } catch (e) {
             console.error('Error reloading metamodel:', e);
             alert('Error reloading metamodel: ' + e);
@@ -362,131 +476,213 @@ export class LeftSidebar {
             // ignore storage failures
         }
         this.renderLoadedMetamodels();
+        this.updateSaveMetamodelButtonVisibility();
     }
 
-    private async saveVisualConfiguration(): Promise<void> {
-        if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not available');
-            return;
-        }
+    // Loaded Metamodels methods (using getStoredMetamodels directly)
 
+    // Loaded Graphical Models methods
+    public addSavedGraphicalModel(filename: string, content: string): void {
+        const current = this.getSavedGraphicalModels();
+        const without = current.filter(e => e.name !== filename);
+        const next = [{ name: filename, content }, ...without].slice(0, LeftSidebar.MAX_STORED);
         try {
-            const defaultFilename = 'visual-configuration.json';
-            const input = prompt('Enter filename for saving the visual configuration:', defaultFilename);
-            if (input === null) {
-                return;
-            }
-            const trimmed = input.trim();
-            const filename = trimmed.length > 0 ? trimmed : defaultFilename;
-            await this.actionDispatcher.dispatch(createSaveVisualConfigurationAction(filename));
-            alert(`Visual configuration save requested for ${filename}.`);
-        } catch (error) {
-            console.error('Error saving visual configuration:', error);
-            alert('Error saving visual configuration: ' + error);
+            localStorage.setItem(LeftSidebar.GRAPHICAL_MODEL_STORAGE_KEY, JSON.stringify(next));
+        } catch (e) {
+            // ignore storage failures
+        }
+        this.renderSavedGraphicalModels();
+        // Mark that a graphical model has been saved (which means it was created/loaded)
+        this.graphicalModelLoadedInSession = true;
+        this.updateEditGraphicalModelButtonVisibility();
+    }
+
+    private getSavedGraphicalModels(): Array<{ name: string; content: string }> {
+        try {
+            const raw = localStorage.getItem(LeftSidebar.GRAPHICAL_MODEL_STORAGE_KEY);
+            if (!raw) return [];
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return [];
+            return arr
+                .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
+                .map(x => ({ name: x.name as string, content: x.content as string }));
+        } catch {
+            return [];
         }
     }
 
-    private loadVisualConfiguration(): void {
-        if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not available');
+    private renderSavedGraphicalModels(): void {
+        if (!this.savedGraphicalModelsList) return;
+        this.savedGraphicalModelsList.innerHTML = '';
+        const items = this.getSavedGraphicalModels();
+        // Don't update visibility here - only update when actively loaded/created
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'None';
+            empty.style.cssText = 'font-size: 12px; color:#777;';
+            this.savedGraphicalModelsList.appendChild(empty);
             return;
         }
-        const fileInput = document.createElement('input');
-        fileInput.type = 'file';
-        fileInput.accept = '.json';
-        fileInput.style.display = 'none';
+        for (const { name } of items) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
+            const text = document.createElement('span');
+            text.textContent = name;
+            text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            row.appendChild(text);
 
-        fileInput.addEventListener('change', async (event) => {
-            const target = event.target as HTMLInputElement;
-            const file = target.files?.[0];
-            if (!file) return;
-            try {
-                const content = await file.text();
-                const action = createLoadVisualConfigurationAction(file.name, content);
-                await this.actionDispatcher!.dispatch(action);
-                this.addLoadedVisualConfiguration({ name: file.name, content });
-            } catch (e) {
-                console.error('Error loading visual configuration:', e);
-                alert('Error loading visual configuration: ' + e);
-            }
-        });
+            const controls = this.createRowControls(
+                () => this.reloadSavedGraphicalModel(name),
+                () => this.deleteSavedGraphicalModel(name)
+            );
+            row.appendChild(controls);
 
-        document.body.appendChild(fileInput);
-        fileInput.click();
-        document.body.removeChild(fileInput);
+            this.savedGraphicalModelsList.appendChild(row);
+        }
     }
+
+    private async reloadSavedGraphicalModel(name: string): Promise<void> {
+        const items = this.getSavedGraphicalModels();
+        const match = items.find(e => e.name === name);
+        if (!match) return;
+        
+        const editor = (window as any).globalGraphicalModelEditor;
+        if (editor && editor.loadFromContent) {
+            try {
+                // Open the editor if it's not already open
+                if (editor.show) {
+                    editor.show();
+                }
+                // Wait a bit for the editor to be ready
+                setTimeout(() => {
+                    editor.loadFromContent(match.content);
+                    // Mark that a graphical model has been loaded in this session
+                    this.graphicalModelLoadedInSession = true;
+                    this.updateEditGraphicalModelButtonVisibility();
+                }, 100);
+            } catch (e) {
+                console.error('Error reloading graphical model:', e);
+                alert('Error reloading graphical model: ' + e);
+            }
+        } else {
+            alert('Graphical Model Editor not available.');
+        }
+    }
+
+    private deleteSavedGraphicalModel(name: string): void {
+        const confirmDelete = confirm(`Remove saved graphical model '${name}' from the list?`);
+        if (!confirmDelete) {
+            return;
+        }
+        const next = this.getSavedGraphicalModels().filter(entry => entry.name !== name);
+        try {
+            localStorage.setItem(LeftSidebar.GRAPHICAL_MODEL_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // ignore storage failures
+        }
+        this.renderSavedGraphicalModels();
+    }
+
+    // Loaded Mapping Models methods
+    public addSavedMappingModel(filename: string, content: string): void {
+        const current = this.getSavedMappingModels();
+        const without = current.filter(e => e.name !== filename);
+        const next = [{ name: filename, content }, ...without].slice(0, LeftSidebar.MAX_STORED);
+        try {
+            localStorage.setItem(LeftSidebar.MAPPING_MODEL_STORAGE_KEY, JSON.stringify(next));
+        } catch (e) {
+            // ignore storage failures
+        }
+        this.renderSavedMappingModels();
+    }
+
+    private getSavedMappingModels(): Array<{ name: string; content: string }> {
+        try {
+            const raw = localStorage.getItem(LeftSidebar.MAPPING_MODEL_STORAGE_KEY);
+            if (!raw) return [];
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return [];
+            return arr
+                .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
+                .map(x => ({ name: x.name as string, content: x.content as string }));
+        } catch {
+            return [];
+        }
+    }
+
+    private renderSavedMappingModels(): void {
+        if (!this.savedMappingModelsList) return;
+        this.savedMappingModelsList.innerHTML = '';
+        const items = this.getSavedMappingModels();
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'None';
+            empty.style.cssText = 'font-size: 12px; color:#777;';
+            this.savedMappingModelsList.appendChild(empty);
+            return;
+        }
+        for (const { name } of items) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
+            const text = document.createElement('span');
+            text.textContent = name;
+            text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            row.appendChild(text);
+
+            const controls = this.createRowControls(
+                () => this.reloadSavedMappingModel(name),
+                () => this.deleteSavedMappingModel(name)
+            );
+            row.appendChild(controls);
+
+            this.savedMappingModelsList.appendChild(row);
+        }
+    }
+
+    private async reloadSavedMappingModel(name: string): Promise<void> {
+        const items = this.getSavedMappingModels();
+        const match = items.find(e => e.name === name);
+        if (!match) return;
+        
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        if (mappingDialog && mappingDialog.loadFromContent) {
+            try {
+                // Get class names and shapes for the dialog
+                const editor = (window as any).globalGraphicalModelEditor;
+                const savedShapes = editor ? editor.getSavedShapes() : new Map();
+                const toolbar: any = (window as any).globalToolbar;
+                const classNames = toolbar && toolbar.getConcreteClasses ? toolbar.getConcreteClasses() : [];
+                
+                // Load the content and show the dialog
+                mappingDialog.loadFromContent(match.content, false);
+                if (classNames.length > 0 && savedShapes.size > 0) {
+                    mappingDialog.show(classNames, savedShapes);
+                }
+            } catch (e) {
+                console.error('Error reloading mapping model:', e);
+                alert('Error reloading mapping model: ' + e);
+            }
+        } else {
+            alert('Shape Mapping Dialog not available.');
+        }
+    }
+
+    private deleteSavedMappingModel(name: string): void {
+        const confirmDelete = confirm(`Remove saved mapping model '${name}' from the list?`);
+        if (!confirmDelete) {
+            return;
+        }
+        const next = this.getSavedMappingModels().filter(entry => entry.name !== name);
+        try {
+            localStorage.setItem(LeftSidebar.MAPPING_MODEL_STORAGE_KEY, JSON.stringify(next));
+        } catch {
+            // ignore storage failures
+        }
+        this.renderSavedMappingModels();
+    }
+
 
     private createVisualConfigurationSection(visible: boolean): void {
-        if (!this.loadVisualLabel) {
-            const loadVisualLabel = document.createElement('div');
-            loadVisualLabel.textContent = 'Visual configurations:';
-            loadVisualLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
-            this.sidebar.appendChild(loadVisualLabel);
-            this.loadVisualLabel = loadVisualLabel;
-        }
-        if (!this.saveVisualButton) {
-            const saveVisualBtn = document.createElement('button');
-            saveVisualBtn.textContent = 'Save Visual Mapping';
-            saveVisualBtn.style.cssText = `
-                width: 100%;
-                padding: 8px 12px;
-                background: #007acc;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-            `;
-            saveVisualBtn.addEventListener('click', () => this.saveVisualConfiguration());
-            this.sidebar.appendChild(saveVisualBtn);
-            this.saveVisualButton = saveVisualBtn;
-        }
-        if (!this.loadVisualButton) {
-            const loadVisualBtn = document.createElement('button');
-            loadVisualBtn.textContent = 'Load Visual Mapping';
-            loadVisualBtn.style.cssText = `
-                width: 100%;
-                padding: 8px 12px;
-                background: #007acc;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                margin-top: 6px;
-            `;
-            loadVisualBtn.addEventListener('click', () => this.loadVisualConfiguration());
-            this.sidebar.appendChild(loadVisualBtn);
-            this.loadVisualButton = loadVisualBtn;
-        }
-        if (!this.configureAppearanceButton) {
-            const configureAppearanceBtn = document.createElement('button');
-            configureAppearanceBtn.textContent = 'Configure Appearance';
-            configureAppearanceBtn.style.cssText = `
-                width: 100%;
-                padding: 8px 12px;
-                background: #007acc;
-                color: white;
-                border: none;
-                border-radius: 4px;
-                cursor: pointer;
-                font-size: 12px;
-                margin-top: 6px;
-            `;
-            configureAppearanceBtn.addEventListener('click', () => this.openVisualConfiguration());
-            this.sidebar.appendChild(configureAppearanceBtn);
-            this.configureAppearanceButton = configureAppearanceBtn;
-        }
-        if (!this.loadedVisualContainer) {
-            this.loadedVisualContainer = document.createElement('div');
-            this.loadedVisualContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px; margin-top:6px;';
-            this.loadedVisualList = document.createElement('div');
-            this.loadedVisualList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
-            this.loadedVisualContainer.appendChild(this.loadedVisualList);
-            this.sidebar.appendChild(this.loadedVisualContainer);
-            this.renderLoadedVisualConfigurations();
-        }
-
         if (!this.metamodelInstancesLabel) {
             const instancesLabel = document.createElement('div');
             instancesLabel.textContent = 'Metamodel Instances:';
@@ -513,21 +709,6 @@ export class LeftSidebar {
         }
 
         const display = visible ? '' : 'none';
-        if (this.loadVisualLabel) {
-            this.loadVisualLabel.style.display = display;
-        }
-        if (this.saveVisualButton) {
-            this.saveVisualButton.style.display = display;
-        }
-        if (this.loadVisualButton) {
-            this.loadVisualButton.style.display = display;
-        }
-        if (this.configureAppearanceButton) {
-            this.configureAppearanceButton.style.display = display;
-        }
-        if (this.loadedVisualContainer) {
-            this.loadedVisualContainer.style.display = display;
-        }
         if (this.metamodelInstancesLabel) {
             this.metamodelInstancesLabel.style.display = display;
         }
@@ -536,18 +717,6 @@ export class LeftSidebar {
         }
     }
 
-    private async openVisualConfiguration(): Promise<void> {
-        if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not available');
-            return;
-        }
-        try {
-            await this.actionDispatcher.dispatch({ kind: 'openVisualConfiguration' } as any);
-        } catch (error) {
-            console.error('Error opening visual configuration:', error);
-            alert('Error opening visual configuration: ' + error);
-        }
-    }
 
     private async switchToInstanceMode(): Promise<void> {
         const toolbar: any = (window as any).globalToolbar;
@@ -604,89 +773,6 @@ export class LeftSidebar {
 
 
 
-    private getStoredVisualConfigurations(): Array<{ name: string; content: string }> {
-        try {
-            const raw = localStorage.getItem(LeftSidebar.VISUAL_STORAGE_KEY);
-            if (!raw) return [];
-            const arr = JSON.parse(raw);
-            if (!Array.isArray(arr)) return [];
-            return arr
-                .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
-                .map(x => ({ name: x.name as string, content: x.content as string }));
-        } catch {
-            return [];
-        }
-    }
-
-    private addLoadedVisualConfiguration(entry: { name: string; content: string }): void {
-        const current = this.getStoredVisualConfigurations();
-        const without = current.filter(e => e.name !== entry.name);
-        const next = [entry, ...without].slice(0, LeftSidebar.MAX_STORED);
-        try {
-            localStorage.setItem(LeftSidebar.VISUAL_STORAGE_KEY, JSON.stringify(next));
-        } catch {
-            // ignore storage failures
-        }
-        this.renderLoadedVisualConfigurations();
-    }
-
-    private renderLoadedVisualConfigurations(): void {
-        if (!this.loadedVisualList) return;
-        this.loadedVisualList.innerHTML = '';
-        const items = this.getStoredVisualConfigurations();
-        if (items.length === 0) {
-            const empty = document.createElement('div');
-            empty.textContent = 'None';
-            empty.style.cssText = 'font-size: 12px; color:#777;';
-            this.loadedVisualList.appendChild(empty);
-            return;
-        }
-        for (const { name } of items) {
-            const row = document.createElement('div');
-            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
-            const text = document.createElement('span');
-            text.textContent = name;
-            text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
-            row.appendChild(text);
-
-            const controls = this.createRowControls(
-                () => this.reloadVisualConfiguration(name),
-                () => this.deleteStoredVisualConfiguration(name)
-            );
-            row.appendChild(controls);
-
-            this.loadedVisualList.appendChild(row);
-        }
-    }
-
-    private async reloadVisualConfiguration(name: string): Promise<void> {
-        if (!this.actionDispatcher) return;
-        const items = this.getStoredVisualConfigurations();
-        const match = items.find(e => e.name === name);
-        if (!match) return;
-        try {
-            const action = createLoadVisualConfigurationAction(match.name, match.content);
-            await this.actionDispatcher.dispatch(action);
-            this.addLoadedVisualConfiguration(match);
-        } catch (e) {
-            console.error('Error reloading visual configuration:', e);
-            alert('Error reloading visual configuration: ' + e);
-        }
-    }
-
-    private deleteStoredVisualConfiguration(name: string): void {
-        const confirmDelete = confirm(`Remove stored visual configuration '${name}' from the list?`);
-        if (!confirmDelete) {
-            return;
-        }
-        const next = this.getStoredVisualConfigurations().filter(entry => entry.name !== name);
-        try {
-            localStorage.setItem(LeftSidebar.VISUAL_STORAGE_KEY, JSON.stringify(next));
-        } catch {
-            // ignore storage failures
-        }
-        this.renderLoadedVisualConfigurations();
-    }
 
     private createRowControls(onReload: () => void, onDelete: () => void): HTMLDivElement {
         const container = document.createElement('div');
@@ -705,6 +791,136 @@ export class LeftSidebar {
         container.appendChild(delBtn);
 
         return container;
+    }
+
+    private filterOutRootClasses(classNames: string[], toolbar: any): string[] {
+        if (!Array.isArray(classNames)) {
+            return [];
+        }
+
+        // For mapping dialog, we only filter out classes that explicitly look like root classes by name
+        // We don't use getRootClassNames() because it filters based on containment requirements,
+        // which would incorrectly filter out newly created classes that don't have containment refs yet
+        return classNames.filter(name => !this.looksLikeRootClass(name));
+    }
+
+    private looksLikeRootClass(name: string): boolean {
+        if (!name) {
+            return false;
+        }
+        const normalized = name.toLowerCase();
+        // Only filter out classes that explicitly have "root" in their name
+        // This prevents newly created classes from being incorrectly filtered out
+        return normalized === 'root' || normalized === 'rootelement' || normalized === 'rootnode';
+    }
+
+    private openGraphicalModelEditor(mode: 'create' | 'edit' = 'edit'): void {
+        // Access the global graphical model editor instance
+        const editor = (window as any).globalGraphicalModelEditor;
+        if (editor) {
+            editor.show(mode);
+            // If opening in edit mode, mark that a model has been loaded
+            if (mode === 'edit') {
+                this.graphicalModelLoadedInSession = true;
+                this.updateEditGraphicalModelButtonVisibility();
+            }
+            // For create mode, the flag will be set when the model is saved
+        } else {
+            console.error('Graphical Model Editor not initialized');
+            alert('Graphical Model Editor is not available. Please refresh the page.');
+        }
+    }
+
+    private updateEditGraphicalModelButtonVisibility(): void {
+        const editBtn = (this as any).editGraphicalModelBtn as HTMLButtonElement | undefined;
+        if (!editBtn) return;
+
+        // Only show if a graphical model has been actively loaded or created in this session
+        if (this.graphicalModelLoadedInSession) {
+            editBtn.style.display = 'block';
+        } else {
+            editBtn.style.display = 'none';
+        }
+    }
+
+    private updateSaveMetamodelButtonVisibility(): void {
+        const saveBtn = (this as any).saveMetamodelBtn as HTMLButtonElement | undefined;
+        if (!saveBtn) return;
+
+        // Only show if a metamodel has been actively loaded or created in this session
+        if (this.metamodelLoadedInSession) {
+            saveBtn.style.display = 'block';
+        } else {
+            saveBtn.style.display = 'none';
+        }
+    }
+
+    public markGraphicalModelLoaded(): void {
+        this.graphicalModelLoadedInSession = true;
+        this.updateEditGraphicalModelButtonVisibility();
+    }
+
+    private openShapeMappingDialog(): void {
+        // Access the global instances
+        const editor = (window as any).globalGraphicalModelEditor;
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        
+        if (!mappingDialog) {
+            alert('Shape Mapping Dialog is not available. Please refresh the page.');
+            return;
+        }
+
+        if (!editor) {
+            alert('Graphical Model Editor is not available. Please refresh the page.');
+            return;
+        }
+
+        // Get saved shapes
+        const savedShapes = editor.getSavedShapes();
+        
+        if (savedShapes.size === 0) {
+            alert('No graphical shapes found. Please create and save shapes in the Graphical Model Editor first.');
+            return;
+        }
+
+        // Get concrete class names from the toolbar (exclude abstract classes and interfaces)
+        const toolbar: any = (window as any).globalToolbar;
+        let classNames: string[] = [];
+        
+        if (toolbar && toolbar.getConcreteClasses) {
+            classNames = toolbar.getConcreteClasses();
+        } else if (toolbar && toolbar.allClasses) {
+            // Use allClasses array directly
+            const allClassesInfo = Array.isArray(toolbar.allClasses) ? toolbar.allClasses : [];
+            classNames = allClassesInfo
+                .filter((cls: any) => !cls.isAbstract && !cls.isInterface)
+                .map((cls: any) => cls.className || cls);
+        } else if (toolbar && toolbar.getAllClasses) {
+            // Fallback: filter manually if getConcreteClasses doesn't exist
+            const allClasses = toolbar.getAllClasses();
+            // We can't filter without ClassInfo, so use all classes as fallback
+            classNames = allClasses;
+        }
+
+        // Filter out root classes (only if we have classes)
+        if (classNames.length > 0) {
+            classNames = this.filterOutRootClasses(classNames, toolbar);
+        }
+
+        if (classNames.length === 0) {
+            // Provide more helpful error message
+            const hasToolbar = !!toolbar;
+            const hasClasses = toolbar && toolbar.allClasses && toolbar.allClasses.length > 0;
+            const errorMsg = hasToolbar 
+                ? (hasClasses 
+                    ? 'No concrete non-root metamodel classes found. All classes may be root classes or abstract/interfaces.'
+                    : 'Toolbar has no class information. Please ensure the metamodel was loaded successfully.')
+                : 'Toolbar not available. Please refresh the page.';
+            alert(errorMsg);
+            return;
+        }
+
+        mappingDialog.show(classNames, savedShapes);
     }
 }
 
