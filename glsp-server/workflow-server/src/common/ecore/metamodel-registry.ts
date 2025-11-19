@@ -9,7 +9,7 @@
  ********************************************************************************/
 
 import { injectable } from 'inversify';
-import { EcoreModel, isEClass, isEAttribute, isEReference, EClass, EAttribute, EReference, EString } from './ecore-types';
+import { EcoreModel, isEClass, isEAttribute, isEReference, isEEnum, EClass, EAttribute, EReference, EString, EEnum } from './ecore-types';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -20,15 +20,28 @@ function toArray(collection: any): any[] {
     if (Array.isArray(collection)) {
         return collection;
     }
+    
+    // Handle ecore-ts EList objects - they have a toArray() method or can be iterated
+    if (typeof collection.toArray === 'function') {
+        try {
+            return collection.toArray();
+        } catch {
+            // fall through
+        }
+    }
+    
+    // Try forEach for iterable objects (including EList)
     if (typeof collection.forEach === 'function') {
         const result: any[] = [];
         try {
             collection.forEach((item: any) => result.push(item));
             return result;
         } catch {
-            // fall through to Array.from attempt
+            // fall through
         }
     }
+    
+    // Try Array.from for array-like objects
     if (typeof collection.length === 'number') {
         try {
             return Array.from(collection);
@@ -36,10 +49,19 @@ function toArray(collection: any): any[] {
             // ignore
         }
     }
+    
+    // Try accessing internal array (for some ecore-ts implementations)
     const internal = (collection as any)._internal;
     if (Array.isArray(internal)) {
         return internal;
     }
+    
+    // Try accessing _elements (another possible internal structure)
+    const elements = (collection as any)._elements;
+    if (Array.isArray(elements)) {
+        return elements;
+    }
+    
     return [];
 }
 
@@ -1176,8 +1198,6 @@ export class MetamodelRegistry {
                 }
             }
 
-            console.log(`Created EClass: ${className}`);
-
             return {
                 success: true,
                 message: `Successfully created EClass '${className}'`
@@ -1188,6 +1208,145 @@ export class MetamodelRegistry {
                 message: `Failed to create EClass: ${error instanceof Error ? error.message : String(error)}`
             };
         }
+    }
+
+    createEEnum(enumName: string, position?: { x: number; y: number }, enumLiterals?: Array<{ name: string; value?: number }>): { success: boolean; message?: string } {
+        try {
+            const activeMetamodel = this.getActiveMetamodel();
+            if (!activeMetamodel) {
+                return {
+                    success: false,
+                    message: 'No active metamodel found. Please create a custom metamodel first.'
+                };
+            }
+
+            // Validate enum name
+            this.validateName(enumName);
+
+            // Check if enum already exists
+            const existingEnum = this.findEEnum(enumName);
+            if (existingEnum) {
+                return {
+                    success: false,
+                    message: `Enum '${enumName}' already exists in the metamodel`
+                };
+            }
+
+            // Add the enum to the first package
+            if (activeMetamodel.ePackages.length > 0) {
+                const pkg = activeMetamodel.ePackages[0];
+                let eEnum: any;
+                
+                if (typeof (pkg as any).get === 'function' && typeof (pkg as any).get('eClassifiers').add === 'function') {
+                    // ecore-ts EPackage object - create proper ecore-ts EEnum
+                    eEnum = EEnum.create({
+                        name: enumName
+                    });
+                    
+                    // Verify the enum structure for isEEnum check
+                    // EEnum.create() should already set eClass correctly, but verify and fix if needed
+                    if (!isEEnum(eEnum)) {
+                        // Ensure the eClass structure exists for isEEnum check
+                        if (!eEnum.eClass) {
+                            eEnum.eClass = {};
+                        }
+                        if (!eEnum.eClass.values) {
+                            eEnum.eClass.values = {};
+                        }
+                        eEnum.eClass.values.name = 'EEnum';
+                    }
+                    
+                    // Add enum literals if provided
+                    if (enumLiterals && enumLiterals.length > 0) {
+                        try {
+                            const { EEnumLiteral } = require('ecore-ts');
+                            enumLiterals.forEach((literal, index) => {
+                                const enumLiteral = EEnumLiteral.create({
+                                    name: literal.name || `LITERAL_${index}`,
+                                    value: literal.value !== undefined ? literal.value : index,
+                                    literal: literal.name || `LITERAL_${index}`
+                                });
+                                (eEnum as any).get('eLiterals').add(enumLiteral);
+                            });
+                        } catch (error) {
+                            console.warn(`[MetamodelRegistry.createEEnum] Failed to add literals using ecore-ts:`, error);
+                        }
+                    }
+                    
+                    // Add to ecore-ts EPackage using .add()
+                    (pkg as any).get('eClassifiers').add(eEnum);
+                } else {
+                    // Plain JavaScript object - create plain JS object with eClass property for isEEnum check
+                    const literals: any[] = [];
+                    
+                    // Add enum literals if provided
+                    if (enumLiterals && enumLiterals.length > 0) {
+                        enumLiterals.forEach((literal, index) => {
+                            literals.push({
+                                name: literal.name || `LITERAL_${index}`,
+                                value: literal.value !== undefined ? literal.value : index,
+                                literal: literal.name || `LITERAL_${index}`,
+                                get: function(key: string) {
+                                    return (this as any)[key];
+                                },
+                                set: function(key: string, value: any) {
+                                    (this as any)[key] = value;
+                                }
+                            });
+                        });
+                    }
+                    
+                    eEnum = {
+                        name: enumName,
+                        eLiterals: literals,
+                        eClass: {
+                            values: {
+                                name: 'EEnum'
+                            }
+                        },
+                        get: function(key: string) {
+                            return (this as any)[key];
+                        },
+                        set: function(key: string, value: any) {
+                            (this as any)[key] = value;
+                        }
+                    };
+                    // Add to plain JS package using .push()
+                    pkg.eClassifiers.push(eEnum);
+                }
+            }
+
+            return {
+                success: true,
+                message: `Successfully created EEnum '${enumName}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to create EEnum: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    findEEnum(enumName: string): any {
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            return null;
+        }
+
+        for (const pkg of activeMetamodel.ePackages) {
+            const classifiers = toArray(pkg.eClassifiers);
+            for (const classifier of classifiers) {
+                if (isEEnum(classifier)) {
+                    const name = classifier.get ? classifier.get('name') : classifier.name;
+                    if (name === enumName) {
+                        return classifier;
+                    }
+                }
+            }
+        }
+
+        return null;
     }
 
     /**
@@ -1430,6 +1589,7 @@ export class MetamodelRegistry {
      * Maps attribute type name to ecore-ts type object.
      */
     private mapAttributeTypeToEcoreType(typeName: string): any {
+        // First check for built-in types
         switch (typeName) {
             case 'EString':
                 return EString;
@@ -1452,9 +1612,67 @@ export class MetamodelRegistry {
                 const { EDate } = require('ecore-ts');
                 return EDate;
             default:
+                // Check if it's an enum type in the metamodel
+                const enumType = this.findEEnum(typeName);
+                if (enumType) {
+                    return enumType;
+                }
                 // Default to EString if type not recognized
                 return EString;
         }
+    }
+
+    /**
+     * Gets all EEnums from the active metamodel.
+     * @returns Array of all EEnums
+     */
+    getAllEEnums(): any[] {
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            return [];
+        }
+
+        const enums: any[] = [];
+        for (const pkg of activeMetamodel.ePackages) {
+            // Handle both ecore-ts EList and plain arrays
+            let classifiers: any[];
+            if (typeof (pkg as any).get === 'function') {
+                // ecore-ts EPackage - get eClassifiers using get()
+                const eClassifiers = (pkg as any).get('eClassifiers');
+                classifiers = toArray(eClassifiers);
+            } else {
+                // Plain JS package
+                classifiers = toArray(pkg.eClassifiers);
+            }
+            
+            for (const classifier of classifiers) {
+                let isEnumCheck = isEEnum(classifier);
+                
+                // Check if this might be an enum that's missing eClass structure
+                // This can happen if enums were created incorrectly or loaded from JSON
+                if (!isEnumCheck) {
+                    // Check if it has eLiterals (indicating it might be an enum)
+                    const hasELiterals = classifier.eLiterals || (classifier.get && classifier.get('eLiterals'));
+                    if (hasELiterals) {
+                        // Fix the structure
+                        if (!classifier.eClass) {
+                            classifier.eClass = {};
+                        }
+                        if (!classifier.eClass.values) {
+                            classifier.eClass.values = {};
+                        }
+                        classifier.eClass.values.name = 'EEnum';
+                        isEnumCheck = true;
+                    }
+                }
+                
+                if (isEnumCheck) {
+                    enums.push(classifier);
+                }
+            }
+        }
+        
+        return enums;
     }
 
     /**

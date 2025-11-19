@@ -38,7 +38,9 @@ import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
 import { createOpenClassPropertiesAction } from './ecore-client-actions';
-import { createCreateEClassAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
+import { createCreateEClassAction, createCreateEEnumAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
+import { RequestAction } from '@eclipse-glsp/protocol';
+import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { LeftSidebar } from './left-sidebar';
 import { setupInteractiveResize } from './interactive-resize';
@@ -53,6 +55,7 @@ let lastKnownModelRoot: GModelRoot | undefined;
 declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
+        showEEnumCreationDialog?: () => void;
         debugVisualConfigurations?: () => void;
         globalGraphicalModelEditor?: GraphicalModelEditor;
         globalShapeMappingDialog?: ShapeMappingDialog;
@@ -359,6 +362,7 @@ function setupCustomActionHandling(): void {
     // Set up a simple way to trigger the EClass creation dialog
     // This is a simplified approach - in a full implementation you'd use proper action handlers
     window.showEClassCreationDialog = showEClassCreationDialog;
+    window.showEEnumCreationDialog = showEEnumCreationDialog;
 
     // Listen for various custom actions
     // This is a workaround - in a full implementation you'd use proper action handlers
@@ -376,10 +380,14 @@ function setupCustomActionHandling(): void {
                 actionsArray = args;
             }
             
-            // Check if any action is triggerEClassCreation
+            // Check if any action is triggerEClassCreation or triggerEEnumCreation
             for (const action of actionsArray) {
                 if (action && action.kind === 'triggerEClassCreation') {
                     showEClassCreationDialog();
+                    return Promise.resolve();
+                }
+                if (action && action.kind === 'triggerEEnumCreation') {
+                    showEEnumCreationDialog();
                     return Promise.resolve();
                 }
             }
@@ -394,6 +402,10 @@ function setupCustomActionHandling(): void {
         // Check if this is the trigger EClass creation action
         if (action.kind === 'triggerEClassCreation') {
             showEClassCreationDialog();
+            return Promise.resolve();
+        }
+        if (action.kind === 'triggerEEnumCreation') {
+            showEEnumCreationDialog();
             return Promise.resolve();
         }
         else if (action.kind === 'createCustomMetamodel') {
@@ -781,6 +793,175 @@ function showEClassCreationDialog(): void {
     nameInput.focus();
 }
 
+function showEEnumCreationDialog(): void {
+    // Create a simple dialog for EEnum creation
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: white;
+        border: 1px solid #ccc;
+        border-radius: 8px;
+        padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        z-index: 10000;
+        min-width: 300px;
+        font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Create EEnum';
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    // Enum name input
+    const nameLabel = document.createElement('label');
+    nameLabel.textContent = 'Enum Name:';
+    nameLabel.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold;';
+    dialog.appendChild(nameLabel);
+
+    const nameInput = document.createElement('input');
+    nameInput.type = 'text';
+    nameInput.placeholder = 'Enter enum name';
+    nameInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+    dialog.appendChild(nameInput);
+
+    // Enum literals section
+    const literalsLabel = document.createElement('label');
+    literalsLabel.textContent = 'Enum Literals (Values):';
+    literalsLabel.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold; margin-top: 10px;';
+    dialog.appendChild(literalsLabel);
+
+    const literalsContainer = document.createElement('div');
+    literalsContainer.id = 'enum-literals-container';
+    literalsContainer.style.cssText = 'margin-bottom: 15px; max-height: 200px; overflow-y: auto; border: 1px solid #ddd; border-radius: 4px; padding: 10px; background: #f9f9f9;';
+    dialog.appendChild(literalsContainer);
+
+    const literalsList: Array<{ nameInput: HTMLInputElement; valueInput: HTMLInputElement; container: HTMLDivElement }> = [];
+
+    function addLiteralRow() {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; gap: 8px; margin-bottom: 8px; align-items: center;';
+
+        const nameInput = document.createElement('input');
+        nameInput.type = 'text';
+        nameInput.placeholder = 'Literal name';
+        nameInput.style.cssText = 'flex: 2; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;';
+
+        const valueInput = document.createElement('input');
+        valueInput.type = 'number';
+        valueInput.placeholder = 'Value (optional)';
+        valueInput.style.cssText = 'flex: 1; padding: 6px; border: 1px solid #ccc; border-radius: 4px; box-sizing: border-box;';
+
+        const removeButton = document.createElement('button');
+        removeButton.textContent = '×';
+        removeButton.style.cssText = 'width: 30px; height: 30px; padding: 0; border: 1px solid #ccc; border-radius: 4px; background: #fff; cursor: pointer; font-size: 18px; line-height: 1;';
+
+        removeButton.addEventListener('click', () => {
+            literalsContainer.removeChild(row);
+            const index = literalsList.findIndex(item => item.container === row);
+            if (index >= 0) {
+                literalsList.splice(index, 1);
+            }
+        });
+
+        row.appendChild(nameInput);
+        row.appendChild(valueInput);
+        row.appendChild(removeButton);
+        literalsContainer.appendChild(row);
+
+        literalsList.push({ nameInput, valueInput, container: row });
+    }
+
+    const addLiteralButton = document.createElement('button');
+    addLiteralButton.textContent = '+ Add Literal';
+    addLiteralButton.style.cssText = 'padding: 6px 12px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer; margin-bottom: 10px; font-size: 12px;';
+    addLiteralButton.addEventListener('click', addLiteralRow);
+    dialog.appendChild(addLiteralButton);
+
+    // Add one empty row by default
+    addLiteralRow();
+
+    // Buttons
+    const buttonContainer = document.createElement('div');
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+
+    const cancelButton = document.createElement('button');
+    cancelButton.textContent = 'Cancel';
+    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancelButton.addEventListener('click', () => {
+        document.body.removeChild(dialog);
+    });
+
+    const createButton = document.createElement('button');
+    createButton.textContent = 'Create';
+    createButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
+    createButton.addEventListener('click', () => {
+        const enumName = nameInput.value.trim();
+        if (!enumName) {
+            alert('Please enter an enum name');
+            return;
+        }
+
+        // Validate enum name
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(enumName)) {
+            alert('Enum name must start with a letter or underscore and contain only letters, numbers, and underscores.');
+            return;
+        }
+
+        // Collect enum literals
+        const enumLiterals: Array<{ name: string; value?: number }> = [];
+        literalsList.forEach(item => {
+            const literalName = item.nameInput.value.trim();
+            if (literalName) {
+                const literalValue = item.valueInput.value.trim();
+                const literal: { name: string; value?: number } = { name: literalName };
+                if (literalValue) {
+                    const numValue = parseInt(literalValue, 10);
+                    if (!isNaN(numValue)) {
+                        literal.value = numValue;
+                    }
+                }
+                enumLiterals.push(literal);
+            }
+        });
+
+        // Create the EEnum
+        if (actionDispatcher) {
+            const action = createCreateEEnumAction(enumName, undefined, enumLiterals.length > 0 ? enumLiterals : undefined);
+            actionDispatcher.dispatch(action);
+        }
+
+        document.body.removeChild(dialog);
+    });
+
+    buttonContainer.appendChild(cancelButton);
+    buttonContainer.appendChild(createButton);
+    dialog.appendChild(buttonContainer);
+
+    // Add backdrop
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = `
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.3);
+        z-index: 9999;
+    `;
+    backdrop.addEventListener('click', () => {
+        document.body.removeChild(backdrop);
+        document.body.removeChild(dialog);
+    });
+
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+    nameInput.focus();
+}
+
 function showAddAttributeDialog(className: string): void {
     // Create a dialog for adding an attribute
     const dialog = document.createElement('div');
@@ -824,6 +1005,8 @@ function showAddAttributeDialog(className: string): void {
 
     const typeSelect = document.createElement('select');
     typeSelect.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px;';
+    
+    // Add primitive types
     const types = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'];
     types.forEach(type => {
         const option = document.createElement('option');
@@ -831,6 +1014,97 @@ function showAddAttributeDialog(className: string): void {
         option.textContent = type;
         typeSelect.appendChild(option);
     });
+    
+    // Function to add enum options to the dropdown
+    const addEnumOptions = (enumNames: string[]) => {
+        if (enumNames && Array.isArray(enumNames) && enumNames.length > 0) {
+            // Remove existing enum separator and options if they exist
+            const existingOptions = Array.from(typeSelect.options);
+            const separatorIndex = existingOptions.findIndex(opt => opt.textContent === '--- Enums ---');
+            if (separatorIndex >= 0) {
+                // Remove all options from separator onwards (they're enums)
+                for (let i = typeSelect.options.length - 1; i >= separatorIndex; i--) {
+                    typeSelect.remove(i);
+                }
+            }
+            
+            // Add separator option
+            const separatorOption = document.createElement('option');
+            separatorOption.disabled = true;
+            separatorOption.textContent = '--- Enums ---';
+            typeSelect.appendChild(separatorOption);
+            
+            // Add enum options (sorted)
+            enumNames.slice().sort().forEach((enumName: string) => {
+                const option = document.createElement('option');
+                option.value = enumName;
+                option.textContent = enumName;
+                typeSelect.appendChild(option);
+            });
+        }
+    };
+    
+    // First, try to get enum names from toolbar (cached)
+    const toolbar = (window as any).globalToolbar;
+    if (toolbar) {
+        let enumNames: string[] = [];
+        if (typeof toolbar.getEnumNames === 'function') {
+            enumNames = toolbar.getEnumNames();
+        } else if (toolbar.allEnumNames && Array.isArray(toolbar.allEnumNames)) {
+            enumNames = toolbar.allEnumNames;
+        }
+        
+        if (enumNames && Array.isArray(enumNames) && enumNames.length > 0) {
+            addEnumOptions(enumNames);
+        }
+    }
+    
+    // Also request enum names from server to ensure we have the latest
+    if (actionDispatcher) {
+        // Generate requestId using RequestAction helper
+        const requestId = RequestAction.generateRequestId();
+        const requestAction: any = {
+            kind: 'requestEnumNames',
+            requestId: requestId
+        };
+        
+        console.log('[showAddAttributeDialog] Requesting enum names with requestId:', requestId);
+        
+        // Use promise-based approach similar to RequestInstancesOverviewAction
+        new Promise<string[]>((resolve, reject) => {
+            const timeoutHandle = window.setTimeout(() => {
+                clearPendingEnumNameRequest(requestId);
+                reject(new Error('Timed out waiting for enum names response'));
+            }, 5000);
+            
+            setPendingEnumNameRequest(requestId, resolve, reject, timeoutHandle);
+            
+            // Dispatch the action
+            console.log('[showAddAttributeDialog] Dispatching requestEnumNames action:', requestAction);
+            actionDispatcher.dispatch(requestAction).catch(error => {
+                const pending = getPendingEnumNameRequest(requestId);
+                if (pending) {
+                    window.clearTimeout(pending.timeoutHandle);
+                    clearPendingEnumNameRequest(requestId);
+                    reject(error);
+                }
+            });
+        }).then((enumNames: string[]) => {
+            console.log('[showAddAttributeDialog] Received enum names:', enumNames);
+            if (enumNames && Array.isArray(enumNames) && enumNames.length > 0) {
+                addEnumOptions(enumNames);
+                // Also update the toolbar cache
+                if (toolbar && typeof toolbar.updateEnumNames === 'function') {
+                    toolbar.updateEnumNames(enumNames);
+                }
+            }
+        }).catch((error) => {
+            console.error('[showAddAttributeDialog] Failed to request enum names:', error);
+        });
+    } else {
+        console.warn('[showAddAttributeDialog] No actionDispatcher available');
+    }
+    
     dialog.appendChild(typeSelect);
 
     // Lower Bound Input

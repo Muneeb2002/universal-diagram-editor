@@ -27,9 +27,8 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
 
     get typeMapping(): Map<string, any> {
         const mapping = getDefaultMapping();
-        // Always include both Ecore and workflow mappings to support both modes
+        // Add Ecore type mappings
         this.addEcoreTypeMappings(mapping);
-        this.addWorkflowTypeMappings(mapping);
 
         return mapping;
     }
@@ -53,23 +52,9 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
         // Note: Actual types are created dynamically based on metamodel
     }
 
-    private addWorkflowTypeMappings(mapping: Map<string, any>): void {
-        // Add existing workflow type mappings
-        mapping.set('label:heading', GLabel);
-        mapping.set('label:text', GLabel);
-        mapping.set('comp:header', GCompartment);
-        mapping.set('label:icon', GLabel);
-        mapping.set('edge:weighted', GEdge);
-        mapping.set('icon', GCompartment);
-        mapping.set('activityNode', GNode);
-        mapping.set('task', GNode);
-        mapping.set('category', GNode);
-        mapping.set('struct', GCompartment);
-    }
-
     get shapeTypeHints(): ShapeTypeHint[] {
-        // Return combined shape type hints for both Ecore and workflow
-        return [...this.getEcoreShapeTypeHints(), ...this.getWorkflowShapeTypeHints()];
+        // Return Ecore shape type hints
+        return this.getEcoreShapeTypeHints();
     }
 
     private getEcoreShapeTypeHints(): ShapeTypeHint[] {
@@ -82,69 +67,29 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
                 resizable: true,
                 reparentable: false,
                 containableElementTypeIds: []
-            }
-        ];
-    }
-
-    private getWorkflowShapeTypeHints(): ShapeTypeHint[] {
-        // Return existing workflow shape type hints
-        return [
+            },
             {
-                elementTypeId: 'task:manual',
+                elementTypeId: 'ecore:enum',
                 repositionable: true,
                 deletable: true,
                 resizable: true,
-                reparentable: true
+                reparentable: false,
+                containableElementTypeIds: []
             },
             {
-                elementTypeId: 'task:automated',
+                elementTypeId: 'ecore:datatype',
                 repositionable: true,
                 deletable: true,
                 resizable: true,
-                reparentable: true
-            },
-            {
-                elementTypeId: 'activityNode:fork',
-                repositionable: true,
-                deletable: true,
-                resizable: false,
-                reparentable: true
-            },
-            {
-                elementTypeId: 'activityNode:join',
-                repositionable: true,
-                deletable: true,
-                resizable: false,
-                reparentable: true
-            },
-            {
-                elementTypeId: 'activityNode:decision',
-                repositionable: true,
-                deletable: true,
-                resizable: true,
-                reparentable: true
-            },
-            {
-                elementTypeId: 'activityNode:merge',
-                repositionable: true,
-                deletable: true,
-                resizable: true,
-                reparentable: true
-            },
-            {
-                elementTypeId: 'category',
-                repositionable: true,
-                deletable: true,
-                resizable: true,
-                reparentable: true,
-                containableElementTypeIds: ['task', 'activityNode', 'category']
+                reparentable: false,
+                containableElementTypeIds: []
             }
         ];
     }
 
     get edgeTypeHints(): EdgeTypeHint[] {
-        // Return combined edge type hints for both Ecore and workflow
-        return [...this.getEcoreEdgeTypeHints(), ...this.getWorkflowEdgeTypeHints()];
+        // Return Ecore edge type hints
+        return this.getEcoreEdgeTypeHints();
     }
 
     private getEcoreEdgeTypeHints(): EdgeTypeHint[] {
@@ -191,45 +136,6 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
                 dynamic: true,
                 sourceElementTypeIds: [], // Will be filled dynamically with inst:* types
                 targetElementTypeIds: [], // Will be filled dynamically with inst:* types
-                repositionable: true,
-                deletable: true,
-                routable: true
-            }
-        ];
-    }
-
-    private getWorkflowEdgeTypeHints(): EdgeTypeHint[] {
-        // Return existing workflow edge type hints
-        return [
-            {
-                elementTypeId: 'edge',
-                repositionable: true,
-                deletable: true,
-                routable: true,
-                sourceElementTypeIds: [
-                    'task:manual',
-                    'task:automated',
-                    'activityNode:decision',
-                    'activityNode:merge',
-                    'activityNode:fork',
-                    'activityNode:join',
-                    'category'
-                ],
-                targetElementTypeIds: [
-                    'task:manual',
-                    'task:automated',
-                    'activityNode:decision',
-                    'activityNode:merge',
-                    'activityNode:fork',
-                    'activityNode:join',
-                    'category'
-                ]
-            },
-            {
-                elementTypeId: 'edge:weighted',
-                dynamic: true,
-                sourceElementTypeIds: ['activityNode'],
-                targetElementTypeIds: ['task', 'activityNode'],
                 repositionable: true,
                 deletable: true,
                 routable: true

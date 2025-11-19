@@ -21,6 +21,7 @@ export class EcoreToolbar {
     private currentMode: 'metamodel' | 'instance' = 'metamodel';
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private allClasses: ClassInfo[] = [];
+    private allEnumNames: string[] = [];
     private selectedContainerInstanceId: string | null = null;
     private selectedContainerClassName: string | null = null;
     private editorContextService?: EditorContextService;
@@ -97,6 +98,14 @@ export class EcoreToolbar {
     public updateClassInfo(allClasses: ClassInfo[]): void {
         this.allClasses = allClasses;
         this.updateAvailableClassesForMode();
+    }
+
+    public updateEnumNames(enumNames: string[]): void {
+        this.allEnumNames = enumNames || [];
+    }
+
+    public getEnumNames(): string[] {
+        return this.allEnumNames || [];
     }
 
     private updateAvailableClassesForMode(): void {

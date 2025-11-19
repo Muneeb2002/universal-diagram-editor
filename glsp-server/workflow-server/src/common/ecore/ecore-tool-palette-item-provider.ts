@@ -25,9 +25,10 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
         const metamodelItems: PaletteItem[] = [];
         const relationshipItems: PaletteItem[] = [];
 
-        // Only EClass for metamodel elements
+        // Metamodel elements
         metamodelItems.push(
-            this.createEClassPaletteItem()
+            this.createEClassPaletteItem(),
+            this.createEEnumPaletteItem()
         );
 
         // All relationship types for metamodeling
@@ -82,4 +83,17 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
             sortString: 'EClass'
         };
     }
+
+    private createEEnumPaletteItem(): PaletteItem {
+        return {
+            id: 'palette-item-create-enum',
+            label: 'EEnum',
+            actions: [{
+                kind: 'triggerEEnumCreation'
+            }],
+            icon: 'symbol-enum',
+            sortString: 'EEnum'
+        };
+    }
+
 }

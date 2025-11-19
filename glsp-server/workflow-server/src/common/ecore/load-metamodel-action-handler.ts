@@ -244,6 +244,12 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 .filter(c => !c.isAbstract)
                 .map(c => c.className);
 
+            // Get all enum names
+            const allEnums = this.metamodelRegistry.getAllEEnums();
+            const enumNames = allEnums.map(e => {
+                return e.get ? e.get('name') : e.name;
+            }).filter((name): name is string => !!name);
+
             console.log(`Found ${allClasses.length} total classes, ${classNames.length} non-abstract classes:`, classNames);
 
             // Create the GModel
@@ -260,7 +266,8 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                         metamodelKey,
                         `Successfully loaded JSON metamodel '${metamodelKey}' with ${classNames.length} classes`,
                         classNames,
-                        classInfo
+                        classInfo,
+                        enumNames
                     )
                 ];
             } else {
@@ -272,7 +279,10 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 LoadMetamodelResponse.create(
                     false,
                     '',
-                    `Error loading metamodel: ${error instanceof Error ? error.message : String(error)}`
+                    `Error loading metamodel: ${error instanceof Error ? error.message : String(error)}`,
+                    undefined,
+                    undefined,
+                    []
                 )
             ];
         }

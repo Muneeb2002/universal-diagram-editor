@@ -39,6 +39,7 @@ import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
 import { GModelDeleteOperationHandler } from '@eclipse-glsp/server';
 import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-action-handler';
 import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
+import { TriggerEEnumCreationActionHandler } from './trigger-eenum-creation-action-handler';
 import { EcoreEdgeCreationHandler } from './ecore-edge-creation-handler';
 import { EcoreCreateEdgeActionHandler } from './ecore-create-edge-action-handler';
 import { MultiplicityInputResponseActionHandler } from './multiplicity-input-response-action-handler';
@@ -53,6 +54,7 @@ import { SetClassVisualConfigurationActionHandler } from './set-class-visual-con
 import { DeleteVisualConfigurationActionHandler } from './delete-visual-configuration-action-handler';
 import { OpenClassPropertiesActionHandler } from './open-class-properties-action-handler';
 import { RequestInstancesOverviewActionHandler } from './request-instances-overview-action-handler';
+import { RequestEnumNamesActionHandler } from './request-enum-names-action-handler';
 import { SaveGraphicalModelActionHandler } from './save-graphical-model-action-handler';
 import { SaveShapeMappingsActionHandler } from './save-shape-mappings-action-handler';
 import { ApplyShapeMappingsActionHandler } from './apply-shape-mappings-action-handler';
@@ -99,10 +101,12 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(ApplyShapeMappingsActionHandler);
         binding.add(OpenClassPropertiesActionHandler);
         binding.add(RequestInstancesOverviewActionHandler);
+        binding.add(RequestEnumNamesActionHandler);
         binding.add(EditMetamodelActionHandler);
         binding.add(DeleteEdgeActionHandler);
         binding.add(CreateCustomMetamodelActionHandler);
         binding.add(TriggerEClassCreationActionHandler);
+        binding.add(TriggerEEnumCreationActionHandler);
         binding.add(EcoreCreateEdgeActionHandler);
         binding.add(MultiplicityInputResponseActionHandler);
         binding.add(BidirectionalMultiplicityInputResponseActionHandler);

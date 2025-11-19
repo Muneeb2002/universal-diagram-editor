@@ -1,4 +1,4 @@
-import { Action, hasStringProp, hasBooleanProp } from '@eclipse-glsp/protocol';
+import { Action, RequestAction, ResponseAction, hasStringProp, hasBooleanProp } from '@eclipse-glsp/protocol';
 
 /**
  * Action to load a JSON metamodel.
@@ -62,6 +62,7 @@ export interface LoadMetamodelResponse extends Action {
     message?: string;
     classNames?: string[];
     classInfo?: ClassInfo[];
+    enumNames?: string[];
 }
 
 export namespace LoadMetamodelResponse {
@@ -71,14 +72,15 @@ export namespace LoadMetamodelResponse {
         return Action.hasKind(object, KIND) && hasBooleanProp(object, 'success') && hasStringProp(object, 'metamodelKey');
     }
 
-    export function create(success: boolean, metamodelKey: string, message?: string, classNames?: string[], classInfo?: ClassInfo[]): LoadMetamodelResponse {
+    export function create(success: boolean, metamodelKey: string, message?: string, classNames?: string[], classInfo?: ClassInfo[], enumNames?: string[]): LoadMetamodelResponse {
         return {
             kind: KIND,
             success,
             metamodelKey,
             message,
             classNames,
-            classInfo
+            classInfo,
+            enumNames
         };
     }
 }
@@ -253,7 +255,60 @@ export namespace InstancesOverviewResponse {
     }
 }
 
+/**
+ * Action to request enum names from the server.
+ */
+export interface RequestEnumNamesAction extends RequestAction<EnumNamesResponse> {
+    kind: typeof RequestEnumNamesAction.KIND;
+}
 
+export namespace RequestEnumNamesAction {
+    export const KIND = 'requestEnumNames';
+
+    export function is(object: any): object is RequestEnumNamesAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'requestId');
+    }
+
+    export function create(requestId: string): RequestEnumNamesAction {
+        return {
+            kind: KIND,
+            requestId
+        };
+    }
+}
+
+/**
+ * Response action containing enum names.
+ */
+export interface EnumNamesResponse extends ResponseAction {
+    kind: typeof EnumNamesResponse.KIND;
+    success: boolean;
+    enumNames: string[];
+    message?: string;
+}
+
+export namespace EnumNamesResponse {
+    export const KIND = 'enumNamesResponse';
+
+    export function is(object: any): object is EnumNamesResponse {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'responseId');
+    }
+
+    export function create(
+        requestId: string,  // Still accept requestId, but set it as responseId
+        success: boolean,
+        enumNames: string[] = [],
+        message?: string
+    ): EnumNamesResponse {
+        return {
+            kind: KIND,
+            responseId: requestId,  // Set responseId to match the requestId
+            success,
+            enumNames,
+            message
+        };
+    }
+}
 
 /**
  * Action to rename a class in a metamodel.
@@ -561,6 +616,59 @@ export namespace TriggerEClassCreationAction {
     export function create(): TriggerEClassCreationAction {
         return {
             kind: KIND
+        };
+    }
+}
+
+/**
+ * Action to trigger EEnum creation dialog on the client.
+ */
+export interface TriggerEEnumCreationAction extends Action {
+    kind: typeof TriggerEEnumCreationAction.KIND;
+}
+
+export namespace TriggerEEnumCreationAction {
+    export const KIND = 'triggerEEnumCreation';
+
+    export function is(object: any): object is TriggerEEnumCreationAction {
+        return Action.hasKind(object, KIND);
+    }
+
+    export function create(): TriggerEEnumCreationAction {
+        return {
+            kind: KIND
+        };
+    }
+}
+
+/**
+ * Action to create a new EEnum in the metamodel.
+ */
+export interface CreateEEnumAction extends Action {
+    kind: typeof CreateEEnumAction.KIND;
+    enumName: string;
+    position?: { x: number; y: number };
+    enumLiterals?: Array<{ name: string; value?: number }>;
+}
+
+export namespace CreateEEnumAction {
+    export const KIND = 'createEEnum';
+
+    export function is(object: any): object is CreateEEnumAction {
+        return Action.hasKind(object, KIND) && 
+               hasStringProp(object, 'enumName');
+    }
+
+    export function create(
+        enumName: string,
+        position?: { x: number; y: number },
+        enumLiterals?: Array<{ name: string; value?: number }>
+    ): CreateEEnumAction {
+        return {
+            kind: KIND,
+            enumName,
+            position,
+            enumLiterals
         };
     }
 }

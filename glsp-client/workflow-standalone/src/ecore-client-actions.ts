@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { Action } from '@eclipse-glsp/protocol';
+import { Action, RequestAction, ResponseAction } from '@eclipse-glsp/protocol';
 
 /**
  * Client-side action type definitions for Ecore metamodel operations.
@@ -54,6 +54,7 @@ export interface LoadMetamodelResponse {
     message?: string;
     classNames?: string[];
     classInfo?: ClassInfo[];
+    enumNames?: string[];
 }
 
 export interface SwitchModeAction {
@@ -94,6 +95,17 @@ export interface InstancesOverviewResponse extends Action {
     requestId: string;
     success: boolean;
     instances: Array<{ id: string; className: string; hidden?: boolean }>;
+    message?: string;
+}
+
+export interface RequestEnumNamesAction extends RequestAction<EnumNamesResponse> {
+    kind: 'requestEnumNames';
+}
+
+export interface EnumNamesResponse extends ResponseAction {
+    kind: 'enumNamesResponse';
+    success: boolean;
+    enumNames: string[];
     message?: string;
 }
 
@@ -189,6 +201,15 @@ export function createRequestInstancesOverviewAction(
         kind: 'requestInstancesOverview',
         requestId,
         classNames
+    };
+}
+
+export function createRequestEnumNamesAction(
+    requestId: string
+): RequestEnumNamesAction {
+    return {
+        kind: 'requestEnumNames',
+        requestId
     };
 }
 
@@ -526,6 +547,26 @@ export function createCreateEClassAction(
         kind: 'createEClass',
         className,
         position
+    };
+}
+
+export interface CreateEEnumAction {
+    kind: 'createEEnum';
+    enumName: string;
+    position?: { x: number; y: number };
+    enumLiterals?: Array<{ name: string; value?: number }>;
+}
+
+export function createCreateEEnumAction(
+    enumName: string,
+    position?: { x: number; y: number },
+    enumLiterals?: Array<{ name: string; value?: number }>
+): CreateEEnumAction {
+    return {
+        kind: 'createEEnum',
+        enumName,
+        position,
+        enumLiterals
     };
 }
 

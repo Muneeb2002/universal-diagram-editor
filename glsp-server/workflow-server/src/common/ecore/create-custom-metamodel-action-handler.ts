@@ -6,6 +6,7 @@ import { MetamodelRegistry } from './metamodel-registry';
 import { 
     CreateCustomMetamodelAction,
     CreateEClassAction,
+    CreateEEnumAction,
     LoadMetamodelResponse,
     ClassInfo
 } from './ecore-actions';
@@ -17,7 +18,8 @@ import {
 export class CreateCustomMetamodelActionHandler implements ActionHandler {
     actionKinds = [
         CreateCustomMetamodelAction.KIND,
-        CreateEClassAction.KIND
+        CreateEClassAction.KIND,
+        CreateEEnumAction.KIND
     ];
 
 
@@ -42,6 +44,9 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                 success = result.success;
             } else if (CreateEClassAction.is(action)) {
                 const result = await this.handleCreateEClass(action);
+                success = result.success;
+            } else if (CreateEEnumAction.is(action)) {
+                const result = await this.handleCreateEEnum(action);
                 success = result.success;
             }
 
@@ -211,6 +216,12 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                         .filter(c => !c.isAbstract)
                         .map(c => c.className);
 
+                    // Get all enum names
+                    const allEnums = this.metamodelRegistry.getAllEEnums();
+                    const enumNames = allEnums.map(e => {
+                        return e.get ? e.get('name') : e.name;
+                    }).filter((name): name is string => !!name);
+
                     const activeMetamodelKey = this.metamodelRegistry.getActiveMetamodelKey();
                     
                     return [
@@ -220,7 +231,8 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                             activeMetamodelKey || 'custom',
                             `Successfully updated metamodel with ${classNames.length} classes`,
                             classNames,
-                            classInfo
+                            classInfo,
+                            enumNames
                         )
                     ];
                 }
@@ -297,6 +309,41 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
             return {
                 success: false,
                 message: `Failed to create EClass: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleCreateEEnum(action: CreateEEnumAction): Promise<{ success: boolean; message: string }> {
+        try {
+            // Create a new EEnum in the active custom metamodel
+            const result = this.metamodelRegistry.createEEnum(
+                action.enumName,
+                action.position,
+                action.enumLiterals
+            );
+
+            if (result.success) {
+                // Update the model state with the updated metamodel
+                const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
+                if (activeMetamodel) {
+                    this.modelState.set('ecoreModel', activeMetamodel);
+                }
+                
+                return {
+                    success: true,
+                    message: `Successfully created EEnum '${action.enumName}'`
+                };
+            } else {
+                return {
+                    success: false,
+                    message: result.message || 'Failed to create EEnum'
+                };
+            }
+        } catch (error) {
+            console.error('Error in handleCreateEEnum:', error);
+            return {
+                success: false,
+                message: `Failed to create EEnum: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

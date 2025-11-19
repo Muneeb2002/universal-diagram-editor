@@ -33,10 +33,13 @@ export class LoadMetamodelResponseHandler implements IActionHandler {
     handle(action: Action): void {
         if (this.isLoadMetamodelResponse(action)) {
             
-            
-            if (action.success && action.classNames && action.classNames.length > 0) {
+            if (globalToolbar) {
+                // Always update enum names if provided (even if empty array)
+                if (action.enumNames !== undefined) {
+                    globalToolbar.updateEnumNames(action.enumNames);
+                }
                 
-                if (globalToolbar) {
+                if (action.success && action.classNames && action.classNames.length > 0) {
                     // If we have full class info, use that (it has containment and abstract info)
                     if (action.classInfo && action.classInfo.length > 0) {
                         
@@ -45,13 +48,9 @@ export class LoadMetamodelResponseHandler implements IActionHandler {
                         // Fallback to class names only (less filtering, but better than nothing)
                         globalToolbar.updateAvailableClasses(action.classNames);
                     }
-                    
-                    
-                } else {
-                    console.warn('Global toolbar not set in handler');
                 }
             } else {
-                console.warn('LoadMetamodelResponse received but no classes found:', action);
+                console.warn('Global toolbar not set in handler');
             }
         }
     }

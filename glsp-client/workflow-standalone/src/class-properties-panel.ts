@@ -10,6 +10,8 @@ import {
     createUpdateMetamodelPropertiesAction,
     createDeleteClassAction
 } from './ecore-client-actions';
+import { RequestAction } from '@eclipse-glsp/protocol';
+import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 
 const ATTRIBUTE_TYPES = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'];
 
@@ -22,6 +24,7 @@ export class ClassPropertiesPanel {
     private metamodel: ClassPropertiesResponse['metamodel'] | null = null;
     private selectedClassName: string | null = null;
     private lastStatus: { message: string; isError: boolean } | null = null;
+    private enumNames: string[] = [];
 
     constructor(private readonly dispatcher: GLSPActionDispatcher) {}
 
@@ -45,6 +48,9 @@ export class ClassPropertiesPanel {
 
         document.body.style.setProperty('--bottom-panel-height', '300px');
         document.body.style.paddingBottom = '300px';
+        
+        // Request enum names when panel is shown
+        this.requestEnumNames();
     }
 
     public setSelectedClass(className: string | null): void {
@@ -289,6 +295,8 @@ export class ClassPropertiesPanel {
 
         const typeSelect = document.createElement('select');
         typeSelect.style.cssText = 'width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+        
+        // Add primitive types
         ATTRIBUTE_TYPES.forEach(type => {
             const option = document.createElement('option');
             option.value = type;
@@ -298,6 +306,9 @@ export class ClassPropertiesPanel {
             }
             typeSelect.appendChild(option);
         });
+        
+        // Add enum types
+        this.addEnumOptionsToSelect(typeSelect, attr.type);
 
         const lowerInput = document.createElement('input');
         lowerInput.type = 'number';
@@ -387,12 +398,20 @@ export class ClassPropertiesPanel {
 
         const typeSelect = document.createElement('select');
         typeSelect.style.cssText = 'width:100%;padding:4px 6px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+        
+        // Add primitive types
         ATTRIBUTE_TYPES.forEach(type => {
             const option = document.createElement('option');
             option.value = type;
             option.textContent = type;
             typeSelect.appendChild(option);
         });
+        
+        // Add enum types
+        this.addEnumOptionsToSelect(typeSelect);
+        
+        // Request enum names from server to ensure we have the latest
+        this.requestEnumNames();
 
         const lowerInput = document.createElement('input');
         lowerInput.type = 'number';
@@ -563,5 +582,120 @@ export class ClassPropertiesPanel {
 
     private async refreshProperties(): Promise<void> {
         await this.dispatcher.dispatch(createOpenClassPropertiesAction());
+    }
+    
+    /**
+     * Adds enum options to a type select dropdown
+     */
+    private addEnumOptionsToSelect(typeSelect: HTMLSelectElement, currentType?: string): void {
+        // Remove existing enum separator and options if they exist
+        const existingOptions = Array.from(typeSelect.options);
+        const separatorIndex = existingOptions.findIndex(opt => opt.textContent === '--- Enums ---');
+        if (separatorIndex >= 0) {
+            // Remove all options from separator onwards (they're enums)
+            for (let i = typeSelect.options.length - 1; i >= separatorIndex; i--) {
+                typeSelect.remove(i);
+            }
+        }
+        
+        // Add enum types if available
+        if (this.enumNames && this.enumNames.length > 0) {
+            // Add separator option
+            const separatorOption = document.createElement('option');
+            separatorOption.disabled = true;
+            separatorOption.textContent = '--- Enums ---';
+            typeSelect.appendChild(separatorOption);
+            
+            // Add enum options (sorted)
+            this.enumNames.slice().sort().forEach((enumName: string) => {
+                const option = document.createElement('option');
+                option.value = enumName;
+                option.textContent = enumName;
+                if (currentType && enumName === currentType) {
+                    option.selected = true;
+                }
+                typeSelect.appendChild(option);
+            });
+        }
+    }
+    
+    /**
+     * Requests enum names from the server
+     */
+    private requestEnumNames(): void {
+        // Try to get enum names from toolbar (cached)
+        const toolbar = (window as any).globalToolbar;
+        if (toolbar) {
+            if (typeof toolbar.getEnumNames === 'function') {
+                const enumNames = toolbar.getEnumNames();
+                if (enumNames && Array.isArray(enumNames) && enumNames.length > 0) {
+                    this.enumNames = enumNames;
+                    // Update all type selects in the panel
+                    this.updateAllTypeSelects();
+                }
+            }
+        }
+        
+        // Also request enum names from server to ensure we have the latest
+        const requestId = RequestAction.generateRequestId();
+        const requestAction: any = {
+            kind: 'requestEnumNames',
+            requestId: requestId
+        };
+        
+        // Use promise-based approach
+        new Promise<string[]>((resolve, reject) => {
+            const timeoutHandle = window.setTimeout(() => {
+                clearPendingEnumNameRequest(requestId);
+                reject(new Error('Timed out waiting for enum names response'));
+            }, 5000);
+            
+            setPendingEnumNameRequest(requestId, resolve, reject, timeoutHandle);
+            
+            // Dispatch the action
+            this.dispatcher.dispatch(requestAction).catch(error => {
+                const pending = getPendingEnumNameRequest(requestId);
+                if (pending) {
+                    window.clearTimeout(pending.timeoutHandle);
+                    clearPendingEnumNameRequest(requestId);
+                    reject(error);
+                }
+            });
+        }).then((enumNames: string[]) => {
+            this.enumNames = enumNames || [];
+            // Update all type selects in the panel
+            this.updateAllTypeSelects();
+            // Also update the toolbar cache
+            if (toolbar && typeof toolbar.updateEnumNames === 'function') {
+                toolbar.updateEnumNames(enumNames);
+            }
+        }).catch((error) => {
+            console.error('[ClassPropertiesPanel] Failed to request enum names:', error);
+        });
+    }
+    
+    /**
+     * Updates all type select dropdowns in the panel with enum names
+     */
+    private updateAllTypeSelects(): void {
+        if (!this.detailContainer) {
+            return;
+        }
+        
+        // Find all type selects in the panel
+        const typeSelects = this.detailContainer.querySelectorAll('select') as NodeListOf<HTMLSelectElement>;
+        typeSelects.forEach(select => {
+            // Check if this is a type select (has primitive types)
+            const hasPrimitiveTypes = Array.from(select.options).some(opt => ATTRIBUTE_TYPES.includes(opt.value));
+            if (hasPrimitiveTypes) {
+                // Get current value to preserve selection
+                const currentValue = select.value;
+                this.addEnumOptionsToSelect(select, currentValue);
+                // Restore selection if it was an enum
+                if (this.enumNames.includes(currentValue)) {
+                    select.value = currentValue;
+                }
+            }
+        });
     }
 }

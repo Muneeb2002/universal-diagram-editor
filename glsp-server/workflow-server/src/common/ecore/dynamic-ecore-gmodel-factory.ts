@@ -159,7 +159,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         let nodeCount = 0;
 
         ecoreModel.ePackages.forEach(pkg => {
-            const classifiers = this.getProp(pkg, 'eClassifiers') as any;
+            const classifiersRaw = this.getProp(pkg, 'eClassifiers') as any;
+            // Convert to array to ensure we iterate over all classifiers including newly added ones
+            const classifiers = this.toArray(classifiersRaw);
             
             classifiers.forEach((classifier: any) => {
                 if (isEClass(classifier)) {
