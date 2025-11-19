@@ -152,15 +152,32 @@ export class BidirectionalMultiplicityDialog {
     show(sourceClassName: string, targetClassName: string): Promise<BidirectionalMultiplicityOptions> {
         
         return new Promise((resolve, reject) => {
+            // Clear any previous state
+            this.currentResolve = undefined;
+            this.currentReject = undefined;
+            
             this.currentResolve = resolve;
             this.currentReject = reject;
 
-            // Set default reference names
+            // Reset and set default reference names
             const sourceRefInput = this.dialog.querySelector('#sourceReferenceName') as HTMLInputElement;
             const targetRefInput = this.dialog.querySelector('#targetReferenceName') as HTMLInputElement;
             
+            sourceRefInput.value = ''; // Clear first
+            targetRefInput.value = ''; // Clear first
             sourceRefInput.value = `${targetClassName.toLowerCase()}s`; // Source -> Target: plural
             targetRefInput.value = `${sourceClassName.toLowerCase()}s`; // Target -> Source: plural
+            
+            // Reset multiplicity inputs
+            const sourceLowerInput = this.dialog.querySelector('#sourceLowerBound') as HTMLInputElement;
+            const sourceUpperInput = this.dialog.querySelector('#sourceUpperBound') as HTMLInputElement;
+            const targetLowerInput = this.dialog.querySelector('#targetLowerBound') as HTMLInputElement;
+            const targetUpperInput = this.dialog.querySelector('#targetUpperBound') as HTMLInputElement;
+            
+            sourceLowerInput.value = '0';
+            sourceUpperInput.value = '1';
+            targetLowerInput.value = '0';
+            targetUpperInput.value = '-1';
 
             // Update class labels in both sections
             const sourceLabel1 = this.dialog.querySelector('#sourceClassLabel') as HTMLSpanElement;

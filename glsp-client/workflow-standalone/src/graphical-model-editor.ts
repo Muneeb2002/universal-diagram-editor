@@ -21,6 +21,7 @@ export interface GraphicalElement {
     height: number;
     color: string;
     fillColor: string;
+    filled?: boolean; // Whether the shape should be filled (true) or outlined only (false)
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none'; // For arrow shapes
@@ -311,6 +312,7 @@ export class GraphicalModelEditor {
             height: 80,
             color: '#333333',
             fillColor: '#E3F2FD',
+            filled: false,
             lineThickness: 2,
             lineStyle: 'solid',
             arrowType: type === 'arrow' ? 'filled-triangle' : undefined
@@ -420,7 +422,7 @@ export class GraphicalModelEditor {
         const cx = width / 2;
         const cy = height / 2;
 
-        shape.setAttribute('fill', element.fillColor);
+        shape.setAttribute('fill', (element.filled !== false) ? element.fillColor : 'none');
         shape.setAttribute('stroke', element.color);
         shape.setAttribute('stroke-width', element.lineThickness.toString());
         shape.setAttribute('stroke-dasharray', element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none');
@@ -491,6 +493,7 @@ export class GraphicalModelEditor {
     private drawArrowShape(svg: SVGSVGElement, element: GraphicalElement): void {
         const strokeColor = element.color;
         const fillColor = element.fillColor;
+        const filled = element.filled !== false; // Default to true if not specified
         const strokeWidth = element.lineThickness;
         const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
         const arrowType = element.arrowType ?? 'filled-triangle';
@@ -557,7 +560,7 @@ export class GraphicalModelEditor {
                 polygon.setAttribute('points', `${lineEndX},${cy} ${midX},${cy - headHalfHeight} ${tipX},${cy} ${midX},${cy + headHalfHeight}`);
                 polygon.setAttribute('stroke', strokeColor);
                 polygon.setAttribute('stroke-width', strokeWidth.toString());
-                polygon.setAttribute('fill', fillColor);
+                polygon.setAttribute('fill', filled ? fillColor : 'none');
                 if (dashArray !== 'none') {
                     polygon.setAttribute('stroke-dasharray', dashArray);
                 }
@@ -572,7 +575,7 @@ export class GraphicalModelEditor {
                 polygon.setAttribute('points', `${lineEndX},${cy - headHalfHeight} ${tipX},${cy} ${lineEndX},${cy + headHalfHeight}`);
                 polygon.setAttribute('stroke', strokeColor);
                 polygon.setAttribute('stroke-width', strokeWidth.toString());
-                polygon.setAttribute('fill', fillColor);
+                polygon.setAttribute('fill', filled ? fillColor : 'none');
                 if (dashArray !== 'none') {
                     polygon.setAttribute('stroke-dasharray', dashArray);
                 }
@@ -670,8 +673,14 @@ export class GraphicalModelEditor {
                     <input type="color" id="propColor" value="${element.color}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; height: 40px;">
                 </div>
                 <div>
+                    <label style="display: flex; align-items: center; gap: 8px; font-weight: 500; color: #555;">
+                        <input type="checkbox" id="propFilled" ${element.filled !== false ? 'checked' : ''} style="width: 18px; height: 18px; cursor: pointer;">
+                        <span>Filled</span>
+                    </label>
+                </div>
+                <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Fill Color:</label>
-                    <input type="color" id="propFillColor" value="${element.fillColor}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; height: 40px;">
+                    <input type="color" id="propFillColor" value="${element.fillColor}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; height: 40px;" ${element.filled === false ? 'disabled' : ''}>
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Line Thickness:</label>
@@ -718,6 +727,7 @@ export class GraphicalModelEditor {
         const widthInput = this.propertiesPanel.querySelector('#propWidth') as HTMLInputElement;
         const heightInput = this.propertiesPanel.querySelector('#propHeight') as HTMLInputElement;
         const colorInput = this.propertiesPanel.querySelector('#propColor') as HTMLInputElement;
+        const filledCheckbox = this.propertiesPanel.querySelector('#propFilled') as HTMLInputElement;
         const fillColorInput = this.propertiesPanel.querySelector('#propFillColor') as HTMLInputElement;
         const lineThicknessInput = this.propertiesPanel.querySelector('#propLineThickness') as HTMLInputElement;
         const lineStyleSelect = this.propertiesPanel.querySelector('#propLineStyle') as HTMLSelectElement;
@@ -730,12 +740,15 @@ export class GraphicalModelEditor {
             this.selectedElement.width = parseInt(widthInput.value) || 100;
             this.selectedElement.height = parseInt(heightInput.value) || 80;
             this.selectedElement.color = colorInput.value;
+            this.selectedElement.filled = filledCheckbox.checked;
             this.selectedElement.fillColor = fillColorInput.value;
             this.selectedElement.lineThickness = parseInt(lineThicknessInput.value) || 2;
             this.selectedElement.lineStyle = lineStyleSelect.value as 'solid' | 'dashed' | 'dotted';
             if (arrowTypeSelect && this.selectedElement.type === 'arrow') {
                 this.selectedElement.arrowType = arrowTypeSelect.value as 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
             }
+            // Update fill color input disabled state
+            fillColorInput.disabled = !filledCheckbox.checked;
             this.renderElement(this.selectedElement);
         };
 
@@ -743,6 +756,7 @@ export class GraphicalModelEditor {
         widthInput.addEventListener('input', updateElement);
         heightInput.addEventListener('input', updateElement);
         colorInput.addEventListener('input', updateElement);
+        filledCheckbox.addEventListener('change', updateElement);
         fillColorInput.addEventListener('input', updateElement);
         lineThicknessInput.addEventListener('input', updateElement);
         lineStyleSelect.addEventListener('change', updateElement);
@@ -804,18 +818,9 @@ export class GraphicalModelEditor {
         const trimmed = input.trim();
         const filename = trimmed.length > 0 ? trimmed : defaultFilename;
 
-        // Also save to localStorage for quick access
-        try {
-            localStorage.setItem('savedGraphicalShapes', JSON.stringify(data));
-        } catch (error) {
-            console.warn('Could not save to localStorage:', error);
-        }
-        this.updateCachedShapesFromElements();
-
         try {
             await this.actionDispatcher.dispatch(createSaveGraphicalModelAction(filename, json));
             
-            // Don't cache on save - only cache when loading
             alert(`Saved ${elementsArray.length} graphical shape configuration(s) to server folder 'visual-configurations/${filename}'.`);
         } catch (error) {
             console.error('Error saving graphical model to server:', error);
@@ -998,6 +1003,7 @@ export class GraphicalModelEditor {
             height: Number.isFinite(raw?.height) ? raw.height : 80,
             color: typeof raw?.color === 'string' ? raw.color : '#333333',
             fillColor: typeof raw?.fillColor === 'string' ? raw.fillColor : '#E3F2FD',
+            filled: typeof raw?.filled === 'boolean' ? raw.filled : false,
             lineThickness: Number.isFinite(raw?.lineThickness) ? raw.lineThickness : 2,
             lineStyle: raw?.lineStyle === 'dashed' || raw?.lineStyle === 'dotted' ? raw.lineStyle : 'solid',
             arrowType,

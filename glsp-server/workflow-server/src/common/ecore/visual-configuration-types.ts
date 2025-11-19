@@ -98,7 +98,7 @@ export const DEFAULT_CLASS_VISUAL_CONFIG: ClassVisualConfiguration = {
     className: '',
     shape: 'rectangle',
     color: 'black',
-    filled: true,
+    filled: false,
     showAttributes: true,
     showReferences: false
 };

@@ -38,7 +38,7 @@ export class ShapeMappingDialog {
         return this.actionDispatcher;
     }
 
-    public show(classNames: string[], savedShapes: Map<string, GraphicalElement>): void {
+    public show(classNames: string[], savedShapes: Map<string, GraphicalElement>, mode: 'create' | 'edit' = 'create'): void {
         this.classNames = classNames;
         // Normalize shapes to ensure arrowType is preserved
         this.savedShapes = new Map(
@@ -52,7 +52,14 @@ export class ShapeMappingDialog {
                 return [id, normalized];
             })
         );
-        this.loadMappings();
+        
+        // Clear mappings if mode is 'create', otherwise load existing mappings
+        if (mode === 'create') {
+            this.mappings.clear();
+        } else {
+            this.loadMappings();
+        }
+        
         this.createDialog();
         document.body.appendChild(this.backdrop!);
         document.body.appendChild(this.dialog!);
@@ -226,6 +233,7 @@ export class ShapeMappingDialog {
                                 height: shape.height,
                                 color: shape.color,
                                 fillColor: shape.fillColor,
+                                filled: shape.filled,
                                 lineThickness: shape.lineThickness,
                                 lineStyle: shape.lineStyle,
                                 arrowType: shape.type === 'arrow'
@@ -330,6 +338,12 @@ export class ShapeMappingDialog {
                     document.body.appendChild(this.dialog!);
                 }
                 this.syncMappingsWithServer().catch(() => undefined);
+                
+                // Update the edit button visibility in the sidebar
+                const sidebar = (window as any).globalLeftSidebar;
+                if (sidebar && sidebar.updateEditMappingButtonVisibility) {
+                    sidebar.updateEditMappingButtonVisibility();
+                }
             }
         } catch (error) {
             console.error('Error loading from content:', error);
@@ -381,6 +395,11 @@ export class ShapeMappingDialog {
                         sidebar.addSavedMappingModel(file.name, content);
                     }
                     await this.syncMappingsWithServer();
+                    
+                    // Update the edit button visibility in the sidebar
+                    if (sidebar && sidebar.updateEditMappingButtonVisibility) {
+                        sidebar.updateEditMappingButtonVisibility();
+                    }
                 } else {
                     alert('Invalid mapping file format.');
                 }
@@ -458,6 +477,12 @@ export class ShapeMappingDialog {
                 savedAt: new Date().toISOString()
             };
             localStorage.setItem('shapeMappings', JSON.stringify(data));
+            
+            // Update the edit button visibility in the sidebar
+            const sidebar = (window as any).globalLeftSidebar;
+            if (sidebar && sidebar.updateEditMappingButtonVisibility) {
+                sidebar.updateEditMappingButtonVisibility();
+            }
         } catch (error) {
             console.error('Error saving mappings to localStorage:', error);
         }
@@ -492,12 +517,15 @@ export class ShapeMappingDialog {
                 height: 80,
                 color: '#333333',
                 fillColor: '#E3F2FD',
+                filled: false,
                 lineThickness: 2,
                 lineStyle: 'solid'
             };
         }
         const normalized = {
-            ...config
+            ...config,
+            // Ensure filled is set (default to false if not specified)
+            filled: config.filled !== undefined ? config.filled : false
         } as ShapeMapping['shapeConfig'];
         if (normalized.type === 'arrow') {
             // If arrowType is missing, try to get it from the current shape definition

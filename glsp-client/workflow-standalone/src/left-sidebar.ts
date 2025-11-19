@@ -193,7 +193,7 @@ export class LeftSidebar {
         this.sidebar.appendChild(mappingModelLabel);
 
         const mapShapesBtn = document.createElement('button');
-        mapShapesBtn.textContent = 'Creating Mapping Model';
+        mapShapesBtn.textContent = 'Create Mapping Model';
         mapShapesBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
@@ -204,8 +204,27 @@ export class LeftSidebar {
             cursor: pointer;
             font-size: 12px;
         `;
-        mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog());
+        mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog('create'));
         this.sidebar.appendChild(mapShapesBtn);
+
+        const editMappingBtn = document.createElement('button');
+        editMappingBtn.textContent = 'Edit Mapping Model';
+        editMappingBtn.style.cssText = `
+            width: 100%;
+            padding: 8px 12px;
+            background: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 12px;
+            margin-top: 6px;
+            display: none;
+        `;
+        editMappingBtn.addEventListener('click', () => this.openShapeMappingDialog('edit'));
+        this.sidebar.appendChild(editMappingBtn);
+        // Store reference for visibility updates
+        (this as any).editMappingBtn = editMappingBtn;
 
         // Loaded Mapping Models list
         const savedMappingModelsLabel = document.createElement('div');
@@ -220,6 +239,7 @@ export class LeftSidebar {
         this.savedMappingModelsContainer.appendChild(this.savedMappingModelsList);
         this.sidebar.appendChild(this.savedMappingModelsContainer);
         this.renderSavedMappingModels();
+        this.updateEditMappingButtonVisibility();
 
         this.createVisualConfigurationSection(false);
     }
@@ -656,7 +676,8 @@ export class LeftSidebar {
                 // Load the content and show the dialog
                 mappingDialog.loadFromContent(match.content, false);
                 if (classNames.length > 0 && savedShapes.size > 0) {
-                    mappingDialog.show(classNames, savedShapes);
+                    mappingDialog.show(classNames, savedShapes, 'edit');
+                    this.updateEditMappingButtonVisibility();
                 }
             } catch (e) {
                 console.error('Error reloading mapping model:', e);
@@ -860,7 +881,7 @@ export class LeftSidebar {
         this.updateEditGraphicalModelButtonVisibility();
     }
 
-    private openShapeMappingDialog(): void {
+    private openShapeMappingDialog(mode: 'create' | 'edit' = 'create'): void {
         // Access the global instances
         const editor = (window as any).globalGraphicalModelEditor;
         const mappingDialog = (window as any).globalShapeMappingDialog;
@@ -907,21 +928,24 @@ export class LeftSidebar {
             classNames = this.filterOutRootClasses(classNames, toolbar);
         }
 
-        if (classNames.length === 0) {
-            // Provide more helpful error message
-            const hasToolbar = !!toolbar;
-            const hasClasses = toolbar && toolbar.allClasses && toolbar.allClasses.length > 0;
-            const errorMsg = hasToolbar 
-                ? (hasClasses 
-                    ? 'No concrete non-root metamodel classes found. All classes may be root classes or abstract/interfaces.'
-                    : 'Toolbar has no class information. Please ensure the metamodel was loaded successfully.')
-                : 'Toolbar not available. Please refresh the page.';
-            alert(errorMsg);
-            return;
-        }
-
-        mappingDialog.show(classNames, savedShapes);
+        // Open the dialog with the specified mode
+        mappingDialog.show(classNames, savedShapes, mode);
     }
+
+    private updateEditMappingButtonVisibility(): void {
+        const editBtn = (this as any).editMappingBtn;
+        if (!editBtn) return;
+
+        // Check if mappings exist in localStorage
+        try {
+            const stored = localStorage.getItem('shapeMappings');
+            const hasMappings = stored && JSON.parse(stored).mappings && JSON.parse(stored).mappings.length > 0;
+            editBtn.style.display = hasMappings ? 'block' : 'none';
+        } catch {
+            editBtn.style.display = 'none';
+        }
+    }
+
 }
 
 

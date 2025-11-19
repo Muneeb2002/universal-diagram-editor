@@ -44,9 +44,10 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
         mapping.set('comp:references', GCompartment);
         mapping.set('label:heading', GLabel);
         mapping.set('label:text', GLabel);
+        mapping.set('ecore:instance', GNode); // Add mapping for instance nodes (including nested nodes)
         mapping.set('edge:ecore-reference', GEdge);
         mapping.set('edge:ecore-bidirectional', GEdge);
-        mapping.set('edge:inst-reference', GEdge);
+        mapping.set('edge:instance', GEdge);
 
         // Add dynamic instance type patterns - these will match any inst:* type
         // Note: Actual types are created dynamically based on metamodel
@@ -186,7 +187,7 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
                 routable: true
             },
             {
-                elementTypeId: 'edge:inst-reference',
+                elementTypeId: 'edge:instance',
                 dynamic: true,
                 sourceElementTypeIds: [], // Will be filled dynamically with inst:* types
                 targetElementTypeIds: [], // Will be filled dynamically with inst:* types

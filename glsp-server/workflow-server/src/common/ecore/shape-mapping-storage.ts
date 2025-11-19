@@ -16,6 +16,7 @@ export interface ShapeConfig {
     height: number;
     color: string;
     fillColor: string;
+    filled?: boolean;
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';

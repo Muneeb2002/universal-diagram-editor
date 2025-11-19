@@ -115,6 +115,10 @@ export class MultiplicityDialog {
     show(sourceClassName: string, targetClassName: string, edgeType?: string): Promise<MultiplicityOptions> {
         
         return new Promise((resolve, reject) => {
+            // Clear any previous state
+            this.currentResolve = undefined;
+            this.currentReject = undefined;
+            
             this.currentResolve = resolve;
             this.currentReject = reject;
             
@@ -123,15 +127,16 @@ export class MultiplicityDialog {
             const isContainment = edgeType === 'edge:ecore-containment';
             const edgeLabel = isContainment ? 'Containment' : 'Reference';
 
-            // Set default reference name
+            // Reset and set default reference name
             const referenceNameInput = this.dialog.querySelector('#referenceName') as HTMLInputElement;
+            referenceNameInput.value = ''; // Clear first
             if (isContainment) {
                 referenceNameInput.value = `${targetClassName.toLowerCase()}s`; // Plural for containment
             } else {
                 referenceNameInput.value = `${targetClassName.toLowerCase()}`; // Singular for reference
             }
 
-            // Set default multiplicity based on edge type
+            // Reset and set default multiplicity based on edge type
             const lowerBoundInput = this.dialog.querySelector('#lowerBound') as HTMLInputElement;
             const upperBoundInput = this.dialog.querySelector('#upperBound') as HTMLInputElement;
             

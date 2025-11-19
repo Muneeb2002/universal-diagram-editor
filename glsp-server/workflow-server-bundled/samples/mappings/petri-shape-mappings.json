@@ -4,14 +4,15 @@
     {
       "className": "Transition",
       "shapeId": "element_1",
-      "shapeName": "T",
+      "shapeName": "Transition",
       "shapeConfig": {
-        "name": "T",
+        "name": "Transition",
         "type": "rectangle",
         "width": 100,
         "height": 1,
         "color": "#333333",
         "fillColor": "#e3f2fd",
+        "filled": false,
         "lineThickness": 1,
         "lineStyle": "solid"
       }
@@ -19,14 +20,15 @@
     {
       "className": "Place",
       "shapeId": "element_2",
-      "shapeName": "P",
+      "shapeName": "Place",
       "shapeConfig": {
-        "name": "P",
+        "name": "Place",
         "type": "circle",
         "width": 100,
         "height": 80,
         "color": "#333333",
-        "fillColor": "#ffffff",
+        "fillColor": "#e3f2fd",
+        "filled": false,
         "lineThickness": 2,
         "lineStyle": "solid"
       }
@@ -34,14 +36,15 @@
     {
       "className": "Token",
       "shapeId": "element_3",
-      "shapeName": "T",
+      "shapeName": "Token",
       "shapeConfig": {
-        "name": "T",
+        "name": "Token",
         "type": "circle",
         "width": 100,
-        "height": 18,
+        "height": 20,
         "color": "#333333",
         "fillColor": "#050505",
+        "filled": true,
         "lineThickness": 2,
         "lineStyle": "solid"
       }
@@ -49,19 +52,20 @@
     {
       "className": "Arc",
       "shapeId": "element_4",
-      "shapeName": "A",
+      "shapeName": "Arc",
       "shapeConfig": {
-        "name": "A",
+        "name": "Arc",
         "type": "arrow",
-        "width": 70,
-        "height": 24,
+        "width": 50,
+        "height": 20,
         "color": "#333333",
         "fillColor": "#e3f2fd",
-        "lineThickness": 2,
+        "filled": false,
+        "lineThickness": 1,
         "lineStyle": "solid",
-        "arrowType": "open-arrow"
+        "arrowType": "filled-triangle"
       }
     }
   ],
-  "savedAt": "2025-11-18T12:52:34.346Z"
+  "savedAt": "2025-11-19T13:42:12.345Z"
 }

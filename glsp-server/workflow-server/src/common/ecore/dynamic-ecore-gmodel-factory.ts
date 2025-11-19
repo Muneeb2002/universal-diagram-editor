@@ -114,7 +114,13 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const arcInstances = visibleInstances.filter(instance => this.isArcInstance(instance));
         const nodeInstances = visibleInstances.filter(instance => !this.isArcInstance(instance));
 
-        nodeInstances.forEach(instance => {
+        // Only add root instances directly to root (contained instances will be nested in their parents)
+        const instanceModel = this.instanceStorage.getActiveInstanceModel();
+        const rootInstances = nodeInstances.filter(instance => {
+            return instanceModel && instanceModel.rootInstances.has(instance.id);
+        });
+
+        rootInstances.forEach(instance => {
             const node = this.createNodeForInstance(instance);
             root.children.push(node);
         });
@@ -126,7 +132,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             }
         });
 
-        nodeInstances.forEach(instance => {
+        rootInstances.forEach(instance => {
             const edges = this.createEdgesForInstanceReferences(instance);
             edges.forEach(edge => root.children.push(edge));
         });
@@ -580,17 +586,27 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.args = ArgsUtil.cornerRadius(5);
         node.cssClasses = ['ecore-instance'];
 
-        // Get visual configuration for this class
+        // Get visual configuration for this class (needed for showAttributes/showReferences)
         const visualConfig = this.visualConfigStorage.getClassVisualConfiguration(instance.eClassName);
         
-        // Apply visual configuration (attributes/references, fallback styling)
-        this.applyVisualConfiguration(node, visualConfig);
-
-        // Apply mapping-based visuals if available
+        // Check if shape mapping exists
         const shapeMapping = this.shapeMappingStorage.getMapping(instance.eClassName);
+        
         if (shapeMapping) {
+            // Apply mapping-based visuals (this will override visual configuration styling)
+            // First, ensure fill-none is removed before applying shape mapping
+            node.cssClasses = node.cssClasses.filter(cls => cls !== 'fill-none');
             this.applyShapeMapping(node, shapeMapping);
+            // Final check after applying shape mapping: remove fill-none if filled is not false
+            const appliedShapeConfig = (node as any).shapeConfig;
+            if (appliedShapeConfig && appliedShapeConfig.filled !== false) {
+                node.cssClasses = node.cssClasses.filter(cls => cls !== 'fill-none');
+            }
+        } else {
+            // Only apply visual configuration styling if no shape mapping exists
+            this.applyVisualConfiguration(node, visualConfig);
         }
+        // Note: visualConfig is still used below for showAttributes/showReferences
 
         // Set position if available
         if (instance.position) {
@@ -608,9 +624,15 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             };
         }
 
-        // Set size if available from instance data
+        // Set size if available from instance data, ensure minimum size
         if (instance.size) {
-            node.size = { width: instance.size.width, height: instance.size.height };
+            node.size = { 
+                width: Math.max(120, instance.size.width || 120), 
+                height: Math.max(60, instance.size.height || 60) 
+            };
+        } else {
+            // Default size if not set
+            node.size = { width: 120, height: 60 };
         }
 
         // Get EClass definition for structure
@@ -665,6 +687,61 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             }
         }
 
+        // Add nested child instances for containment references
+        if (eClass) {
+            const eReferences = this.getProp<any[]>(eClass, 'eReferences') ?? [];
+            eReferences.forEach((eRef: any) => {
+                const isContainment = this.getProp<boolean>(eRef, 'containment') === true;
+                if (isContainment) {
+                    const refName = this.getProp<string>(eRef, 'name');
+                    if (refName) {
+                        const childInstanceIds = this.getContainedInstanceIds(instance, refName);
+                        childInstanceIds.forEach((childId, index) => {
+                            const instanceModel = this.instanceStorage.getActiveInstanceModel();
+                            const childInstance = instanceModel?.instances.get(childId);
+                            if (childInstance && !childInstance.hidden) {
+                                const childNode = this.createNodeForInstance(childInstance);
+                                // Position child relative to parent (local coordinates)
+                                const childOffsetX = 20; // Padding from parent edge
+                                const childOffsetY = (index * 80) + 60; // Stack vertically with spacing
+                                childNode.position = {
+                                    x: childOffsetX,
+                                    y: childOffsetY
+                                };
+                                // Respect the size set by applyShapeMapping (via customSize)
+                                // Only enforce minimum if size is invalid or not set
+                                const customSize = (childNode as any).customSize;
+                                if (customSize && customSize.width > 0 && customSize.height > 0) {
+                                    // Use the customSize from shapeConfig
+                                    childNode.size = { 
+                                        width: customSize.width, 
+                                        height: customSize.height 
+                                    };
+                                } else if (!childNode.size || childNode.size.width <= 0 || childNode.size.height <= 0) {
+                                    // Only set default if size is invalid
+                                    childNode.size = { width: 100, height: 50 };
+                                    (childNode as any).customSize = { width: 100, height: 50 };
+                                } else {
+                                    // Ensure minimum size, but use smaller minimums for nested nodes
+                                    childNode.size = { 
+                                        width: Math.max(20, childNode.size.width), 
+                                        height: Math.max(20, childNode.size.height) 
+                                    };
+                                }
+                                node.children.push(childNode);
+                            }
+                        });
+                    }
+                }
+            });
+        }
+
+        // Final safety check: if node has shapeConfig with filled !== false, ensure fill-none is removed
+        const finalShapeConfig = (node as any).shapeConfig;
+        if (finalShapeConfig && finalShapeConfig.filled !== false) {
+            node.cssClasses = node.cssClasses.filter(cls => cls !== 'fill-none');
+        }
+
         return node;
     }
 
@@ -674,21 +751,49 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return;
         }
 
-        // Remove previous shape/color classes to avoid conflicts
-        node.cssClasses = (node.cssClasses || []).filter(cls => !cls.startsWith('shape-') && !cls.startsWith('color-'));
+        // Remove previous shape/color classes and fill-none class to avoid conflicts
+        node.cssClasses = (node.cssClasses || []).filter(cls => 
+            !cls.startsWith('shape-') && 
+            !cls.startsWith('color-') && 
+            cls !== 'fill-none'
+        );
 
         node.cssClasses.push(`shape-${config.type}`);
         node.cssClasses.push(`color-mapped`);
+        
+        // Only add fill-none class if filled is explicitly false
+        // If filled is true or undefined, fill-none should NOT be present
+        // This ensures nodes with filled: true or filled: undefined will not have fill-none
+        if (config.filled === false) {
+            node.cssClasses.push('fill-none');
+        }
+        // Explicitly ensure fill-none is NOT in the array if filled is not false
+        else {
+            // Double-check: remove fill-none if it somehow got added
+            const fillNoneIndex = node.cssClasses.indexOf('fill-none');
+            if (fillNoneIndex !== -1) {
+                node.cssClasses.splice(fillNoneIndex, 1);
+            }
+        }
 
-        (node as any).shapeConfig = {
+        const shapeConfig = {
             type: config.type,
             width: config.width,
             height: config.height,
             color: config.color,
             fillColor: config.fillColor,
+            filled: config.filled,
             lineThickness: config.lineThickness,
             lineStyle: config.lineStyle
         };
+        
+        // Ensure shapeConfig is enumerable so it gets serialized
+        Object.defineProperty(node, 'shapeConfig', {
+            value: shapeConfig,
+            enumerable: true,
+            writable: true,
+            configurable: true
+        });
 
         const width = config.width || node.size?.width || 150;
         const height = config.height || node.size?.height || 100;
@@ -699,7 +804,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     private applyShapeMappingToArc(edge: GEdge, mapping: ShapeMapping): void {
         const config = mapping.shapeConfig;
         if (!config) {
-            console.log('[DynamicEcoreGModelFactory] No shapeConfig in mapping for edge:', edge.id);
             return;
         }
 
@@ -719,10 +823,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             writable: true,
             configurable: true
         });
-        
-        console.log('[DynamicEcoreGModelFactory] Applied shapeConfig to edge:', edge.id, 'config:', shapeConfig);
-        console.log('[DynamicEcoreGModelFactory] Edge shapeConfig property:', (edge as any).shapeConfig);
-        console.log('[DynamicEcoreGModelFactory] Edge has shapeConfig?', 'shapeConfig' in edge);
     }
 
     /**
@@ -761,6 +861,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
     /**
      * Creates GEdges for an instance's references.
+     * Note: Containment references are excluded since they're shown as nested nodes.
      */
     private createEdgesForInstanceReferences(instance: EcoreInstance): GEdge[] {
         const edges: GEdge[] = [];
@@ -773,7 +874,28 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return edges;
         }
 
+        // Get EClass to check which references are containment
+        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
+        const containmentRefNames = new Set<string>();
+        if (eClass) {
+            const eReferences = this.getProp<any[]>(eClass, 'eReferences') ?? [];
+            eReferences.forEach((eRef: any) => {
+                const isContainment = this.getProp<boolean>(eRef, 'containment') === true;
+                if (isContainment) {
+                    const refName = this.getProp<string>(eRef, 'name');
+                    if (refName) {
+                        containmentRefNames.add(refName);
+                    }
+                }
+            });
+        }
+
         instance.references.forEach((value, refName) => {
+            // Skip containment references - they're shown as nested nodes
+            if (containmentRefNames.has(refName)) {
+                return;
+            }
+
             if (typeof value === 'string' && value) {
                 // Single reference
                 const edge = this.createInstanceEdge(instance.id, value, refName);
@@ -803,7 +925,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         const edge = new GEdge();
-        edge.type = 'edge:inst-reference';
+        edge.type = 'edge:instance';
         edge.id = `${sourceId}_${refName}_${targetId}`;
         edge.sourceId = sourceId;
         edge.targetId = targetId;
@@ -832,13 +954,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         edge.targetId = targetId;
         // No CSS classes - styling comes from mapping model
 
-        console.log('[DynamicEcoreGModelFactory] Looking for mapping for arc instance:', instance.eClassName);
         const mapping = this.shapeMappingStorage.getMapping(instance.eClassName);
         if (mapping) {
-            console.log('[DynamicEcoreGModelFactory] Found mapping for arc:', instance.eClassName, mapping);
             this.applyShapeMappingToArc(edge, mapping);
-        } else {
-            console.log('[DynamicEcoreGModelFactory] No mapping found for arc:', instance.eClassName);
         }
 
         return edge;
@@ -879,6 +997,23 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return value.length > 0 ? value[0] : undefined;
         }
         return value;
+    }
+
+    /**
+     * Gets contained instance IDs from a containment reference.
+     * @param instance The parent instance
+     * @param referenceName The name of the containment reference
+     * @returns Array of child instance IDs
+     */
+    private getContainedInstanceIds(instance: EcoreInstance, referenceName: string): string[] {
+        const refValue = instance.references.get(referenceName);
+        if (!refValue) {
+            return [];
+        }
+        if (Array.isArray(refValue)) {
+            return refValue;
+        }
+        return [refValue];
     }
 
     private isArcInstance(instance: EcoreInstance): boolean {

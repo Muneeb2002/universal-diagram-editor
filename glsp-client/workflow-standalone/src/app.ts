@@ -292,9 +292,23 @@ function setupContextMenu(): void {
         const target = event.target as HTMLElement;
         
         // Check if the clicked element is an instance node
-        const instanceElement = target.closest('.ecore-instance');
+        let instanceElement = target.closest('.ecore-instance') as HTMLElement | null;
         
         if (instanceElement) {
+            // If this is a nested node, find the outermost parent instance node
+            // (the one that is not nested inside another .ecore-instance)
+            let parent = instanceElement.parentElement;
+            while (parent) {
+                const parentInstance = parent.closest('.ecore-instance') as HTMLElement | null;
+                if (parentInstance && parentInstance !== instanceElement) {
+                    // Found a parent instance, use that instead
+                    instanceElement = parentInstance;
+                    parent = parentInstance.parentElement;
+                } else {
+                    break;
+                }
+            }
+            
             event.preventDefault();
             event.stopPropagation();
             
@@ -454,7 +468,6 @@ function setupCustomActionHandling(): void {
                                 oldValue: oldValue
                             });
                         }
-                        console.log('Editor context edit mode after switch:', editorContextServiceRef.editMode, 'isReadonly:', editorContextServiceRef.isReadonly);
                     }
                     
                     const palette = getToolPaletteElement();
@@ -477,8 +490,6 @@ function setupCustomActionHandling(): void {
                             buttonToUse.addEventListener('click', (e) => {
                                 e.stopPropagation();
                                 e.preventDefault();
-                                
-                                console.log('Button clicked:', itemId, 'editor readonly:', editorContextServiceRef?.isReadonly);
                                 
                                 // Force editable before any action
                                 if (editorContextServiceRef) {
@@ -505,7 +516,6 @@ function setupCustomActionHandling(): void {
                                 );
                                 
                                 if (isEdgeButton) {
-                                    console.log('Dispatching TriggerEdgeCreationAction for edge');
                                     // Find the edge type from the button or use default
                                     let edgeType = buttonToUse.getAttribute('data-edge-type') || 
                                                  buttonToUse.getAttribute('data-element-type-id') ||
@@ -521,8 +531,6 @@ function setupCustomActionHandling(): void {
                                     } else if (buttonText.includes('bidirectional')) {
                                         edgeType = 'edge:ecore-bidirectional';
                                     }
-                                    
-                                    console.log('Edge type determined:', edgeType, 'from button text:', buttonText);
                                     
                                     // Ensure editor is editable before dispatching
                                     if (editorContextServiceRef) {
@@ -554,8 +562,7 @@ function setupCustomActionHandling(): void {
                                 // by finding the palette item and dispatching its actions
                                 const paletteItemId = buttonToUse.getAttribute('data-palette-item-id');
                                 if (paletteItemId) {
-                                    // The tool palette should handle this, but we'll try to dispatch manually
-                                    console.log('Attempting to dispatch action for palette item:', paletteItemId);
+                                    // The tool palette should handle this
                                 }
                             }, { capture: true });
                             
@@ -569,7 +576,6 @@ function setupCustomActionHandling(): void {
                     try {
                         actionDispatcher.dispatch(SetEditModeAction.create(EditMode.EDITABLE));
                         actionDispatcher.dispatch(EnableDefaultToolsAction.create());
-                        console.log('Dispatched SetEditModeAction and EnableDefaultToolsAction');
                     } catch (e) {
                         console.warn('Could not set edit mode:', e);
                     }
@@ -593,13 +599,9 @@ function setupCustomActionHandling(): void {
                 setToolPaletteVisible(true);
                 leftSidebar.setVisualConfigurationAvailable(true);
                 if (action.classInfo && action.classInfo.length > 0) {
-                    console.log('Updating toolbar with classInfo:', action.classInfo.length, 'classes');
                     toolbar.updateClassInfo(action.classInfo);
                 } else if (action.classNames && action.classNames.length > 0) {
-                    console.log('Updating toolbar with classNames only:', action.classNames.length, 'classes');
                     toolbar.updateAvailableClasses(action.classNames);
-                } else {
-                    console.warn('LoadMetamodelResponse received but no classes found:', action);
                 }
             } else {
                 metamodelAvailable = false;

@@ -263,13 +263,7 @@ export class EcoreToolbar {
     public setContainer(instanceId: string, className: string): void {
         this.selectedContainerInstanceId = instanceId;
         this.selectedContainerClassName = className;
-        if (this.containerInfo) {
-            this.containerInfo.textContent = `Container: ${className} (${instanceId})`;
-            this.containerInfo.style.display = 'block';
-        }
-        if (this.clearContainerButton) {
-            this.clearContainerButton.style.display = 'block';
-        }
+        // Force re-render of the instance palette to show container info and clear button
         this.updateAvailableClassesForMode();
     }
 
@@ -479,6 +473,54 @@ export class EcoreToolbar {
         header.textContent = 'Create Instance';
         header.style.cssText = 'font-weight: bold; padding: 6px 8px;';
         container.appendChild(header);
+
+        // Add container info and clear button if container is selected
+        if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
+            // Create container info if it doesn't exist
+            if (!this.containerInfo) {
+                this.containerInfo = document.createElement('div');
+                this.containerInfo.style.cssText = `
+                    padding: 8px;
+                    margin: 8px 0;
+                    background-color: #e3f2fd;
+                    border: 1px solid #90caf9;
+                    border-radius: 4px;
+                    font-size: 12px;
+                    color: #1976d2;
+                `;
+            }
+            this.containerInfo.textContent = `Container: ${this.selectedContainerClassName}`;
+            container.appendChild(this.containerInfo);
+
+            // Create clear container button if it doesn't exist
+            if (!this.clearContainerButton) {
+                this.clearContainerButton = document.createElement('button');
+                this.clearContainerButton.textContent = 'Clear Container';
+                this.clearContainerButton.style.cssText = `
+                    padding: 6px 12px;
+                    margin: 4px 0;
+                    background-color: #007bff;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                    width: 100%;
+                `;
+                this.clearContainerButton.addEventListener('click', () => {
+                    this.clearContainer();
+                });
+            }
+            container.appendChild(this.clearContainerButton);
+        } else {
+            // Remove container info and button if they exist
+            if (this.containerInfo && this.containerInfo.parentNode) {
+                this.containerInfo.parentNode.removeChild(this.containerInfo);
+            }
+            if (this.clearContainerButton && this.clearContainerButton.parentNode) {
+                this.clearContainerButton.parentNode.removeChild(this.clearContainerButton);
+            }
+        }
 
         if (classNames.length === 0) {
             const empty = document.createElement('div');

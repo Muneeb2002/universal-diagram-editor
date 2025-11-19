@@ -48,6 +48,7 @@ interface NodeShapeConfig {
     height: number;
     color: string;
     fillColor: string;
+    filled?: boolean;
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
 }
@@ -263,10 +264,22 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         };
         
         if (hasMapping && shapeConfig) {
+            // Respect the filled property when setting CSS variable
+            // If filled is explicitly false, use 'none', otherwise use fillColor (even if filled is undefined, default to filled)
+            const fillValue = (shapeConfig.filled === false) ? 'none' : (shapeConfig.fillColor || 'transparent');
+            // Always set CSS variables on this node's group to prevent inheritance from parent
+            // This ensures nested nodes use their own values, not the parent's
             groupAttrs.style = {
-                '--instance-node-fill': shapeConfig.fillColor || 'transparent',
+                '--instance-node-fill': fillValue,
                 '--instance-node-stroke': shapeConfig.color || '#444',
                 '--instance-node-stroke-width': (shapeConfig.lineThickness || 2) + 'px'
+            };
+        } else {
+            // If no mapping, explicitly set CSS variables to 'initial' to prevent inheritance from parent
+            groupAttrs.style = {
+                '--instance-node-fill': 'initial',
+                '--instance-node-stroke': 'initial',
+                '--instance-node-stroke-width': 'initial'
             };
         }
         
@@ -438,9 +451,17 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
     }
 
     private renderCircle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const radius = Math.min(width, height) / 2 - 10; // Leave more margin for circle
-        const centerX = width / 2;
-        const centerY = height / 2;
+        // Ensure minimum dimensions before calculating radius
+        const minSize = 20;
+        const safeWidth = Math.max(minSize, width);
+        const safeHeight = Math.max(minSize, height);
+        // For circles, use the smaller dimension and ensure reasonable padding
+        // For very small dimensions, use a larger percentage of the size
+        const smallerDim = Math.min(safeWidth, safeHeight);
+        const padding = smallerDim < 30 ? 2 : 10; // Less padding for very small circles
+        const radius = Math.max(5, smallerDim / 2 - padding);
+        const centerX = safeWidth / 2;
+        const centerY = safeHeight / 2;
         
         const cssClasses = (node as any).cssClasses || [];
         const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
@@ -456,11 +477,26 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             strokeDasharray: strokeDasharray
         };
         
-        // Set fill and stroke as inline attributes to override CSS !important rules
-        if (style.fill) {
-            attrs.fill = style.fill;
-            attrs.style = { '--instance-node-fill': style.fill };
+        // Always set fill attribute directly on SVG element (has highest priority)
+        // SVG attributes override CSS, so this should work even with !important
+        // Ensure fill is always set - use style.fill if available, otherwise check shapeConfig
+        let fillValue = style.fill;
+        if (fillValue === undefined || fillValue === null || fillValue === '') {
+            // Fallback: try to get fill from shapeConfig if available
+            const nodeShapeConfig = (node as any).shapeConfig;
+            if (nodeShapeConfig) {
+                // Check filled property - if explicitly false, use 'none', otherwise use fillColor
+                const isFilled = nodeShapeConfig.filled !== false; // true if filled is true or undefined
+                fillValue = isFilled ? (nodeShapeConfig.fillColor || 'transparent') : 'none';
+            } else {
+                fillValue = 'none';
+            }
         }
+        // Always set the fill attribute - SVG attributes override CSS (even with !important)
+        attrs.fill = fillValue;
+        // Also set CSS variable for CSS rules that use it (as fallback)
+        attrs.style = attrs.style || {};
+        attrs.style['--instance-node-fill'] = fillValue;
         if (style.stroke) {
             attrs.stroke = style.stroke;
             attrs.style = attrs.style || {};
@@ -655,8 +691,17 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         if (!shapeConfig) {
             return {};
         }
+        // If filled is explicitly false, use 'none', otherwise use fillColor (even if filled is undefined, default to filled)
+        // Ensure we always return a valid fill value
+        let fill: string;
+        if (shapeConfig.filled === false) {
+            fill = 'none';
+        } else {
+            // If filled is true or undefined, use fillColor (default to filled behavior)
+            fill = shapeConfig.fillColor || 'transparent';
+        }
         return {
-            fill: shapeConfig.fillColor,
+            fill: fill,
             stroke: shapeConfig.color,
             strokeWidth: shapeConfig.lineThickness,
             lineStyle: shapeConfig.lineStyle

@@ -63,11 +63,19 @@
     stroke-width: 2px !important;
 }
 
-/* Instance nodes with mapping - use CSS variables to override !important rules */
+/* Instance nodes with mapping - SVG fill attribute will override this CSS */
+/* CSS variables are scoped to each node's group, so nested nodes use their own variables */
+/* Note: SVG fill attribute has higher priority than CSS, so this is just a fallback */
 .ecore-instance.color-mapped .sprotty-node {
+    fill: var(--instance-node-fill);
+    stroke: var(--instance-node-stroke);
+    stroke-width: var(--instance-node-stroke-width);
+}
+
+/* Override fill-none rule for mapped nodes - this must be more specific than .ecore-instance.fill-none */
+.ecore-instance.color-mapped.fill-none .sprotty-node,
+.ecore-instance.color-mapped .sprotty-node[fill] {
     fill: var(--instance-node-fill) !important;
-    stroke: var(--instance-node-stroke) !important;
-    stroke-width: var(--instance-node-stroke-width) !important;
 }
 
 
@@ -228,6 +236,7 @@
 }
 
 /* Ensure unfilled option overrides any color fills (placed after color rules) */
-.ecore-instance.fill-none .sprotty-node {
+/* But only if the node doesn't have a mapping (color-mapped class takes precedence) */
+.ecore-instance.fill-none:not(.color-mapped) .sprotty-node {
     fill: transparent !important;
 }
