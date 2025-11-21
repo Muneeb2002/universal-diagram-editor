@@ -335,6 +335,8 @@ export class GraphicalModelEditor {
         elementDiv.id = element.id;
         // Only show border/background for rectangle type, others use transparent container
         const isRectangle = element.type === 'rectangle';
+        // Respect the filled property for rectangles - only show background if filled is true
+        const shouldShowBackground = isRectangle && element.filled !== false;
         elementDiv.style.cssText = `
             position: absolute;
             left: ${element.x}px;
@@ -342,7 +344,7 @@ export class GraphicalModelEditor {
             width: ${element.width}px;
             height: ${element.height}px;
             border: ${isRectangle ? `${element.lineThickness}px ${element.lineStyle} ${element.color}` : 'none'};
-            background: ${isRectangle ? element.fillColor : 'transparent'};
+            background: ${shouldShowBackground ? element.fillColor : 'transparent'};
             cursor: move;
             display: flex;
             align-items: center;
@@ -765,14 +767,27 @@ export class GraphicalModelEditor {
         }
 
         deleteBtn.addEventListener('click', () => {
-            if (this.selectedElement) {
+            if (this.selectedElement && this.canvas) {
                 const elementId = this.selectedElement.id;
-                this.elements.delete(elementId);
-                const elementDiv = document.getElementById(elementId);
-                if (elementDiv) {
-                    elementDiv.remove();
+                
+                // Clear selection first (before removing from DOM)
+                this.selectedElement = null;
+                if (this.propertiesPanel) {
+                    this.propertiesPanel.innerHTML = '<div style="color: #666; font-size: 14px;">Select an element to edit its properties</div>';
                 }
-                this.deselectElement();
+                
+                // Find and remove the DOM element from the canvas
+                // Iterate through canvas children to find the element
+                const children = Array.from(this.canvas.children);
+                for (const child of children) {
+                    if (child.id === elementId) {
+                        child.remove();
+                        break;
+                    }
+                }
+                
+                // Remove from the elements Map after DOM removal
+                this.elements.delete(elementId);
             }
         });
     }

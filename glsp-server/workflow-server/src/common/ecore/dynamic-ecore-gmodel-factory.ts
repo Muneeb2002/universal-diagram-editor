@@ -558,8 +558,63 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         if (typeof eType === 'string') {
             return eType;
         }
-        if (eType && typeof eType === 'object') {
-            const typeName = this.getProp<string>(eType, 'name');
+        if (!eType) {
+            return 'Unknown';
+        }
+        if (typeof eType === 'object') {
+            // Check if it's an enum by checking for eClass structure
+            const isEnum = isEEnum(eType) || 
+                          (eType.eClass && eType.eClass.values && eType.eClass.values.name === 'EEnum');
+            
+            if (isEnum) {
+                // Try multiple ways to get the enum name
+                const enumName = this.getProp<string>(eType, 'name') || 
+                                eType.name || 
+                                (eType.get && eType.get('name'));
+                return enumName || 'Unknown';
+            }
+            
+            // For other types, try to get the name
+            const typeName = this.getProp<string>(eType, 'name') || 
+                            eType.name || 
+                            (eType.get && eType.get('name'));
+            
+            // If the type name matches an enum name, it might be an enum that wasn't recognized
+            if (typeName && !['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate', 'Unknown'].includes(typeName)) {
+                // Check if it's actually an enum by checking the metamodel
+                const metamodel = this.modelState.get('ecoreModel') as EcoreModel;
+                if (metamodel && metamodel.ePackages) {
+                    for (const pkg of metamodel.ePackages) {
+                        const classifiers = this.getProp<any>(pkg, 'eClassifiers');
+                        if (classifiers) {
+                            let classifierArray: any[] = [];
+                            if (Array.isArray(classifiers)) {
+                                classifierArray = classifiers;
+                            } else if (typeof classifiers.forEach === 'function') {
+                                classifiers.forEach((item: any) => {
+                                    if (item) classifierArray.push(item);
+                                });
+                            } else {
+                                try {
+                                    classifierArray = Array.from(classifiers);
+                                } catch {
+                                    classifierArray = [];
+                                }
+                            }
+                            
+                            for (const classifier of classifierArray) {
+                                if (isEEnum(classifier)) {
+                                    const name = this.getProp<string>(classifier, 'name') || classifier.name;
+                                    if (name === typeName) {
+                                        return typeName;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
             return typeName || 'Unknown';
         }
         return 'Unknown';

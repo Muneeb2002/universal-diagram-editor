@@ -1335,8 +1335,58 @@ export class MetamodelRegistry {
         }
 
         for (const pkg of activeMetamodel.ePackages) {
-            const classifiers = toArray(pkg.eClassifiers);
-            for (const classifier of classifiers) {
+            // Use the same method as findEClass - check for ecore-ts objects first
+            const classifiersRaw = typeof (pkg as any).get === 'function' 
+                ? (pkg as any).get('eClassifiers') 
+                : (pkg as any).eClassifiers;
+            
+            if (!classifiersRaw) {
+                continue;
+            }
+            
+            // Use the same robust conversion method as findEClass
+            let classifierArray: any[] = [];
+            if (Array.isArray(classifiersRaw)) {
+                classifierArray = classifiersRaw;
+            } else if (classifiersRaw.size && typeof classifiersRaw.size === 'function') {
+                // It's an EList - try different iteration methods
+                if (typeof classifiersRaw.forEach === 'function') {
+                    classifiersRaw.forEach((item: any) => {
+                        if (item) classifierArray.push(item);
+                    });
+                } else if (typeof classifiersRaw[Symbol.iterator] === 'function') {
+                    try {
+                        for (const item of classifiersRaw) {
+                            if (item) classifierArray.push(item);
+                        }
+                    } catch (e) {
+                        // Iterator failed, continue with other methods
+                    }
+                } else if (classifiersRaw._internal && Array.isArray(classifiersRaw._internal)) {
+                    classifierArray = classifiersRaw._internal.filter((item: any) => item != null);
+                } else if (classifiersRaw.get && typeof classifiersRaw.get === 'function') {
+                    for (let i = 0; i < classifiersRaw.size(); i++) {
+                        const item = classifiersRaw.get(i);
+                        if (item) classifierArray.push(item);
+                    }
+                } else {
+                    try {
+                        classifierArray = Array.from(classifiersRaw).filter((item: any) => item != null);
+                    } catch (e) {
+                        classifierArray = [];
+                    }
+                }
+            } else {
+                try {
+                    classifierArray = Array.from(classifiersRaw);
+                } catch (e) {
+                    classifierArray = [];
+                }
+            }
+            
+            for (const classifier of classifierArray) {
+                if (!classifier) continue;
+                
                 if (isEEnum(classifier)) {
                     const name = classifier.get ? classifier.get('name') : classifier.name;
                     if (name === enumName) {
@@ -1403,8 +1453,32 @@ export class MetamodelRegistry {
                 };
             }
 
-            // Map attribute type to ecore-ts type
-            const eType = this.mapAttributeTypeToEcoreType(attributeType);
+            // IMPORTANT: Check for enum FIRST, before calling mapAttributeTypeToEcoreType
+            // because mapAttributeTypeToEcoreType defaults to EString if enum not found
+            let finalEType: any = null;
+            const foundEnum = this.findEEnum(attributeType);
+            
+            if (foundEnum) {
+                // Found the enum! Use it directly
+                finalEType = foundEnum;
+            } else {
+                // No enum found, use mapAttributeTypeToEcoreType (which will return EString if not recognized)
+                finalEType = this.mapAttributeTypeToEcoreType(attributeType);
+                
+                // Double-check: if it returned EString (default), try one more time to find the enum
+                // EString from ecore-ts has values.name === 'EString'
+                const isEString = finalEType === EString || 
+                                 (finalEType && finalEType.values && finalEType.values.name === 'EString') ||
+                                 (finalEType && typeof finalEType.get === 'function' && finalEType.get('name') === 'EString');
+                
+                if (isEString && attributeType !== 'EString') {
+                    // It defaulted to EString but we wanted an enum - try finding it one more time
+                    const doubleCheckEnum = this.findEEnum(attributeType);
+                    if (doubleCheckEnum) {
+                        finalEType = doubleCheckEnum;
+                    }
+                }
+            }
             
             // Create the attribute
             let attribute: any;
@@ -1412,7 +1486,7 @@ export class MetamodelRegistry {
             if (isEcoreTs) {
                 attribute = EAttribute.create({
                     name: attributeName,
-                    eType: eType,
+                    eType: finalEType,
                     lowerBound: lowerBound,
                     upperBound: upperBound,
                     unique: true,
@@ -1422,9 +1496,34 @@ export class MetamodelRegistry {
                     structuralFeatures.add(attribute);
                 }
             } else {
+                // For plain JS objects, determine the eTypeValue based on what we found
+                let eTypeValue: any;
+                
+                if (isEEnum(finalEType)) {
+                    // It's an enum object, use it directly
+                    eTypeValue = finalEType;
+                } else if (typeof finalEType === 'object' && finalEType.name) {
+                    // It's a built-in type or has a name property
+                    const builtInTypes = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'];
+                    if (builtInTypes.includes(finalEType.name)) {
+                        eTypeValue = { name: finalEType.name };
+                    } else {
+                        // Might be an enum that wasn't recognized - try finding it one more time
+                        const enumCheck = this.findEEnum(finalEType.name);
+                        if (enumCheck) {
+                            eTypeValue = enumCheck;
+                        } else {
+                            eTypeValue = { name: finalEType.name };
+                        }
+                    }
+                } else {
+                    // Final fallback
+                    eTypeValue = { name: attributeType };
+                }
+                
                 attribute = {
                     name: attributeName,
-                    eType: { name: attributeType },
+                    eType: eTypeValue,
                     lowerBound: lowerBound,
                     upperBound: upperBound,
                     unique: true,
@@ -1556,9 +1655,23 @@ export class MetamodelRegistry {
                 targetAttr.set('lowerBound', lowerBound);
                 targetAttr.set('upperBound', upperBound);
             } else {
+                // For plain JS objects, use the eType returned from mapAttributeTypeToEcoreType
+                // This ensures enum types are properly set instead of just using { name: attributeType }
+                let eTypeValue: any;
+                if (isEEnum(eType)) {
+                    // If it's an enum, use the actual enum object
+                    eTypeValue = eType;
+                } else if (typeof eType === 'object' && eType.name) {
+                    // If it's a built-in type with a name property, use it
+                    eTypeValue = { name: eType.name };
+                } else {
+                    // Fallback to just the name
+                    eTypeValue = { name: attributeType };
+                }
+                
                 const originalNameNormalized = targetAttr.name;
                 targetAttr.name = trimmedName;
-                targetAttr.eType = { name: attributeType };
+                targetAttr.eType = eTypeValue;
                 targetAttr.lowerBound = lowerBound;
                 targetAttr.upperBound = upperBound;
 
@@ -1566,7 +1679,7 @@ export class MetamodelRegistry {
                     const attrEntry = (eClass as any).eAttributes.find((entry: any) => entry.name === originalNameNormalized);
                     if (attrEntry) {
                         attrEntry.name = trimmedName;
-                        attrEntry.eType = { name: attributeType };
+                        attrEntry.eType = eTypeValue;
                         attrEntry.lowerBound = lowerBound;
                         attrEntry.upperBound = upperBound;
                     }
@@ -1854,6 +1967,65 @@ export class MetamodelRegistry {
                                 continue;
                             }
                             
+                            // Check if this is an EEnum
+                            const isEnumCheck = isEEnum(classifier);
+                            
+                            if (isEnumCheck) {
+                                // Serialize as EEnum with the proper structure
+                                const enumName = classifier.get?.('name') || classifier.name;
+                                const eLiterals = classifier.eLiterals || classifier.get?.('eLiterals');
+                                
+                                const enumData: any = {
+                                    eClass: 'ecore:EEnum',
+                                    name: enumName,
+                                    eLiterals: []
+                                };
+                                
+                                // Extract enum literals
+                                if (eLiterals) {
+                                    let literalArray: any[] = [];
+                                    if (Array.isArray(eLiterals)) {
+                                        literalArray = eLiterals;
+                                    } else if (typeof eLiterals.forEach === 'function') {
+                                        eLiterals.forEach((item: any) => {
+                                            if (item) literalArray.push(item);
+                                        });
+                                    } else if (eLiterals.size && typeof eLiterals.size === 'function') {
+                                        for (let j = 0; j < eLiterals.size(); j++) {
+                                            const item = eLiterals.get(j);
+                                            if (item) literalArray.push(item);
+                                        }
+                                    } else {
+                                        try {
+                                            literalArray = Array.from(eLiterals).filter((item: any) => item != null);
+                                        } catch (e) {
+                                            literalArray = [];
+                                        }
+                                    }
+                                    
+                                    // Serialize each literal with name, value, and literal properties
+                                    for (const literal of literalArray) {
+                                        if (!literal) continue;
+                                        
+                                        const literalName = literal.name || literal.get?.('name') || '';
+                                        const literalValue = literal.value !== undefined 
+                                            ? (literal.value !== null ? literal.value : (literal.get?.('value') ?? literal.value))
+                                            : (literal.get?.('value') ?? undefined);
+                                        const literalString = literal.literal || literal.get?.('literal') || literalName;
+                                        
+                                        enumData.eLiterals.push({
+                                            name: literalName,
+                                            value: literalValue !== undefined ? literalValue : enumData.eLiterals.length,
+                                            literal: literalString
+                                        });
+                                    }
+                                }
+                                
+                                packageData.eClassifiers.push(enumData);
+                                continue;
+                            }
+                            
+                            // Serialize as EClass
                             const classifierData: any = {
                                 name: classifier.get?.('name') || classifier.name,
                                 abstract: classifier.get?.('abstract') || classifier.abstract,

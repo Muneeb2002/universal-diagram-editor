@@ -8,10 +8,11 @@ import {
     createRenameClassAction,
     createUpdateAttributeAction,
     createUpdateMetamodelPropertiesAction,
-    createDeleteClassAction
+    createDeleteClassAction,
+    createRequestEnumNamesAction,
+    EnumNamesResponse
 } from './ecore-client-actions';
 import { RequestAction } from '@eclipse-glsp/protocol';
-import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 
 const ATTRIBUTE_TYPES = ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'];
 
@@ -638,34 +639,22 @@ export class ClassPropertiesPanel {
         
         // Also request enum names from server to ensure we have the latest
         const requestId = RequestAction.generateRequestId();
-        const requestAction: any = {
-            kind: 'requestEnumNames',
-            requestId: requestId
-        };
+        const requestAction = createRequestEnumNamesAction(requestId);
         
-        // Use promise-based approach
-        new Promise<string[]>((resolve, reject) => {
-            const timeoutHandle = window.setTimeout(() => {
-                clearPendingEnumNameRequest(requestId);
-                reject(new Error('Timed out waiting for enum names response'));
-            }, 5000);
-            
-            setPendingEnumNameRequest(requestId, resolve, reject, timeoutHandle);
-            
-            // Dispatch the action
-            this.dispatcher.dispatch(requestAction).catch(error => {
-                const pending = getPendingEnumNameRequest(requestId);
-                if (pending) {
-                    window.clearTimeout(pending.timeoutHandle);
-                    clearPendingEnumNameRequest(requestId);
-                    reject(error);
-                }
-            });
-        }).then((enumNames: string[]) => {
-            this.enumNames = enumNames || [];
+        // Use requestUntil for proper request/response handling
+        this.dispatcher.requestUntil<EnumNamesResponse>(requestAction, 5000, true).then((response) => {
+            if (!response) {
+                throw new Error('No response received for enum names request');
+            }
+            if (!response.success) {
+                throw new Error(response.message || 'Failed to retrieve enum names');
+            }
+            const enumNames = response.enumNames || [];
+            this.enumNames = enumNames;
             // Update all type selects in the panel
             this.updateAllTypeSelects();
             // Also update the toolbar cache
+            const toolbar = (window as any).globalToolbar;
             if (toolbar && typeof toolbar.updateEnumNames === 'function') {
                 toolbar.updateEnumNames(enumNames);
             }

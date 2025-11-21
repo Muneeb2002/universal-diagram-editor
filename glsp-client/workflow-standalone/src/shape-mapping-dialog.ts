@@ -26,6 +26,7 @@ export class ShapeMappingDialog {
     private mappings: Map<string, ShapeMapping> = new Map();
     private savedShapes: Map<string, GraphicalElement> = new Map();
     private classNames: string[] = [];
+    private mappingsJustLoaded: boolean = false;
 
     constructor(actionDispatcher: GLSPActionDispatcher) {
         this.actionDispatcher = actionDispatcher;
@@ -54,10 +55,16 @@ export class ShapeMappingDialog {
         );
         
         // Clear mappings if mode is 'create', otherwise load existing mappings
+        // But skip loading if mappings were just loaded from content (to avoid overwriting)
         if (mode === 'create') {
             this.mappings.clear();
-        } else {
+            this.mappingsJustLoaded = false;
+        } else if (!this.mappingsJustLoaded) {
             this.loadMappings();
+            this.mappingsJustLoaded = false;
+        } else {
+            // Mappings were just loaded from content, don't overwrite them
+            this.mappingsJustLoaded = false;
         }
         
         this.createDialog();
@@ -310,19 +317,46 @@ export class ShapeMappingDialog {
         }
     }
 
-    public loadFromContent(content: string, autoMount = true): void {
+    public loadFromContent(content: string, autoMount = true, classNames?: string[], savedShapes?: Map<string, GraphicalElement>): void {
         try {
             const data = JSON.parse(content);
             if (data.mappings && Array.isArray(data.mappings)) {
                 this.mappings.clear();
-                // Ensure we have the latest shapes before normalizing mappings
-                const editor = (window as any).globalGraphicalModelEditor;
-                if (editor && editor.getSavedShapes) {
-                    this.savedShapes = editor.getSavedShapes();
+                
+                // Set classNames if provided, otherwise try to get from toolbar
+                if (classNames) {
+                    this.classNames = classNames;
+                } else {
+                    const toolbar: any = (window as any).globalToolbar;
+                    this.classNames = toolbar && toolbar.getConcreteClasses ? toolbar.getConcreteClasses() : [];
                 }
+                
+                // Set savedShapes if provided, otherwise get from editor
+                if (savedShapes) {
+                    this.savedShapes = new Map(
+                        Array.from(savedShapes.entries()).map(([id, shape]) => {
+                            const normalized: GraphicalElement = {
+                                ...shape,
+                                arrowType: shape.type === 'arrow'
+                                    ? (shape.arrowType ?? 'filled-triangle')
+                                    : undefined
+                            };
+                            return [id, normalized];
+                        })
+                    );
+                } else {
+                    const editor = (window as any).globalGraphicalModelEditor;
+                    if (editor && editor.getSavedShapes) {
+                        this.savedShapes = editor.getSavedShapes();
+                    }
+                }
+                
                 data.mappings.forEach((mapping: ShapeMapping, index: number) => {
                     this.mappings.set(mapping.className, this.normalizeMapping(mapping, index));
                 });
+                
+                // Mark that mappings were just loaded to prevent overwriting in show()
+                this.mappingsJustLoaded = true;
                 
                 // Recreate dialog to show updated mappings
                 // Remove both backdrop and dialog if they exist
@@ -397,6 +431,7 @@ export class ShapeMappingDialog {
                     await this.syncMappingsWithServer();
                     
                     // Update the edit button visibility in the sidebar
+                    // This will show the button since mappings have been loaded
                     if (sidebar && sidebar.updateEditMappingButtonVisibility) {
                         sidebar.updateEditMappingButtonVisibility();
                     }

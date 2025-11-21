@@ -671,14 +671,21 @@ export class LeftSidebar {
                 const editor = (window as any).globalGraphicalModelEditor;
                 const savedShapes = editor ? editor.getSavedShapes() : new Map();
                 const toolbar: any = (window as any).globalToolbar;
-                const classNames = toolbar && toolbar.getConcreteClasses ? toolbar.getConcreteClasses() : [];
+                let classNames: string[] = [];
                 
-                // Load the content and show the dialog
-                mappingDialog.loadFromContent(match.content, false);
-                if (classNames.length > 0 && savedShapes.size > 0) {
-                    mappingDialog.show(classNames, savedShapes, 'edit');
-                    this.updateEditMappingButtonVisibility();
+                // Try to get all class names (prefer all classes, fallback to concrete only)
+                if (toolbar && toolbar.getAllClassNames) {
+                    classNames = toolbar.getAllClassNames();
+                } else if (toolbar && toolbar.getConcreteClasses) {
+                    classNames = toolbar.getConcreteClasses();
+                } else if (toolbar && toolbar.allClasses && Array.isArray(toolbar.allClasses)) {
+                    // Fallback: extract from allClasses directly if method doesn't exist
+                    classNames = toolbar.allClasses.map((cls: any) => cls.className || cls);
                 }
+                
+                // Load the content with classNames and savedShapes, and autoMount=true to show the dialog immediately
+                mappingDialog.loadFromContent(match.content, true, classNames, savedShapes);
+                this.updateEditMappingButtonVisibility();
             } catch (e) {
                 console.error('Error reloading mapping model:', e);
                 alert('Error reloading mapping model: ' + e);
@@ -936,14 +943,17 @@ export class LeftSidebar {
         const editBtn = (this as any).editMappingBtn;
         if (!editBtn) return;
 
-        // Check if mappings exist in localStorage
-        try {
-            const stored = localStorage.getItem('shapeMappings');
-            const hasMappings = stored && JSON.parse(stored).mappings && JSON.parse(stored).mappings.length > 0;
-            editBtn.style.display = hasMappings ? 'block' : 'none';
-        } catch {
-            editBtn.style.display = 'none';
+        // Check if the mapping dialog has active mappings (loaded or created)
+        // Only show the button when a mapping model has been reloaded or created
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        let hasMappings = false;
+        
+        if (mappingDialog && mappingDialog.getMappings) {
+            const mappings = mappingDialog.getMappings();
+            hasMappings = mappings && mappings.size > 0;
         }
+        
+        editBtn.style.display = hasMappings ? 'block' : 'none';
     }
 
 }

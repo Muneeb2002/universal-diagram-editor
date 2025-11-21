@@ -108,6 +108,23 @@ export class EcoreToolbar {
         return this.allEnumNames || [];
     }
 
+    /**
+     * Gets all concrete (non-abstract, non-interface) class names from the loaded metamodel.
+     * This is useful for the mapping dialog and other places that need a list of instantiable classes.
+     */
+    public getConcreteClasses(): string[] {
+        return this.allClasses
+            .filter(cls => !cls.isAbstract && !cls.isInterface)
+            .map(cls => cls.className);
+    }
+
+    /**
+     * Gets all class names (including abstract classes and interfaces) from the loaded metamodel.
+     */
+    public getAllClassNames(): string[] {
+        return this.allClasses.map(cls => cls.className);
+    }
+
     private updateAvailableClassesForMode(): void {
         if (this.currentMode === 'instance') {
             const paletteClasses: string[] = [];
