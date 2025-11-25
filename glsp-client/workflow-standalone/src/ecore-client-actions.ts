@@ -8,7 +8,7 @@
  * SPDX-License-Identifier: EPL-2.0
  ********************************************************************************/
 
-import { Action, RequestAction, ResponseAction } from '@eclipse-glsp/protocol';
+import { Action, RequestAction, ResponseAction, hasStringProp } from '@eclipse-glsp/protocol';
 
 /**
  * Client-side action type definitions for Ecore metamodel operations.
@@ -152,6 +152,48 @@ export function createSwitchModeAction(mode: 'metamodel' | 'instance'): SwitchMo
     };
 }
 
+export interface SaveInstanceAction extends Action {
+    kind: typeof SaveInstanceAction.KIND;
+    filename: string;
+}
+
+export namespace SaveInstanceAction {
+    export const KIND = 'saveInstance';
+
+    export function is(object: any): object is SaveInstanceAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'filename');
+    }
+
+    export function create(filename: string): SaveInstanceAction {
+        return {
+            kind: KIND,
+            filename
+        };
+    }
+}
+
+export interface LoadInstanceAction extends Action {
+    kind: typeof LoadInstanceAction.KIND;
+    content: string;
+    filename: string;
+}
+
+export namespace LoadInstanceAction {
+    export const KIND = 'loadInstance';
+
+    export function is(object: any): object is LoadInstanceAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'content') && hasStringProp(object, 'filename');
+    }
+
+    export function create(content: string, filename: string): LoadInstanceAction {
+        return {
+            kind: KIND,
+            content,
+            filename
+        };
+    }
+}
+
 export function createCreateInstanceAction(
     eClassName: string,
     position?: { x: number; y: number },
@@ -259,6 +301,10 @@ export interface ClassPropertiesResponse extends Action {
         isInterface: boolean;
         eSuperTypes: string[];
         attributes: Array<{ name: string; type: string; lowerBound: number; upperBound: number }>;
+    }>;
+    enums?: Array<{
+        enumName: string;
+        literals: Array<{ name: string; value?: number }>;
     }>;
 }
 

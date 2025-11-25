@@ -22,6 +22,7 @@ export class EcoreToolbar {
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private allClasses: ClassInfo[] = [];
     private allEnumNames: string[] = [];
+    private allEnums: Array<{ enumName: string; literals: Array<{ name: string; value?: number }> }> = [];
     private selectedContainerInstanceId: string | null = null;
     private selectedContainerClassName: string | null = null;
     private editorContextService?: EditorContextService;
@@ -106,6 +107,22 @@ export class EcoreToolbar {
 
     public getEnumNames(): string[] {
         return this.allEnumNames || [];
+    }
+
+    public updateEnums(enums: Array<{ enumName: string; literals: Array<{ name: string; value?: number }> }>): void {
+        this.allEnums = enums || [];
+    }
+
+    public getEnums(): Array<{ enumName: string; literals: Array<{ name: string; value?: number }> }> {
+        return this.allEnums || [];
+    }
+
+    public getEnumLiterals(enumName: string): string[] {
+        const enumData = this.allEnums.find(e => e.enumName === enumName);
+        if (enumData && enumData.literals) {
+            return enumData.literals.map(lit => lit.name).filter(Boolean);
+        }
+        return [];
     }
 
     /**

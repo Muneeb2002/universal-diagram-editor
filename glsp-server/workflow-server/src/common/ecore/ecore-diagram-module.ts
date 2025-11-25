@@ -58,6 +58,8 @@ import { RequestEnumNamesActionHandler } from './request-enum-names-action-handl
 import { SaveGraphicalModelActionHandler } from './save-graphical-model-action-handler';
 import { SaveShapeMappingsActionHandler } from './save-shape-mappings-action-handler';
 import { ApplyShapeMappingsActionHandler } from './apply-shape-mappings-action-handler';
+import { SaveInstanceActionHandler } from './save-instance-action-handler';
+import { LoadInstanceActionHandler } from './load-instance-action-handler';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -113,6 +115,8 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(AddAttributeActionHandler);
         binding.add(DeleteAttributeActionHandler);
         binding.add(UpdateAttributeActionHandler);
+        binding.add(SaveInstanceActionHandler);
+        binding.add(LoadInstanceActionHandler);
     }
 
     protected override bindToolPaletteItemProvider(): BindingTarget<ToolPaletteItemProvider> {

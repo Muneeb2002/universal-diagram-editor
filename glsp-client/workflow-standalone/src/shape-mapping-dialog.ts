@@ -10,13 +10,16 @@
 
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { GraphicalElement } from './graphical-model-editor';
-import { createSaveShapeMappingsAction, createApplyShapeMappingsAction } from './ecore-client-actions';
+import { createSaveShapeMappingsAction, createApplyShapeMappingsAction, createOpenClassPropertiesAction } from './ecore-client-actions';
 
 export interface ShapeMapping {
     className: string;
     shapeId: string;
     shapeName: string;
     shapeConfig: Omit<GraphicalElement, 'id' | 'x' | 'y' | 'selected'>;
+    // Optional enum conditions for submappings
+    enumAttribute?: string; // Name of the enum attribute (e.g., "Status")
+    enumValue?: string; // Value of the enum literal (e.g., "Active", "Pending")
 }
 
 export class ShapeMappingDialog {
@@ -53,6 +56,13 @@ export class ShapeMappingDialog {
                 return [id, normalized];
             })
         );
+        
+        // Request class properties to get enum information with literals
+        if (this.actionDispatcher) {
+            this.actionDispatcher.dispatch(createOpenClassPropertiesAction()).catch(() => {
+                // Ignore errors - enum info might not be critical
+            });
+        }
         
         // Clear mappings if mode is 'create', otherwise load existing mappings
         // But skip loading if mappings were just loaded from content (to avoid overwriting)
@@ -157,17 +167,39 @@ export class ShapeMappingDialog {
         }
 
         const shapesArray = Array.from(this.savedShapes.values());
+        const toolbar = (window as any).globalToolbar;
+        const classInfoList = toolbar && toolbar.allClasses ? toolbar.allClasses : [];
+        const enumNames = toolbar && toolbar.getEnumNames ? toolbar.getEnumNames() : [];
 
         return this.classNames.map(className => {
-            const existingMapping = this.mappings.get(className);
-            const selectedShapeId = existingMapping ? existingMapping.shapeId : '';
+            const classInfo = classInfoList.find((c: any) => c.className === className);
+            const enumAttributes = classInfo?.attributes?.filter((attr: any) => 
+                enumNames.includes(attr.type)
+            ) || [];
 
-            return `
+            // Get base mapping (no enum conditions)
+            const baseMappingKey = this.getMappingKey(className);
+            const baseMapping = this.mappings.get(baseMappingKey);
+            const baseSelectedShapeId = baseMapping ? baseMapping.shapeId : '';
+
+            // Get enum literal values for each enum attribute
+            const enumSubmappings: Array<{ attrName: string; enumType: string; literals: string[] }> = [];
+            for (const enumAttr of enumAttributes) {
+                const enumType = enumAttr.type;
+                const literals = this.getEnumLiterals(enumType);
+                if (literals.length > 0) {
+                    enumSubmappings.push({ attrName: enumAttr.name, enumType, literals });
+                }
+            }
+
+            // Build base mapping row
+            let html = `
                 <div class="mapping-row" data-class-name="${className}" style="
                     border: 1px solid #ddd;
                     border-radius: 6px;
                     padding: 15px;
                     background: white;
+                    margin-bottom: 10px;
                 ">
                     <div style="display: flex; align-items: center; gap: 15px;">
                         <div style="flex: 1;">
@@ -175,8 +207,8 @@ export class ShapeMappingDialog {
                             <div style="font-size: 16px; color: #333; font-weight: 600;">${className}</div>
                         </div>
                         <div style="flex: 2;">
-                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Graphical Shape:</label>
-                            <select class="shape-select" data-class="${className}" style="
+                            <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Base Mapping (Default):</label>
+                            <select class="shape-select" data-class="${className}" data-mapping-type="base" style="
                                 width: 100%;
                                 padding: 8px;
                                 border: 1px solid #ddd;
@@ -185,14 +217,14 @@ export class ShapeMappingDialog {
                             ">
                                 <option value="">-- Select a shape --</option>
                                 ${shapesArray.map(shape => `
-                                    <option value="${shape.id}" ${shape.id === selectedShapeId ? 'selected' : ''}>
+                                    <option value="${shape.id}" ${shape.id === baseSelectedShapeId ? 'selected' : ''}>
                                         ${shape.name} (${shape.type})
                                     </option>
                                 `).join('')}
                             </select>
                         </div>
                         <div style="flex: 1; text-align: center;">
-                            ${existingMapping ? `
+                            ${baseMapping ? `
                                 <div style="padding: 8px; background: #d4edda; border-radius: 4px; color: #155724; font-size: 12px;">
                                     ✓ Mapped
                                 </div>
@@ -203,9 +235,89 @@ export class ShapeMappingDialog {
                             `}
                         </div>
                     </div>
-                </div>
             `;
+
+            // Add submappings for each enum attribute
+            for (const { attrName, enumType, literals } of enumSubmappings) {
+                html += `
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                        <div style="margin-bottom: 10px; font-weight: 500; color: #555; font-size: 14px;">
+                            Submappings for ${attrName} (${enumType}):
+                        </div>
+                        <div style="display: flex; flex-direction: column; gap: 10px;">
+                `;
+
+                for (const literal of literals) {
+                    const subMappingKey = this.getMappingKey(className, attrName, literal);
+                    const subMapping = this.mappings.get(subMappingKey);
+                    const subSelectedShapeId = subMapping ? subMapping.shapeId : '';
+
+                    html += `
+                        <div style="display: flex; align-items: center; gap: 15px; padding: 10px; background: #f8f9fa; border-radius: 4px;">
+                            <div style="flex: 1;">
+                                <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555; font-size: 12px;">When ${attrName} = ${literal}:</label>
+                            </div>
+                            <div style="flex: 2;">
+                                <select class="shape-select" data-class="${className}" data-enum-attr="${attrName}" data-enum-value="${literal}" data-mapping-type="sub" style="
+                                    width: 100%;
+                                    padding: 6px;
+                                    border: 1px solid #ddd;
+                                    border-radius: 4px;
+                                    font-size: 13px;
+                                ">
+                                    <option value="">-- Use base mapping --</option>
+                                    ${shapesArray.map(shape => `
+                                        <option value="${shape.id}" ${shape.id === subSelectedShapeId ? 'selected' : ''}>
+                                            ${shape.name} (${shape.type})
+                                        </option>
+                                    `).join('')}
+                                </select>
+                            </div>
+                            <div style="flex: 1; text-align: center;">
+                                ${subMapping ? `
+                                    <div style="padding: 6px; background: #d4edda; border-radius: 4px; color: #155724; font-size: 11px;">
+                                        ✓ Mapped
+                                    </div>
+                                ` : `
+                                    <div style="padding: 6px; background: #fff3cd; border-radius: 4px; color: #856404; font-size: 11px;">
+                                        Uses base
+                                    </div>
+                                `}
+                            </div>
+                        </div>
+                    `;
+                }
+
+                html += `
+                        </div>
+                    </div>
+                `;
+            }
+
+            html += `</div>`;
+            return html;
         }).join('');
+    }
+
+    /**
+     * Get mapping key for a class, optionally with enum conditions
+     */
+    private getMappingKey(className: string, enumAttribute?: string, enumValue?: string): string {
+        if (enumAttribute && enumValue) {
+            return `${className}:${enumAttribute}:${enumValue}`;
+        }
+        return className;
+    }
+
+    /**
+     * Get enum literal values for a given enum type name
+     */
+    private getEnumLiterals(enumTypeName: string): string[] {
+        const toolbar = (window as any).globalToolbar;
+        if (toolbar && typeof toolbar.getEnumLiterals === 'function') {
+            return toolbar.getEnumLiterals(enumTypeName);
+        }
+        return [];
     }
 
     private setupEventListeners(): void {
@@ -224,7 +336,15 @@ export class ShapeMappingDialog {
             select.addEventListener('change', (e) => {
                 const target = e.target as HTMLSelectElement;
                 const className = target.getAttribute('data-class')!;
+                const mappingType = target.getAttribute('data-mapping-type'); // 'base' or 'sub'
+                const enumAttr = target.getAttribute('data-enum-attr');
+                const enumValue = target.getAttribute('data-enum-value');
                 const shapeId = target.value;
+
+                // Determine the mapping key
+                const mappingKey = mappingType === 'sub' && enumAttr && enumValue
+                    ? this.getMappingKey(className, enumAttr, enumValue)
+                    : this.getMappingKey(className);
 
                 if (shapeId) {
                     const shape = this.savedShapes.get(shapeId);
@@ -246,34 +366,59 @@ export class ShapeMappingDialog {
                                 arrowType: shape.type === 'arrow'
                                     ? (shape.arrowType ?? 'filled-triangle')
                                     : undefined
-                            }
+                            },
+                            enumAttribute: enumAttr || undefined,
+                            enumValue: enumValue || undefined
                         };
-                        this.mappings.set(className, mapping);
+                        this.mappings.set(mappingKey, mapping);
                     }
                 } else {
-                    this.mappings.delete(className);
+                    this.mappings.delete(mappingKey);
                 }
-                this.updateMappingStatus(className);
+                this.updateMappingStatus(className, enumAttr, enumValue);
             });
         });
     }
 
-    private updateMappingStatus(className: string): void {
+    private updateMappingStatus(className: string, enumAttr?: string | null, enumValue?: string | null): void {
         const row = this.dialog!.querySelector(`[data-class-name="${className}"]`);
         if (!row) return;
 
-        const statusDiv = row.querySelector('div[style*="padding: 8px"]') as HTMLElement;
-        const mapping = this.mappings.get(className);
+        if (enumAttr && enumValue) {
+            // Update submapping status
+            const subSelect = row.querySelector(`select[data-enum-attr="${enumAttr}"][data-enum-value="${enumValue}"]`) as HTMLSelectElement;
+            if (subSelect) {
+                const subMappingKey = this.getMappingKey(className, enumAttr, enumValue);
+                const subMapping = this.mappings.get(subMappingKey);
+                const statusDiv = subSelect.parentElement?.parentElement?.querySelector('div[style*="padding: 6px"]') as HTMLElement;
+                if (statusDiv) {
+                    if (subMapping) {
+                        statusDiv.style.background = '#d4edda';
+                        statusDiv.style.color = '#155724';
+                        statusDiv.textContent = '✓ Mapped';
+                    } else {
+                        statusDiv.style.background = '#fff3cd';
+                        statusDiv.style.color = '#856404';
+                        statusDiv.textContent = 'Uses base';
+                    }
+                }
+            }
+        } else {
+            // Update base mapping status
+            const statusDiv = row.querySelector('div[style*="padding: 8px"]') as HTMLElement;
+            const baseMappingKey = this.getMappingKey(className);
+            const mapping = this.mappings.get(baseMappingKey);
 
-        if (statusDiv) {
-            if (mapping) {
-                statusDiv.style.background = '#d4edda';
-                statusDiv.style.color = '#155724';
-                statusDiv.textContent = '✓ Mapped';
-            } else {
-                statusDiv.style.background = '#f8d7da';
-                statusDiv.style.color = '#721c24';
-                statusDiv.textContent = 'Not mapped';
+            if (statusDiv) {
+                if (mapping) {
+                    statusDiv.style.background = '#d4edda';
+                    statusDiv.style.color = '#155724';
+                    statusDiv.textContent = '✓ Mapped';
+                } else {
+                    statusDiv.style.background = '#f8d7da';
+                    statusDiv.style.color = '#721c24';
+                    statusDiv.textContent = 'Not mapped';
+                }
             }
         }
     }
@@ -352,7 +497,12 @@ export class ShapeMappingDialog {
                 }
                 
                 data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                    this.mappings.set(mapping.className, this.normalizeMapping(mapping, index));
+                    const normalized = this.normalizeMapping(mapping, index);
+                    // Use composite key for submappings, className for base mappings
+                    const mappingKey = normalized.enumAttribute && normalized.enumValue
+                        ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
+                        : this.getMappingKey(normalized.className);
+                    this.mappings.set(mappingKey, normalized);
                 });
                 
                 // Mark that mappings were just loaded to prevent overwriting in show()
@@ -408,7 +558,12 @@ export class ShapeMappingDialog {
                         this.savedShapes = editor.getSavedShapes();
                     }
                     data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                        this.mappings.set(mapping.className, this.normalizeMapping(mapping, index));
+                        const normalized = this.normalizeMapping(mapping, index);
+                        // Use composite key for submappings, className for base mappings
+                        const mappingKey = normalized.enumAttribute && normalized.enumValue
+                            ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
+                            : this.getMappingKey(normalized.className);
+                        this.mappings.set(mappingKey, normalized);
                     });
                     
                     // Recreate dialog to show updated mappings
@@ -462,7 +617,12 @@ export class ShapeMappingDialog {
                         this.savedShapes = editor.getSavedShapes();
                     }
                     data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                        this.mappings.set(mapping.className, this.normalizeMapping(mapping, index));
+                        const normalized = this.normalizeMapping(mapping, index);
+                        // Use composite key for submappings, className for base mappings
+                        const mappingKey = normalized.enumAttribute && normalized.enumValue
+                            ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
+                            : this.getMappingKey(normalized.className);
+                        this.mappings.set(mappingKey, normalized);
                     });
                     this.syncMappingsWithServer(JSON.stringify(data)).catch(() => undefined);
                 }

@@ -1891,6 +1891,7 @@ export class MetamodelRegistry {
         const simplified: any = {
             ePackages: []
         };
+        const globalEnumNames = new Set<string>();
 
         try {
             // Extract packages - use direct property access instead of .get()
@@ -1973,6 +1974,9 @@ export class MetamodelRegistry {
                             if (isEnumCheck) {
                                 // Serialize as EEnum with the proper structure
                                 const enumName = classifier.get?.('name') || classifier.name;
+                                if (enumName) {
+                                    globalEnumNames.add(enumName);
+                                }
                                 const eLiterals = classifier.eLiterals || classifier.get?.('eLiterals');
                                 
                                 const enumData: any = {
@@ -2134,14 +2138,20 @@ export class MetamodelRegistry {
                                     }
 
                                     // Determine if it's an attribute or reference based on eType
-                                    // If eType is a primitive type (EString, EInt, etc.), it's an attribute
-                                    // If eType is a class, it's a reference
                                     const typeName = eType?.name || eType?.get?.('name');
-                                    if (typeName && (typeName.startsWith('E') || ['String', 'Integer', 'Boolean', 'Double'].includes(typeName))) {
-                                        // It's an attribute
+                                    const isPrimitive =
+                                        typeName &&
+                                        (typeName.startsWith('E') || ['String', 'Integer', 'Boolean', 'Double'].includes(typeName));
+
+                                    const isEnumType =
+                                        (eType && (isEEnum(eType) || eType.eClass === 'ecore:EEnum' || Array.isArray(eType.eLiterals))) ||
+                                        (typeName ? globalEnumNames.has(typeName) : false);
+
+                                    if (isPrimitive || isEnumType) {
+                                        // Attribute (primitives or enums)
                                         classifierData.eAttributes.push(featureData);
                                     } else {
-                                        // It's a reference
+                                        // Reference
                                         classifierData.eReferences.push(featureData);
                                     }
                                 }

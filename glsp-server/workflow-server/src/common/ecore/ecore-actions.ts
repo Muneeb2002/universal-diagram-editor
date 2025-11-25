@@ -357,6 +357,48 @@ export namespace SaveMetamodelAction {
     }
 }
 
+export interface SaveInstanceAction extends Action {
+    kind: typeof SaveInstanceAction.KIND;
+    filename: string;
+}
+
+export namespace SaveInstanceAction {
+    export const KIND = 'saveInstance';
+
+    export function is(object: any): object is SaveInstanceAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'filename');
+    }
+
+    export function create(filename: string): SaveInstanceAction {
+        return {
+            kind: KIND,
+            filename
+        };
+    }
+}
+
+export interface LoadInstanceAction extends Action {
+    kind: typeof LoadInstanceAction.KIND;
+    content: string;
+    filename: string;
+}
+
+export namespace LoadInstanceAction {
+    export const KIND = 'loadInstance';
+
+    export function is(object: any): object is LoadInstanceAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'content') && hasStringProp(object, 'filename');
+    }
+
+    export function create(content: string, filename: string): LoadInstanceAction {
+        return {
+            kind: KIND,
+            content,
+            filename
+        };
+    }
+}
+
 /**
  * Action to change the type of a class (abstract, concrete, interface, abstract-interface).
  */
@@ -941,14 +983,19 @@ export interface ClassPropertiesResponse extends Action {
         eSuperTypes: string[];
         attributes: Array<{ name: string; type: string; lowerBound: number; upperBound: number }>;
     }>;
+    enums?: Array<{
+        enumName: string;
+        literals: Array<{ name: string; value?: number }>;
+    }>;
 }
 
 export namespace ClassPropertiesResponse {
     export const KIND = 'classPropertiesResponse';
     export function create(
         metamodel: ClassPropertiesResponse['metamodel'],
-        classes: ClassPropertiesResponse['classes']
+        classes: ClassPropertiesResponse['classes'],
+        enums?: ClassPropertiesResponse['enums']
     ): ClassPropertiesResponse {
-        return { kind: KIND, success: true, metamodel, classes };
+        return { kind: KIND, success: true, metamodel, classes, enums };
     }
 }

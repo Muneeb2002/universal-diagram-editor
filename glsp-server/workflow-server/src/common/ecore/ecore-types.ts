@@ -59,7 +59,22 @@ export function isEDataType(classifier: any): boolean {
 }
 
 export function isEEnum(classifier: any): boolean {
-    return classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EEnum';
+    // Real Ecore objects
+    if (classifier && classifier.eClass && classifier.eClass.values && classifier.eClass.values.name === 'EEnum') {
+        return true;
+    }
+    
+    // Plain JSON objects (loaded from files) typically have eClass:'ecore:EEnum' and eLiterals array
+    if (classifier && typeof classifier === 'object') {
+        if (classifier.eClass === 'ecore:EEnum') {
+            return true;
+        }
+        if (typeof classifier.name === 'string' && Array.isArray(classifier.eLiterals)) {
+            return true;
+        }
+    }
+    
+    return false;
 }
 
 export function isEAttribute(feature: any): boolean {

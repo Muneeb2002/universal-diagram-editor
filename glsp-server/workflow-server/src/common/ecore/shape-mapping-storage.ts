@@ -27,6 +27,9 @@ export interface ShapeMapping {
     shapeId: string;
     shapeName: string;
     shapeConfig: ShapeConfig;
+    // Optional enum conditions for submappings
+    enumAttribute?: string; // Name of the enum attribute (e.g., "Status")
+    enumValue?: string; // Value of the enum literal (e.g., "Active", "Pending")
 }
 
 @injectable()
@@ -37,14 +40,43 @@ export class ShapeMappingStorage {
         this.mappings.clear();
         for (const mapping of mappings) {
             if (mapping?.className && mapping?.shapeConfig) {
-                this.mappings.set(mapping.className, mapping);
+                // Use composite key for submappings, className for base mappings
+                const mappingKey = mapping.enumAttribute && mapping.enumValue
+                    ? this.getMappingKey(mapping.className, mapping.enumAttribute, mapping.enumValue)
+                    : this.getMappingKey(mapping.className);
+                this.mappings.set(mappingKey, mapping);
             }
         }
-        console.log('[ShapeMappingStorage] Updated mappings for', this.mappings.size, 'classes');
+        console.log('[ShapeMappingStorage] Updated mappings for', this.mappings.size, 'classes/submappings');
     }
 
-    public getMapping(className: string): ShapeMapping | undefined {
-        return this.mappings.get(className);
+    /**
+     * Get mapping key for a class, optionally with enum conditions
+     */
+    private getMappingKey(className: string, enumAttribute?: string, enumValue?: string): string {
+        if (enumAttribute && enumValue) {
+            return `${className}:${enumAttribute}:${enumValue}`;
+        }
+        return className;
+    }
+
+    /**
+     * Get mapping for a class, optionally with enum conditions.
+     * If a submapping exists for the given enum attribute and value, it will be returned.
+     * Otherwise, the base mapping (if any) will be returned.
+     */
+    public getMapping(className: string, enumAttribute?: string, enumValue?: string): ShapeMapping | undefined {
+        // First try to get submapping if enum conditions are provided
+        if (enumAttribute && enumValue) {
+            const subMappingKey = this.getMappingKey(className, enumAttribute, enumValue);
+            const subMapping = this.mappings.get(subMappingKey);
+            if (subMapping) {
+                return subMapping;
+            }
+        }
+        // Fall back to base mapping
+        const baseMappingKey = this.getMappingKey(className);
+        return this.mappings.get(baseMappingKey);
     }
 
     public clear(): void {

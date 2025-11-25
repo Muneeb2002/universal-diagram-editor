@@ -12,6 +12,8 @@ import { injectable, inject } from 'inversify';
 import { EcoreInstance, InstanceModel, InstanceFactory } from './instance-model-types';
 import { MetamodelRegistry } from './metamodel-registry';
 import { isEAttribute, isEReference } from './ecore-types';
+import * as path from 'path';
+import * as fs from 'fs';
 
 /**
  * Storage and management for Ecore instance models.
@@ -452,17 +454,59 @@ export class InstanceModelStorage {
             throw new Error(`EClass '${instance.eClassName}' not found in metamodel`);
         }
 
+        // Get structural features (handle both ecore-ts objects and plain JS objects)
+        let structuralFeatures: any[] = [];
+        if (eClass.eStructuralFeatures) {
+            if (Array.isArray(eClass.eStructuralFeatures)) {
+                structuralFeatures = eClass.eStructuralFeatures;
+            } else if (typeof eClass.eStructuralFeatures.forEach === 'function') {
+                eClass.eStructuralFeatures.forEach((feature: any) => {
+                    structuralFeatures.push(feature);
+                });
+            } else if (eClass.eStructuralFeatures.size && typeof eClass.eStructuralFeatures.size === 'function') {
+                for (let i = 0; i < eClass.eStructuralFeatures.size(); i++) {
+                    const feature = eClass.eStructuralFeatures.get(i);
+                    if (feature) structuralFeatures.push(feature);
+                }
+            }
+        } else if (eClass.get && typeof eClass.get === 'function') {
+            const features = eClass.get('eStructuralFeatures');
+            if (features) {
+                if (Array.isArray(features)) {
+                    structuralFeatures = features;
+                } else if (typeof features.forEach === 'function') {
+                    features.forEach((feature: any) => {
+                        structuralFeatures.push(feature);
+                    });
+                }
+            }
+        }
+
         // Validate attribute exists
-        const attributes = eClass.eStructuralFeatures.filter(isEAttribute);
-        const attr = attributes.find((a: any) => a.name === attributeName);
+        const attributes = structuralFeatures.filter(isEAttribute);
+        const attr = attributes.find((a: any) => {
+            const attrName = a.name || a.get?.('name');
+            return attrName === attributeName;
+        });
         if (!attr) {
             throw new Error(`Attribute '${attributeName}' not found in class '${instance.eClassName}'`);
         }
 
         // TODO: Add type validation
 
-        instance.attributes.set(attributeName, value);
-        console.log(`Set attribute ${attributeName} = ${value} on instance ${instanceId}`);
+        // If value is null or undefined, delete the attribute to use base mapping
+        if (value === null || value === undefined) {
+            instance.attributes.delete(attributeName);
+            console.log(`Cleared attribute ${attributeName} on instance ${instanceId} to use base mapping`);
+        } else {
+            instance.attributes.set(attributeName, value);
+            console.log(`Set attribute ${attributeName} = ${value} on instance ${instanceId}`);
+        }
+        
+        // Verify the attribute was set
+        const verifyValue = instance.attributes.get(attributeName);
+        console.log(`[InstanceStorage] Verified attribute ${attributeName} on instance ${instanceId}:`, verifyValue);
+        console.log(`[InstanceStorage] All attributes for instance ${instanceId}:`, Array.from(instance.attributes.entries()));
     }
 
     /**
@@ -755,5 +799,179 @@ export class InstanceModelStorage {
         }
 
         return false;
+    }
+
+    /**
+     * Save the active instance model to a file.
+     */
+    saveInstanceModel(filename?: string): { success: boolean; message: string; filePath?: string } {
+        const instanceModel = this.getActiveInstanceModel();
+        
+        if (!instanceModel) {
+            return {
+                success: false,
+                message: 'No active instance model to save'
+            };
+        }
+
+        try {
+            // Serialize instance model to JSON
+            const serialized: any = {
+                metamodelKey: instanceModel.metamodelKey,
+                instances: [],
+                rootInstances: Array.from(instanceModel.rootInstances)
+            };
+
+            // Convert instances Map to array of plain objects
+            for (const instance of instanceModel.instances.values()) {
+                const instanceObj: any = {
+                    id: instance.id,
+                    eClassName: instance.eClassName,
+                    metamodelKey: instance.metamodelKey,
+                    attributes: {},
+                    references: {},
+                    position: instance.position,
+                    size: instance.size,
+                    hidden: instance.hidden,
+                    isRoot: instance.isRoot
+                };
+
+                // Convert attributes Map to plain object
+                if (instance.attributes) {
+                    instance.attributes.forEach((value, key) => {
+                        instanceObj.attributes[key] = value;
+                    });
+                }
+
+                // Convert references Map to plain object
+                if (instance.references) {
+                    instance.references.forEach((value, key) => {
+                        instanceObj.references[key] = value;
+                    });
+                }
+
+                serialized.instances.push(instanceObj);
+            }
+
+            const content = JSON.stringify(serialized, null, 2);
+            const defaultFilename = 'instances.json';
+            const finalFilename = filename || defaultFilename;
+            
+            // Use path module to construct the file path
+            const targetPath = path.isAbsolute(finalFilename)
+                ? finalFilename
+                : path.resolve(process.cwd(), 'samples', 'instances', finalFilename);
+
+            fs.mkdirSync(path.dirname(targetPath), { recursive: true });
+            fs.writeFileSync(targetPath, content, { encoding: 'utf8' });
+
+            return {
+                success: true,
+                message: `Instance model saved successfully to ${targetPath}`,
+                filePath: targetPath
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to save instance model: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
+     * Load an instance model from JSON content.
+     */
+    loadInstanceModel(content: string, filename: string): { success: boolean; message: string } {
+        try {
+            const parsed = JSON.parse(content);
+            
+            // Validate structure
+            if (!parsed.metamodelKey || !parsed.instances || !Array.isArray(parsed.instances)) {
+                return {
+                    success: false,
+                    message: 'Invalid instance model format: missing required fields'
+                };
+            }
+
+            const metamodelKey = parsed.metamodelKey;
+            
+            // Check if metamodel exists
+            if (!this.metamodelRegistry.hasMetamodel(metamodelKey)) {
+                return {
+                    success: false,
+                    message: `Metamodel '${metamodelKey}' not found. Please load the metamodel first.`
+                };
+            }
+
+            // Create or get instance model
+            let instanceModel = this.instanceModels.get(metamodelKey);
+            if (!instanceModel) {
+                instanceModel = this.createInstanceModel(metamodelKey);
+            } else {
+                // Clear existing instances
+                instanceModel.instances.clear();
+                instanceModel.rootInstances.clear();
+            }
+
+            // Deserialize instances
+            for (const instanceObj of parsed.instances) {
+                if (!instanceObj.id || !instanceObj.eClassName) {
+                    console.warn('Skipping invalid instance:', instanceObj);
+                    continue;
+                }
+
+                const instance: EcoreInstance = {
+                    id: instanceObj.id,
+                    eClassName: instanceObj.eClassName,
+                    metamodelKey: instanceObj.metamodelKey || metamodelKey,
+                    attributes: new Map(),
+                    references: new Map(),
+                    position: instanceObj.position,
+                    size: instanceObj.size,
+                    hidden: instanceObj.hidden ?? false,
+                    isRoot: instanceObj.isRoot ?? false
+                };
+
+                // Convert attributes object to Map
+                if (instanceObj.attributes && typeof instanceObj.attributes === 'object') {
+                    for (const [key, value] of Object.entries(instanceObj.attributes)) {
+                        instance.attributes.set(key, value);
+                    }
+                }
+
+                // Convert references object to Map
+                if (instanceObj.references && typeof instanceObj.references === 'object') {
+                    for (const [key, value] of Object.entries(instanceObj.references)) {
+                        // Validate that value is string or string array
+                        if (typeof value === 'string' || (Array.isArray(value) && value.every(v => typeof v === 'string'))) {
+                            instance.references.set(key, value as string | string[]);
+                        } else {
+                            console.warn(`Skipping invalid reference value for key '${key}':`, value);
+                        }
+                    }
+                }
+
+                instanceModel.instances.set(instance.id, instance);
+            }
+
+            // Restore root instances
+            if (parsed.rootInstances && Array.isArray(parsed.rootInstances)) {
+                for (const rootId of parsed.rootInstances) {
+                    if (instanceModel.instances.has(rootId)) {
+                        instanceModel.rootInstances.add(rootId);
+                    }
+                }
+            }
+
+            return {
+                success: true,
+                message: `Instance model loaded successfully from ${filename}`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to load instance model: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
     }
 }

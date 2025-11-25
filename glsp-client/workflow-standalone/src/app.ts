@@ -38,7 +38,7 @@ import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
 import { createOpenClassPropertiesAction } from './ecore-client-actions';
-import { createCreateEClassAction, createCreateEEnumAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
+import { createCreateEClassAction, createCreateEEnumAction, createAddAttributeAction, createDeleteAttributeAction, createSetInstanceAttributeAction } from './ecore-client-actions';
 import { RequestAction } from '@eclipse-glsp/protocol';
 import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
@@ -94,8 +94,9 @@ let paletteObserver: MutationObserver | undefined;
 // Add UI elements to the page
 document.addEventListener('DOMContentLoaded', () => {
     leftSidebar.attach();
-    const toolbarElement = toolbar.getElement();
-    leftSidebar.dockToolbar(toolbarElement);
+    // Toolbar is no longer docked to sidebar - it remains in its original position
+    // const toolbarElement = toolbar.getElement();
+    // leftSidebar.dockToolbar(toolbarElement);
 });
 
 function getToolPaletteElement(): HTMLElement | null {
@@ -205,7 +206,6 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     // Set up context menu for class elements
     setupContextMenu();
     setupClassSelectionForwarding();
-    
     // Set up action handling for custom actions
     setupCustomActionHandling();
     
@@ -292,31 +292,51 @@ function setupContextMenu(): void {
 
     // Listen for right-clicks on instance nodes
     document.addEventListener('contextmenu', (event) => {
-        const target = event.target as HTMLElement;
+        // Get click coordinates
+        const clickX = (event as MouseEvent).clientX;
+        const clickY = (event as MouseEvent).clientY;
         
-        // Check if the clicked element is an instance node
-        let instanceElement = target.closest('.ecore-instance') as HTMLElement | null;
+        // Find all instance elements in the DOM
+        const allInstances = document.querySelectorAll('[data-svg-metadata-type="ecore:instance"], .ecore-instance');
         
-        if (instanceElement) {
-            // If this is a nested node, find the outermost parent instance node
-            // (the one that is not nested inside another .ecore-instance)
-            let parent = instanceElement.parentElement;
-            while (parent) {
-                const parentInstance = parent.closest('.ecore-instance') as HTMLElement | null;
-                if (parentInstance && parentInstance !== instanceElement) {
-                    // Found a parent instance, use that instead
-                    instanceElement = parentInstance;
-                    parent = parentInstance.parentElement;
-                } else {
-                    break;
+        // Find the instance that contains the click point (most specific/deepest one)
+        let deepestInstance: HTMLElement | null = null;
+        let maxDepth = -1;
+        
+        for (let i = 0; i < allInstances.length; i++) {
+            const inst = allInstances[i] as HTMLElement;
+            const rect = inst.getBoundingClientRect();
+            
+            // Check if click is within this instance's bounds
+            if (clickX >= rect.left && clickX <= rect.right && 
+                clickY >= rect.top && clickY <= rect.bottom) {
+                
+                // Calculate depth (how many instance ancestors this instance has)
+                let depth = 0;
+                let parent: HTMLElement | null = inst.parentElement;
+                while (parent && parent !== document.body) {
+                    const parentDataType = parent.getAttribute('data-svg-metadata-type');
+                    const hasInstanceClass = parent.classList && parent.classList.contains('ecore-instance');
+                    if (parentDataType === 'ecore:instance' || hasInstanceClass) {
+                        depth++;
+                    }
+                    parent = parent.parentElement;
+                }
+                
+                // Use the instance with the highest depth (most nested)
+                if (depth > maxDepth) {
+                    maxDepth = depth;
+                    deepestInstance = inst;
                 }
             }
-            
+        }
+        
+        if (deepestInstance) {
             event.preventDefault();
             event.stopPropagation();
             
             // Get instance information from the element
-            const rawId = instanceElement.id || 'unknown-instance';
+            const rawId = deepestInstance.id || 'unknown-instance';
             const instanceId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
             
             // Show instance context menu
@@ -1533,11 +1553,103 @@ function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
     }
 
     // The backdrop is already created above, just append it here
-    document.body.appendChild(backdrop);
-    document.body.appendChild(menu);
+        document.body.appendChild(backdrop);
+        document.body.appendChild(menu);
 }
 
 function showEditInstanceAttributeDialog(instanceId: string): void {
+    // Extract class name from instance ID (e.g., "Token_3" -> "Token")
+    const classNameMatch = instanceId.match(/^([A-Z][a-zA-Z0-9]*)_\d+$/);
+    if (!classNameMatch) {
+        alert('Could not determine class name from instance ID: ' + instanceId);
+        return;
+    }
+    const className = classNameMatch[1];
+
+    // Get class information from toolbar
+    const toolbar = (window as any).globalToolbar;
+    if (!toolbar || !toolbar.allClasses) {
+        alert('Metamodel not loaded. Please load a metamodel first.');
+        return;
+    }
+
+    const classInfoList = toolbar.allClasses || [];
+    const classInfo = classInfoList.find((c: any) => c.className === className);
+    if (!classInfo) {
+        alert(`Class '${className}' not found in metamodel.`);
+        return;
+    }
+
+    // Function to recursively collect all attributes (own + inherited)
+    const collectAllAttributes = (cls: any, visited: Set<string> = new Set()): Array<{ attr: any; sourceClass: string }> => {
+        if (!cls || visited.has(cls.className)) {
+            return [];
+        }
+        visited.add(cls.className);
+
+        const allAttrs: Array<{ attr: any; sourceClass: string }> = [];
+
+        // First, collect attributes from supertypes (so inherited attributes appear first)
+        if (cls.eSuperTypes && Array.isArray(cls.eSuperTypes)) {
+            for (const superTypeName of cls.eSuperTypes) {
+                const superType = classInfoList.find((c: any) => c.className === superTypeName);
+                if (superType) {
+                    const inheritedAttrs = collectAllAttributes(superType, visited);
+                    allAttrs.push(...inheritedAttrs);
+                }
+            }
+        }
+
+        // Then, add own attributes
+        if (cls.attributes && Array.isArray(cls.attributes)) {
+            for (const attr of cls.attributes) {
+                allAttrs.push({ attr, sourceClass: cls.className });
+            }
+        }
+
+        return allAttrs;
+    };
+
+    // Collect all attributes (own + inherited)
+    const allAttributes = collectAllAttributes(classInfo);
+
+    // Get current instance attribute values from the model
+    let currentAttributes: Record<string, any> = {};
+    try {
+        const editorContextServiceProvider = container.get(TYPES.IEditorContextServiceProvider) as () => EditorContextService;
+        const ecs = editorContextServiceProvider();
+        const root = ecs.modelRoot;
+        
+        if (root && (root as any).index) {
+            const instanceNode = (root as any).index.getById(instanceId) as any;
+            if (instanceNode && instanceNode.attributes) {
+                currentAttributes = instanceNode.attributes;
+            }
+        }
+    } catch (e) {
+        // Fallback to lastKnownModelRoot
+        if (lastKnownModelRoot) {
+            const findNodeById = (element: any, nodeId: string): any => {
+                if (!element) return null;
+                if (element.id === nodeId) return element;
+                if (element.children && Array.isArray(element.children)) {
+                    for (const child of element.children) {
+                        const found = findNodeById(child, nodeId);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            const instanceNode = findNodeById(lastKnownModelRoot, instanceId);
+            if (instanceNode && instanceNode.attributes) {
+                currentAttributes = instanceNode.attributes;
+            }
+        }
+    }
+
+    // Get enum names for type checking
+    const enumNames = toolbar.getEnumNames ? toolbar.getEnumNames() : [];
+
     // Create a dialog for editing instance attributes
     const dialog = document.createElement('div');
     dialog.style.cssText = `
@@ -1551,54 +1663,118 @@ function showEditInstanceAttributeDialog(instanceId: string): void {
         padding: 20px;
         box-shadow: 0 4px 12px rgba(0,0,0,0.15);
         z-index: 10000;
-        min-width: 400px;
-        max-width: 600px;
+        min-width: 500px;
+        max-width: 700px;
+        max-height: 80vh;
+        overflow-y: auto;
         font-family: Arial, sans-serif;
     `;
 
     const title = document.createElement('h3');
-    title.textContent = `Edit Instance: ${instanceId}`;
+    title.textContent = `Edit Attributes: ${instanceId} (${className})`;
     title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
     dialog.appendChild(title);
 
     const description = document.createElement('p');
-    description.textContent = 'Edit attribute values for this instance:';
-    description.style.cssText = 'margin: 10px 0; color: #666;';
+    description.textContent = `Edit attribute values for this ${className} instance:`;
+    description.style.cssText = 'margin: 10px 0 20px 0; color: #666;';
     dialog.appendChild(description);
 
-    // Create attribute input section
+    // Create attribute inputs section
     const attributeSection = document.createElement('div');
     attributeSection.style.cssText = 'margin: 15px 0;';
 
-    // Attribute Name Input
-    const nameLabel = document.createElement('label');
-    nameLabel.textContent = 'Attribute Name:';
-    nameLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
-    attributeSection.appendChild(nameLabel);
+    // Store input elements for each attribute
+    const attributeInputs: Record<string, HTMLInputElement | HTMLSelectElement> = {};
+    
+    if (allAttributes.length === 0) {
+        const noAttributesMsg = document.createElement('p');
+        noAttributesMsg.textContent = 'This class has no attributes (including inherited).';
+        noAttributesMsg.style.cssText = 'color: #999; font-style: italic;';
+        attributeSection.appendChild(noAttributesMsg);
+    } else {
+        allAttributes.forEach(({ attr, sourceClass }) => {
+            const attrContainer = document.createElement('div');
+            attrContainer.style.cssText = 'margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee;';
 
-    const nameInput = document.createElement('input');
-    nameInput.type = 'text';
-    nameInput.placeholder = 'e.g., name, age, description';
-    nameInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
-    attributeSection.appendChild(nameInput);
+            const attrLabel = document.createElement('label');
+            const isInherited = sourceClass !== className;
+            attrLabel.textContent = `${attr.name} (${attr.type})`;
+            if (isInherited) {
+                attrLabel.textContent += ` [inherited from ${sourceClass}]`;
+            }
+            attrLabel.style.cssText = `display: block; margin-bottom: 5px; color: ${isInherited ? '#666' : '#555'}; font-weight: 500; font-style: ${isInherited ? 'italic' : 'normal'};`;
+            attrContainer.appendChild(attrLabel);
 
-    // Attribute Value Input
-    const valueLabel = document.createElement('label');
-    valueLabel.textContent = 'Attribute Value:';
-    valueLabel.style.cssText = 'display: block; margin-top: 10px; color: #555;';
-    attributeSection.appendChild(valueLabel);
+            const attrTypeInfo = document.createElement('span');
+            attrTypeInfo.textContent = `[${attr.lowerBound}..${attr.upperBound === -1 ? '*' : attr.upperBound}]`;
+            attrTypeInfo.style.cssText = 'font-size: 11px; color: #999; margin-left: 5px;';
+            attrLabel.appendChild(attrTypeInfo);
 
-    const valueInput = document.createElement('input');
-    valueInput.type = 'text';
-    valueInput.placeholder = 'Enter the value';
-    valueInput.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
-    attributeSection.appendChild(valueInput);
+            // Check if this is an enum type
+            const isEnum = enumNames.includes(attr.type);
+            let inputElement: HTMLInputElement | HTMLSelectElement;
+
+            if (isEnum) {
+                // Create dropdown for enum
+                const select = document.createElement('select');
+                select.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+                
+                // Add empty option for clearing
+                const emptyOption = document.createElement('option');
+                emptyOption.value = '';
+                emptyOption.textContent = '(none)';
+                select.appendChild(emptyOption);
+
+                // Get enum literals
+                const literals = toolbar.getEnumLiterals ? toolbar.getEnumLiterals(attr.type) : [];
+                literals.forEach((literal: string) => {
+                    const option = document.createElement('option');
+                    option.value = literal;
+                    option.textContent = literal;
+                    if (currentAttributes[attr.name] === literal) {
+                        option.selected = true;
+                    }
+                    select.appendChild(option);
+                });
+
+                inputElement = select;
+            } else {
+                // Create appropriate input based on type
+                const input = document.createElement('input');
+                
+                // Set input type based on attribute type
+                if (attr.type === 'EBoolean' || attr.type === 'boolean') {
+                    input.type = 'checkbox';
+                    input.checked = currentAttributes[attr.name] === true || currentAttributes[attr.name] === 'true';
+                } else if (attr.type === 'EInt' || attr.type === 'ELong' || attr.type === 'EDouble' || attr.type === 'EFloat' || attr.type === 'int' || attr.type === 'number') {
+                    input.type = 'number';
+                    if (currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null) {
+                        input.value = String(currentAttributes[attr.name]);
+                    }
+                } else {
+                    input.type = 'text';
+                    if (currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null) {
+                        input.value = String(currentAttributes[attr.name]);
+                    }
+                }
+
+                input.placeholder = `Enter ${attr.type} value`;
+                input.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
+                inputElement = input;
+            }
+
+            attributeInputs[attr.name] = inputElement;
+            attrContainer.appendChild(inputElement);
+            attributeSection.appendChild(attrContainer);
+        });
+    }
 
     dialog.appendChild(attributeSection);
 
     // Buttons
     const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
+    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;';
 
     const cancelButton = document.createElement('button');
     cancelButton.textContent = 'Cancel';
@@ -1609,39 +1785,50 @@ function showEditInstanceAttributeDialog(instanceId: string): void {
     });
 
     const saveButton = document.createElement('button');
-    saveButton.textContent = 'Save';
+    saveButton.textContent = 'Save All';
     saveButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
     saveButton.addEventListener('click', async () => {
-        const attributeName = nameInput.value.trim();
-        const attributeValue = valueInput.value.trim();
-        
-        if (!attributeName) {
-            alert('Please enter an attribute name');
+        if (!actionDispatcher) {
             return;
         }
 
-        if (!attributeValue) {
-            alert('Please enter an attribute value');
-            return;
-        }
+        // Save all attributes
+        try {
+            for (const { attr } of allAttributes) {
+                const input = attributeInputs[attr.name];
+                if (!input) {
+                    continue;
+                }
 
-        // Dispatch action to set the attribute
-        if (actionDispatcher) {
-            const action = {
-                kind: 'setInstanceAttribute',
-                instanceId: instanceId,
-                attributeName: attributeName,
-                value: attributeValue
-            };
-            
-            try {
-                await actionDispatcher.dispatch(action);
+                let value: any = null;
+                
+                if (input instanceof HTMLSelectElement) {
+                    value = input.value || null;
+                } else if (input.type === 'checkbox') {
+                    value = input.checked;
+                } else {
+                    const inputValue = input.value.trim();
+                    if (inputValue === '') {
+                        value = null;
+                    } else if (input.type === 'number') {
+                        value = Number(inputValue);
+                    } else {
+                        value = inputValue;
+                    }
+                }
+
+                // Only dispatch if value changed or is being cleared
+                const currentValue = currentAttributes[attr.name];
+                if (value !== currentValue) {
+                    await actionDispatcher.dispatch(createSetInstanceAttributeAction(instanceId, attr.name, value));
+                }
+            }
+
                 document.body.removeChild(backdrop);
                 document.body.removeChild(dialog);
             } catch (error) {
-                console.error('Error setting instance attribute:', error);
-                alert('Error setting attribute: ' + error);
-            }
+            console.error('Error setting instance attributes:', error);
+            alert('Error setting attributes: ' + error);
         }
     });
 
@@ -1667,9 +1854,6 @@ function showEditInstanceAttributeDialog(instanceId: string): void {
 
     document.body.appendChild(backdrop);
     document.body.appendChild(dialog);
-
-    // Focus the name input
-    nameInput.focus();
 }
 
 let classSelectionForwarderInstalled = false;
@@ -1704,6 +1888,7 @@ function setupClassSelectionForwarding(): void {
         forwardSelectionToClassProperties(className);
     });
 }
+
 
 function requestBoundsUpdate(): void {
     if (!actionDispatcher) {

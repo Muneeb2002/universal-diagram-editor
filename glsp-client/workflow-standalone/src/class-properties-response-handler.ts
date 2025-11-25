@@ -22,6 +22,11 @@ export class ClassPropertiesResponseHandler implements IActionHandler {
 			const a = action as ClassPropertiesResponse;
 			if (a.success) {
 				this.panel!.show(a);
+				// Update toolbar with enum information
+				const toolbar = (window as any).globalToolbar;
+				if (toolbar && a.enums && typeof toolbar.updateEnums === 'function') {
+					toolbar.updateEnums(a.enums);
+				}
 			}
 		}
 	}

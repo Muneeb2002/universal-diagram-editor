@@ -1,5 +1,5 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createSaveMetamodelAction, createSwitchModeAction } from './ecore-client-actions';
+import { createSaveMetamodelAction, createSwitchModeAction, SaveInstanceAction, LoadInstanceAction } from './ecore-client-actions';
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
@@ -10,14 +10,24 @@ export class LeftSidebar {
     private savedGraphicalModelsList: HTMLDivElement | null = null;
     private savedMappingModelsContainer: HTMLDivElement | null = null;
     private savedMappingModelsList: HTMLDivElement | null = null;
+    private loadedInstancesLabel: HTMLDivElement | null = null;
+    private loadedInstancesContainer: HTMLDivElement | null = null;
+    private loadedInstancesList: HTMLDivElement | null = null;
     private metamodelViewButton: HTMLButtonElement | null = null;
+    private instanceViewButton: HTMLButtonElement | null = null;
     private metamodelInstancesLabel: HTMLDivElement | null = null;
     private createInstanceButton: HTMLButtonElement | null = null;
+    private saveInstanceButton: HTMLButtonElement | null = null;
+    private loadInstanceButton: HTMLButtonElement | null = null;
+    private currentMode: 'metamodel' | 'instance' = 'metamodel';
+    private instanceSectionVisible = false;
+    private instancesAvailableInSession = false;
     private metamodelLoadedInSession: boolean = false; // Track if metamodel was actively loaded/created in this session
     private graphicalModelLoadedInSession: boolean = false; // Track if graphical model was actively loaded/created in this session
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
     private static readonly GRAPHICAL_MODEL_STORAGE_KEY = 'wf_saved_graphical_models';
     private static readonly MAPPING_MODEL_STORAGE_KEY = 'wf_saved_mapping_models';
+    private static readonly INSTANCE_STORAGE_KEY = 'wf_loaded_instances';
     // Keep at most N recent entries to avoid exceeding localStorage limits
     private static readonly MAX_STORED = 10;
 
@@ -38,11 +48,9 @@ export class LeftSidebar {
             flex-direction: column;
             gap: 10px;
             font-family: Arial, sans-serif;
+            overflow-y: auto;
+            overflow-x: hidden;
         `;
-
-        const title = document.createElement('div');
-        title.style.cssText = 'font-weight: bold; font-size: 12px; color: #333; letter-spacing: .2px;';
-        this.sidebar.appendChild(title);
 
         const metamodelLabel = document.createElement('div');
         metamodelLabel.textContent = 'Metamodels:';
@@ -274,7 +282,13 @@ export class LeftSidebar {
     }
 
     public setMode(mode: 'metamodel' | 'instance'): void {
+        this.currentMode = mode;
+        if (mode === 'instance') {
+            this.instancesAvailableInSession = true;
+        }
         this.updateMetamodelViewButtonVisibility(mode);
+        this.updateInstanceViewButtonVisibility();
+        this.updateSaveInstanceButtonVisibility();
     }
 
     private createCustomMetamodel(): void {
@@ -592,8 +606,8 @@ export class LeftSidebar {
     private deleteSavedGraphicalModel(name: string): void {
         const confirmDelete = confirm(`Remove saved graphical model '${name}' from the list?`);
         if (!confirmDelete) {
-            return;
-        }
+                return;
+            }
         const next = this.getSavedGraphicalModels().filter(entry => entry.name !== name);
         try {
             localStorage.setItem(LeftSidebar.GRAPHICAL_MODEL_STORAGE_KEY, JSON.stringify(next));
@@ -711,6 +725,10 @@ export class LeftSidebar {
 
 
     private createVisualConfigurationSection(visible: boolean): void {
+        this.instanceSectionVisible = visible;
+        if (!visible) {
+            this.instancesAvailableInSession = false;
+        }
         if (!this.metamodelInstancesLabel) {
             const instancesLabel = document.createElement('div');
             instancesLabel.textContent = 'Metamodel Instances:';
@@ -718,6 +736,29 @@ export class LeftSidebar {
             this.sidebar.appendChild(instancesLabel);
             this.metamodelInstancesLabel = instancesLabel;
         }
+        
+        // Instance View button (shown when in metamodel view and instances exist)
+        if (!this.instanceViewButton) {
+            const instanceViewBtn = document.createElement('button');
+            instanceViewBtn.textContent = 'Instance View';
+            instanceViewBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-bottom: 6px;
+            `;
+            instanceViewBtn.addEventListener('click', () => this.switchToInstanceMode());
+            this.sidebar.appendChild(instanceViewBtn);
+            this.instanceViewButton = instanceViewBtn;
+            // Initially hide if no instances exist
+            this.updateInstanceViewButtonVisibility();
+        }
+        
         if (!this.createInstanceButton) {
             const createInstanceBtn = document.createElement('button');
             createInstanceBtn.textContent = 'Create Instance';
@@ -736,6 +777,63 @@ export class LeftSidebar {
             this.createInstanceButton = createInstanceBtn;
         }
 
+        if (!this.saveInstanceButton) {
+            const saveInstanceBtn = document.createElement('button');
+            saveInstanceBtn.textContent = 'Save Instance';
+            saveInstanceBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-top: 6px;
+            `;
+            saveInstanceBtn.addEventListener('click', () => this.saveInstance());
+            this.sidebar.appendChild(saveInstanceBtn);
+            this.saveInstanceButton = saveInstanceBtn;
+            // Initially hide if no instances exist
+            this.updateSaveInstanceButtonVisibility();
+        }
+
+        if (!this.loadInstanceButton) {
+            const loadInstanceBtn = document.createElement('button');
+            loadInstanceBtn.textContent = 'Load Instance';
+            loadInstanceBtn.style.cssText = `
+                width: 100%;
+                padding: 8px 12px;
+                background: #007acc;
+                color: white;
+                border: none;
+                border-radius: 4px;
+                cursor: pointer;
+                font-size: 12px;
+                margin-top: 6px;
+            `;
+            loadInstanceBtn.addEventListener('click', () => this.loadInstance());
+            this.sidebar.appendChild(loadInstanceBtn);
+            this.loadInstanceButton = loadInstanceBtn;
+        }
+
+        // Loaded Instances list
+        if (!this.loadedInstancesContainer) {
+            this.loadedInstancesLabel = document.createElement('div');
+            this.loadedInstancesLabel.textContent = 'Loaded Instances:';
+            this.loadedInstancesLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444;';
+            this.sidebar.appendChild(this.loadedInstancesLabel);
+
+            this.loadedInstancesContainer = document.createElement('div');
+            this.loadedInstancesContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+            this.loadedInstancesList = document.createElement('div');
+            this.loadedInstancesList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
+            this.loadedInstancesContainer.appendChild(this.loadedInstancesList);
+            this.sidebar.appendChild(this.loadedInstancesContainer);
+
+            this.renderLoadedInstances();
+        }
+
         const display = visible ? '' : 'none';
         if (this.metamodelInstancesLabel) {
             this.metamodelInstancesLabel.style.display = display;
@@ -743,6 +841,18 @@ export class LeftSidebar {
         if (this.createInstanceButton) {
             this.createInstanceButton.style.display = display;
         }
+        if (this.loadInstanceButton) {
+            this.loadInstanceButton.style.display = display;
+        }
+        if (this.loadedInstancesLabel) {
+            this.loadedInstancesLabel.style.display = display;
+        }
+        if (this.loadedInstancesContainer) {
+            this.loadedInstancesContainer.style.display = display;
+        }
+        // Update conditional buttons after base visibility applied
+        this.updateInstanceViewButtonVisibility();
+        this.updateSaveInstanceButtonVisibility();
     }
 
 
@@ -790,6 +900,28 @@ export class LeftSidebar {
             console.error('Error switching to metamodel mode:', error);
             alert('Error switching to metamodel mode: ' + error);
         }
+    }
+
+    private hasInstances(): boolean {
+        return this.instancesAvailableInSession;
+    }
+
+    private updateInstanceViewButtonVisibility(): void {
+        if (!this.instanceViewButton) return;
+        
+        // Show button only when:
+        // 1. In metamodel view
+        // 2. Instances exist (loaded or created)
+        const shouldShow = this.instanceSectionVisible && this.currentMode === 'metamodel' && this.hasInstances();
+        this.instanceViewButton.style.display = shouldShow ? 'block' : 'none';
+    }
+
+    private updateSaveInstanceButtonVisibility(): void {
+        if (!this.saveInstanceButton) return;
+        
+        // Show button only when instances exist (loaded or created)
+        const shouldShow = this.instanceSectionVisible && this.hasInstances();
+        this.saveInstanceButton.style.display = shouldShow ? 'block' : 'none';
     }
 
     private updateMetamodelViewButtonVisibility(mode: 'metamodel' | 'instance'): void {
@@ -956,6 +1088,166 @@ export class LeftSidebar {
         editBtn.style.display = hasMappings ? 'block' : 'none';
     }
 
+    private async saveInstance(): Promise<void> {
+        if (!this.actionDispatcher) {
+            alert('Action dispatcher not available');
+            return;
+        }
+
+        try {
+            // Prompt for filename
+            const filename = prompt('Enter filename for instance model (e.g., myInstances.json):', 'instances.json');
+            if (!filename) {
+                return; // User cancelled
+            }
+
+            // Dispatch save action
+            const action = SaveInstanceAction.create(filename);
+            await this.actionDispatcher.dispatch(action);
+            alert('Instance model saved successfully!');
+        } catch (error) {
+            console.error('Error saving instance:', error);
+            alert('Error saving instance: ' + error);
+        }
+    }
+
+    private loadInstance(): void {
+        if (!this.actionDispatcher) {
+            console.warn('Action dispatcher not available');
+            return;
+        }
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.json';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', async (event) => {
+            const target = event.target as HTMLInputElement;
+            const file = target.files?.[0];
+            if (!file) return;
+            try {
+                const content = await file.text();
+                const action = LoadInstanceAction.create(content, file.name);
+                await this.actionDispatcher!.dispatch(action);
+                this.instancesAvailableInSession = true;
+                this.addLoadedInstance({ name: file.name, content });
+                // Update instance view button visibility after loading
+                this.updateInstanceViewButtonVisibility();
+                // Update save instance button visibility after loading
+                this.updateSaveInstanceButtonVisibility();
+                alert('Instance model loaded successfully!');
+            } catch (e) {
+                console.error('Error loading instance model:', e);
+                alert('Error loading instance model: ' + e);
+            }
+        });
+
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    }
+
+    private addLoadedInstance(entry: { name: string; content: string }): void {
+        const current = this.getStoredInstances();
+        // de-duplicate by name; keep most recent content
+        const without = current.filter(e => e.name !== entry.name);
+        const next = [entry, ...without].slice(0, LeftSidebar.MAX_STORED);
+        try {
+            localStorage.setItem(LeftSidebar.INSTANCE_STORAGE_KEY, JSON.stringify(next));
+        } catch (e) {
+            // ignore storage failures
+        }
+        this.renderLoadedInstances();
+        // Update instance view button visibility after adding instance
+        this.updateInstanceViewButtonVisibility();
+        // Update save instance button visibility after adding instance
+        this.updateSaveInstanceButtonVisibility();
+    }
+
+    private getStoredInstances(): Array<{ name: string; content: string }> {
+        try {
+            const raw = localStorage.getItem(LeftSidebar.INSTANCE_STORAGE_KEY);
+            if (!raw) return [];
+            const arr = JSON.parse(raw);
+            if (!Array.isArray(arr)) return [];
+            return arr
+                .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
+                .map(x => ({ name: x.name as string, content: x.content as string }));
+        } catch {
+            return [];
+        }
+    }
+
+    private renderLoadedInstances(): void {
+        if (!this.loadedInstancesList) return;
+        this.loadedInstancesList.innerHTML = '';
+        const items = this.getStoredInstances();
+        if (items.length === 0) {
+            const empty = document.createElement('div');
+            empty.textContent = 'None';
+            empty.style.cssText = 'font-size: 12px; color:#777;';
+            this.loadedInstancesList.appendChild(empty);
+            return;
+        }
+        for (const { name } of items) {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
+            const text = document.createElement('span');
+            text.textContent = name;
+            text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
+            row.appendChild(text);
+
+            const controls = this.createRowControls(
+                () => this.reloadInstanceFromStorage(name),
+                () => this.deleteStoredInstance(name)
+            );
+            row.appendChild(controls);
+
+            this.loadedInstancesList.appendChild(row);
+        }
+    }
+
+    private async reloadInstanceFromStorage(name: string): Promise<void> {
+        if (!this.actionDispatcher) return;
+        const items = this.getStoredInstances();
+        const match = items.find(e => e.name === name);
+        if (!match) return;
+        
+        try {
+            // First, switch to instance mode
+            await this.switchToInstanceMode();
+            
+            // Then load the instance model
+            const action = LoadInstanceAction.create(match.content, match.name);
+            await this.actionDispatcher.dispatch(action);
+            
+            // bump to most recent
+            this.instancesAvailableInSession = true;
+            this.addLoadedInstance({ name: match.name, content: match.content });
+            // Update instance view button visibility after loading
+            this.updateInstanceViewButtonVisibility();
+            // Update save instance button visibility after loading
+            this.updateSaveInstanceButtonVisibility();
+        } catch (e) {
+            console.error('Error reloading instance model:', e);
+            alert('Error reloading instance model: ' + e);
+        }
+    }
+
+    private deleteStoredInstance(name: string): void {
+        const current = this.getStoredInstances();
+        const next = current.filter(e => e.name !== name);
+        try {
+            localStorage.setItem(LeftSidebar.INSTANCE_STORAGE_KEY, JSON.stringify(next));
+        } catch (e) {
+            // ignore storage failures
+        }
+        this.renderLoadedInstances();
+        // Update save instance button visibility after deleting instance
+        this.updateSaveInstanceButtonVisibility();
+        // Update instance view button visibility after deleting instance
+        this.updateInstanceViewButtonVisibility();
+    }
 }
 
 

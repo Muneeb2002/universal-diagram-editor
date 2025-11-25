@@ -121,6 +121,31 @@ export class EcoreParser {
      * Validate EClassifier structure
      */
     private validateEClassifier(classifier: any, pkgIndex: number, cIndex: number): void {
+        // Check if this is an EEnum (has eClass: 'ecore:EEnum' or eLiterals)
+        const isEnum = classifier.eClass === 'ecore:EEnum' || (classifier.eLiterals && Array.isArray(classifier.eLiterals));
+        
+        if (isEnum) {
+            // For EEnums, validate name and eLiterals
+            if (!classifier.name || typeof classifier.name !== 'string') {
+                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: EEnum missing or invalid name`);
+            }
+            
+            // Validate eLiterals if present
+            if (classifier.eLiterals) {
+                if (!Array.isArray(classifier.eLiterals)) {
+                    throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: eLiterals must be an array`);
+                }
+                
+                classifier.eLiterals.forEach((literal: any, lIndex: number) => {
+                    if (!literal.name || typeof literal.name !== 'string') {
+                        throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eLiterals[${lIndex}]: Missing or invalid name`);
+                    }
+                });
+            }
+            return; // Skip EClass validation for enums
+        }
+        
+        // For EClasses, validate name
         if (!classifier.name || typeof classifier.name !== 'string') {
             throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: Missing or invalid name`);
         }
@@ -473,6 +498,13 @@ export class EcoreParser {
     private resolveTypeReferences(eclassifier: any, originalClassifier: any, classifierMap: Map<string, any>): void {
         if (!eclassifier) return;
 
+        // Check if this is an EEnum - enums don't have structural features
+        const eLiterals = eclassifier.get('eLiterals');
+        if (eLiterals) {
+            // This is an EEnum, skip structural feature resolution
+            return;
+        }
+
         // Resolve super types
         const originalSuperTypes = (eclassifier as any)._originalSuperTypes;
         if (originalSuperTypes && Array.isArray(originalSuperTypes)) {
@@ -490,27 +522,29 @@ export class EcoreParser {
             delete (eclassifier as any)._originalSuperTypes;
         }
 
-        // Resolve structural feature types
+        // Resolve structural feature types (only for EClasses)
         const structuralFeatures = eclassifier.get('eStructuralFeatures');
-        structuralFeatures.forEach((feature: any) => {
-            const originalTypeName = (feature as any)._originalTypeName;
-            if (originalTypeName) {
-                // Try to find the classifier in our map
-                const targetClassifier = classifierMap.get(originalTypeName);
-                if (targetClassifier) {
-                    // Set the resolved type
-                    feature.set('eType', targetClassifier);
-                    console.log(`Resolved type reference: ${feature.get('name')} -> ${originalTypeName}`);
-                } else {
-                    // Fall back to built-in type
-                    const builtinType = this.mapTypeNameToEcoreType(originalTypeName);
-                    feature.set('eType', builtinType);
-                    console.log(`Using built-in type for ${feature.get('name')}: ${originalTypeName}`);
+        if (structuralFeatures && typeof structuralFeatures.forEach === 'function') {
+            structuralFeatures.forEach((feature: any) => {
+                const originalTypeName = (feature as any)._originalTypeName;
+                if (originalTypeName) {
+                    // Try to find the classifier in our map
+                    const targetClassifier = classifierMap.get(originalTypeName);
+                    if (targetClassifier) {
+                        // Set the resolved type
+                        feature.set('eType', targetClassifier);
+                        console.log(`Resolved type reference: ${feature.get('name')} -> ${originalTypeName}`);
+                    } else {
+                        // Fall back to built-in type
+                        const builtinType = this.mapTypeNameToEcoreType(originalTypeName);
+                        feature.set('eType', builtinType);
+                        console.log(`Using built-in type for ${feature.get('name')}: ${originalTypeName}`);
+                    }
+                    // Clean up the temporary property
+                    delete (feature as any)._originalTypeName;
                 }
-                // Clean up the temporary property
-                delete (feature as any)._originalTypeName;
-            }
-        });
+            });
+        }
     }
 
     /**

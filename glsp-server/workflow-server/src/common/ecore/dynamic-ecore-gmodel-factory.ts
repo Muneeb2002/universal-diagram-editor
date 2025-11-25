@@ -314,14 +314,17 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.children.push(headerCompartment);
 
         // Add literals compartment
-        const literals = this.getProp<any[]>(eEnum, 'eLiterals') ?? [];
+        const literals = this.toArray(this.getProp<any>(eEnum, 'eLiterals'));
         if (literals.length > 0) {
             const literalsCompartment = new GCompartment();
             literalsCompartment.id = `${enumName}_literals`;
             literalsCompartment.type = 'comp:attributes';
             literalsCompartment.layout = 'vbox';
             literalsCompartment.size = { width: 200, height: 50 }; // Explicit size
-            literalsCompartment.children.push(this.createEnumLiteralsLabel(eEnum));
+            
+            literals.forEach((literal: any, index: number) => {
+                literalsCompartment.children.push(this.createEnumLiteralLabel(enumName, literal, index));
+            });
 
             node.children.push(literalsCompartment);
         }
@@ -397,21 +400,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         return label;
     }
 
-    private createEnumLiteralsLabel(eEnum: any): GLabel {
-        const literals = this.getProp<any[]>(eEnum, 'eLiterals') ?? [];
-        const literalsText = literals
-            .map((literal: any) => {
-                const literalName = this.getProp<string>(literal, 'name') ?? '';
-                const literalValue = this.getProp<string | number>(literal, 'value');
-                return literalValue !== undefined ? `${literalName} = ${literalValue}` : literalName;
-            })
-            .join('\n');
-
+    private createEnumLiteralLabel(enumName: string, literal: any, index: number): GLabel {
+        const literalName = this.getProp<string>(literal, 'name') ?? '';
+        const literalValue = this.getProp<string | number>(literal, 'value');
+        const literalText = literalValue !== undefined ? `${literalName} = ${literalValue}` : literalName;
         const label = new GLabel();
         label.type = 'label:text';
-        const enumName = this.getProp<string>(eEnum, 'name') ?? 'EEnum';
-        label.id = `${enumName}_literals_label`;
-        label.text = literalsText;
+        label.id = `${enumName}_literal_${index}`;
+        label.text = literalText;
         return label;
     }
 
@@ -642,12 +638,68 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         node.layout = 'vbox';
         node.args = ArgsUtil.cornerRadius(5);
         node.cssClasses = ['ecore-instance'];
+        
+        // Store eClassName and attributes in the node for client-side access
+        (node as any).eClassName = instance.eClassName;
+        // Store attributes as a plain object for easier access on client
+        // Always create the attributes object, even if empty
+        const attrsObj: any = {};
+        if (instance.attributes && instance.attributes.size > 0) {
+            instance.attributes.forEach((value, key) => {
+                attrsObj[key] = value;
+            });
+        }
+        // Make attributes enumerable so they get serialized
+        Object.defineProperty(node, 'attributes', {
+            value: attrsObj,
+            enumerable: true,
+            writable: true,
+            configurable: true
+        });
 
         // Get visual configuration for this class (needed for showAttributes/showReferences)
         const visualConfig = this.visualConfigStorage.getClassVisualConfiguration(instance.eClassName);
         
-        // Check if shape mapping exists
-        const shapeMapping = this.shapeMappingStorage.getMapping(instance.eClassName);
+        // Check for submappings based on instance enum attribute values
+        let shapeMapping: ShapeMapping | undefined;
+        
+        // First, check if instance has enum attributes with values
+        if (instance.attributes && instance.attributes.size > 0) {
+            // Get the class to check for enum attributes
+            const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
+            if (eClass) {
+                const structuralFeatures = this.getProp<any[]>(eClass, 'eStructuralFeatures') ?? [];
+                const attributes = structuralFeatures.filter(isEAttribute);
+                
+                // Check each enum attribute to see if there's a submapping
+                for (const attr of attributes) {
+                    const attrName = this.getProp<string>(attr, 'name');
+                    const eType = this.getProp<any>(attr, 'eType');
+                    
+                    if (attrName && eType && isEEnum(eType)) {
+                        // This is an enum attribute, check if instance has a value for it
+                        const enumValue = instance.attributes.get(attrName);
+                        if (enumValue !== undefined && enumValue !== null) {
+                            // Try to get submapping for this enum value
+                            const subMapping = this.shapeMappingStorage.getMapping(
+                                instance.eClassName,
+                                attrName,
+                                String(enumValue)
+                            );
+                            if (subMapping) {
+                                shapeMapping = subMapping;
+                                break; // Use the first matching submapping
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        
+        // If no submapping found, try base mapping
+        if (!shapeMapping) {
+            shapeMapping = this.shapeMappingStorage.getMapping(instance.eClassName);
+        }
         
         if (shapeMapping) {
             // Apply mapping-based visuals (this will override visual configuration styling)

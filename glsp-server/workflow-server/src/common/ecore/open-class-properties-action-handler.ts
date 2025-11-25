@@ -147,7 +147,29 @@ export class OpenClassPropertiesActionHandler implements ActionHandler {
 				};
 			}
 
-			return [ClassPropertiesResponse.create(metamodelInfo, classes)];
+			// Get all enums with their literals
+			const allEnums = this.metamodelRegistry.getAllEEnums();
+			const enums = allEnums.map(eEnum => {
+				const enumName = eEnum.get ? eEnum.get('name') : eEnum.name;
+				const eLiterals = eEnum.get ? eEnum.get('eLiterals') : eEnum.eLiterals;
+				const literalArray = toArray(eLiterals);
+				
+				const literals = literalArray.map((literal: any) => {
+					const literalName = literal.get ? literal.get('name') : literal.name;
+					const literalValue = literal.get ? literal.get('value') : literal.value;
+					return {
+						name: literalName || '',
+						value: literalValue !== undefined ? literalValue : undefined
+					};
+				}).filter((lit: any) => !!lit.name);
+				
+				return {
+					enumName: enumName || '',
+					literals
+				};
+			}).filter((e: any) => !!e.enumName);
+
+			return [ClassPropertiesResponse.create(metamodelInfo, classes, enums)];
 		} catch (e) {
 			return [];
 		}

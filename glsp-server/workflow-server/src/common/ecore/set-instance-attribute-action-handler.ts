@@ -31,8 +31,6 @@ export class SetInstanceAttributeActionHandler implements ActionHandler {
     protected gmodelSerializer: GModelSerializer;
 
     async execute(action: SetInstanceAttributeAction): Promise<Action[]> {
-        console.log('SetInstanceAttributeActionHandler.execute()', action);
-
         try {
             // Set the attribute value
             this.instanceStorage.setAttributeValue(
@@ -75,5 +73,6 @@ export class SetInstanceAttributeActionHandler implements ActionHandler {
             ];
         }
     }
+    
 }
 
