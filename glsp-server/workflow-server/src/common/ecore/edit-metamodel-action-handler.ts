@@ -15,6 +15,10 @@ import { SetModelAction } from '@eclipse-glsp/protocol';
 import { MetamodelRegistry } from './metamodel-registry';
 import { 
     RenameClassAction,
+    RenameEnumAction,
+    AddEnumLiteralAction,
+    UpdateEnumLiteralAction,
+    DeleteEnumLiteralAction,
     SaveMetamodelAction,
     ChangeClassTypeAction,
     DeleteClassAction,
@@ -28,6 +32,10 @@ import {
 export class EditMetamodelActionHandler implements ActionHandler {
     actionKinds = [
         RenameClassAction.KIND,
+        RenameEnumAction.KIND,
+        AddEnumLiteralAction.KIND,
+        UpdateEnumLiteralAction.KIND,
+        DeleteEnumLiteralAction.KIND,
         SaveMetamodelAction.KIND,
         ChangeClassTypeAction.KIND,
         DeleteClassAction.KIND,
@@ -56,6 +64,18 @@ export class EditMetamodelActionHandler implements ActionHandler {
 
             if (RenameClassAction.is(action)) {
                 const result = await this.handleRenameClass(action);
+                success = result.success;
+            } else if (RenameEnumAction.is(action)) {
+                const result = await this.handleRenameEnum(action);
+                success = result.success;
+            } else if (AddEnumLiteralAction.is(action)) {
+                const result = await this.handleAddEnumLiteral(action);
+                success = result.success;
+            } else if (UpdateEnumLiteralAction.is(action)) {
+                const result = await this.handleUpdateEnumLiteral(action);
+                success = result.success;
+            } else if (DeleteEnumLiteralAction.is(action)) {
+                const result = await this.handleDeleteEnumLiteral(action);
                 success = result.success;
             } else if (SaveMetamodelAction.is(action)) {
                 const result = await this.handleSaveMetamodel(action);
@@ -107,6 +127,66 @@ export class EditMetamodelActionHandler implements ActionHandler {
             return {
                 success: false,
                 message: `Failed to rename class: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleRenameEnum(action: RenameEnumAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.renameEnum(action.oldEnumName, action.newEnumName);
+            return {
+                success: true,
+                message: `Successfully renamed enum from '${action.oldEnumName}' to '${action.newEnumName}' and updated all references`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to rename enum: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleAddEnumLiteral(action: AddEnumLiteralAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.addEnumLiteral(action.enumName, action.literalName, action.literalValue);
+            return {
+                success: true,
+                message: `Successfully added enum literal '${action.literalName}' to enum '${action.enumName}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to add enum literal: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleUpdateEnumLiteral(action: UpdateEnumLiteralAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.updateEnumLiteral(action.enumName, action.oldLiteralName, action.newLiteralName, action.newLiteralValue);
+            return {
+                success: true,
+                message: `Successfully updated enum literal from '${action.oldLiteralName}' to '${action.newLiteralName}' in enum '${action.enumName}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to update enum literal: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    private async handleDeleteEnumLiteral(action: DeleteEnumLiteralAction): Promise<{ success: boolean; message: string }> {
+        try {
+            this.metamodelRegistry.deleteEnumLiteral(action.enumName, action.literalName);
+            return {
+                success: true,
+                message: `Successfully deleted enum literal '${action.literalName}' from enum '${action.enumName}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to delete enum literal: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }

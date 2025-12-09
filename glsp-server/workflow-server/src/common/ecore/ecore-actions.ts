@@ -335,6 +335,100 @@ export namespace RenameClassAction {
     }
 }
 
+export interface RenameEnumAction extends Action {
+    kind: typeof RenameEnumAction.KIND;
+    oldEnumName: string;
+    newEnumName: string;
+}
+
+export namespace RenameEnumAction {
+    export const KIND = 'renameEnum';
+
+    export function is(object: any): object is RenameEnumAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'oldEnumName') && hasStringProp(object, 'newEnumName');
+    }
+
+    export function create(oldEnumName: string, newEnumName: string): RenameEnumAction {
+        return {
+            kind: KIND,
+            oldEnumName,
+            newEnumName
+        };
+    }
+}
+
+export interface AddEnumLiteralAction extends Action {
+    kind: typeof AddEnumLiteralAction.KIND;
+    enumName: string;
+    literalName: string;
+    literalValue?: number;
+}
+
+export namespace AddEnumLiteralAction {
+    export const KIND = 'addEnumLiteral';
+
+    export function is(object: any): object is AddEnumLiteralAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'enumName') && hasStringProp(object, 'literalName');
+    }
+
+    export function create(enumName: string, literalName: string, literalValue?: number): AddEnumLiteralAction {
+        return {
+            kind: KIND,
+            enumName,
+            literalName,
+            literalValue
+        };
+    }
+}
+
+export interface UpdateEnumLiteralAction extends Action {
+    kind: typeof UpdateEnumLiteralAction.KIND;
+    enumName: string;
+    oldLiteralName: string;
+    newLiteralName: string;
+    newLiteralValue?: number;
+}
+
+export namespace UpdateEnumLiteralAction {
+    export const KIND = 'updateEnumLiteral';
+
+    export function is(object: any): object is UpdateEnumLiteralAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'enumName') && hasStringProp(object, 'oldLiteralName') && hasStringProp(object, 'newLiteralName');
+    }
+
+    export function create(enumName: string, oldLiteralName: string, newLiteralName: string, newLiteralValue?: number): UpdateEnumLiteralAction {
+        return {
+            kind: KIND,
+            enumName,
+            oldLiteralName,
+            newLiteralName,
+            newLiteralValue
+        };
+    }
+}
+
+export interface DeleteEnumLiteralAction extends Action {
+    kind: typeof DeleteEnumLiteralAction.KIND;
+    enumName: string;
+    literalName: string;
+}
+
+export namespace DeleteEnumLiteralAction {
+    export const KIND = 'deleteEnumLiteral';
+
+    export function is(object: any): object is DeleteEnumLiteralAction {
+        return Action.hasKind(object, KIND) && hasStringProp(object, 'enumName') && hasStringProp(object, 'literalName');
+    }
+
+    export function create(enumName: string, literalName: string): DeleteEnumLiteralAction {
+        return {
+            kind: KIND,
+            enumName,
+            literalName
+        };
+    }
+}
+
 export interface SaveMetamodelAction extends Action {
     kind: typeof SaveMetamodelAction.KIND;
     filename?: string;

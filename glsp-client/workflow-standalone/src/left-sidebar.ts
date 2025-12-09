@@ -1,5 +1,6 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { createSaveMetamodelAction, createSwitchModeAction, SaveInstanceAction, LoadInstanceAction } from './ecore-client-actions';
+import { CreateMetamodelDialog } from './create-metamodel-dialog';
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
@@ -10,6 +11,8 @@ export class LeftSidebar {
     private savedGraphicalModelsList: HTMLDivElement | null = null;
     private savedMappingModelsContainer: HTMLDivElement | null = null;
     private savedMappingModelsList: HTMLDivElement | null = null;
+    private mappingModelLabel: HTMLDivElement | null = null;
+    private savedMappingModelsLabel: HTMLDivElement | null = null;
     private loadedInstancesLabel: HTMLDivElement | null = null;
     private loadedInstancesContainer: HTMLDivElement | null = null;
     private loadedInstancesList: HTMLDivElement | null = null;
@@ -19,11 +22,13 @@ export class LeftSidebar {
     private createInstanceButton: HTMLButtonElement | null = null;
     private saveInstanceButton: HTMLButtonElement | null = null;
     private loadInstanceButton: HTMLButtonElement | null = null;
+    private mapShapesBtn: HTMLButtonElement | null = null;
     private currentMode: 'metamodel' | 'instance' = 'metamodel';
     private instanceSectionVisible = false;
     private instancesAvailableInSession = false;
     private metamodelLoadedInSession: boolean = false; // Track if metamodel was actively loaded/created in this session
     private graphicalModelLoadedInSession: boolean = false; // Track if graphical model was actively loaded/created in this session
+    private createMetamodelDialog: CreateMetamodelDialog;
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
     private static readonly GRAPHICAL_MODEL_STORAGE_KEY = 'wf_saved_graphical_models';
     private static readonly MAPPING_MODEL_STORAGE_KEY = 'wf_saved_mapping_models';
@@ -32,6 +37,7 @@ export class LeftSidebar {
     private static readonly MAX_STORED = 10;
 
     constructor() {
+        this.createMetamodelDialog = new CreateMetamodelDialog();
         this.sidebar = document.createElement('div');
         this.sidebar.style.cssText = `
             position: fixed;
@@ -151,7 +157,7 @@ export class LeftSidebar {
         createGraphicalModelBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #007bff;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -166,7 +172,7 @@ export class LeftSidebar {
         editGraphicalModelBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #007bff;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -195,32 +201,33 @@ export class LeftSidebar {
         this.renderSavedGraphicalModels();
 
         // Mapping Model Section
-        const mappingModelLabel = document.createElement('div');
-        mappingModelLabel.textContent = 'Mapping Model:';
-        mappingModelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444;';
-        this.sidebar.appendChild(mappingModelLabel);
+        this.mappingModelLabel = document.createElement('div');
+        this.mappingModelLabel.textContent = 'Mapping Model:';
+        this.mappingModelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444; display: none;';
+        this.sidebar.appendChild(this.mappingModelLabel);
 
-        const mapShapesBtn = document.createElement('button');
-        mapShapesBtn.textContent = 'Create Mapping Model';
-        mapShapesBtn.style.cssText = `
+        this.mapShapesBtn = document.createElement('button');
+        this.mapShapesBtn.textContent = 'Create Mapping Model';
+        this.mapShapesBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #007bff;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
             cursor: pointer;
             font-size: 12px;
+            display: none;
         `;
-        mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog('create'));
-        this.sidebar.appendChild(mapShapesBtn);
+        this.mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog('create'));
+        this.sidebar.appendChild(this.mapShapesBtn);
 
         const editMappingBtn = document.createElement('button');
         editMappingBtn.textContent = 'Edit Mapping Model';
         editMappingBtn.style.cssText = `
             width: 100%;
             padding: 8px 12px;
-            background: #007bff;
+            background: #007acc;
             color: white;
             border: none;
             border-radius: 4px;
@@ -235,18 +242,21 @@ export class LeftSidebar {
         (this as any).editMappingBtn = editMappingBtn;
 
         // Loaded Mapping Models list
-        const savedMappingModelsLabel = document.createElement('div');
-        savedMappingModelsLabel.textContent = 'Loaded Mapping Models:';
-        savedMappingModelsLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444;';
-        this.sidebar.appendChild(savedMappingModelsLabel);
+        this.savedMappingModelsLabel = document.createElement('div');
+        this.savedMappingModelsLabel.textContent = 'Loaded Mapping Models:';
+        this.savedMappingModelsLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 12px; margin-bottom: 6px; color:#444; display: none;';
+        this.sidebar.appendChild(this.savedMappingModelsLabel);
 
         this.savedMappingModelsContainer = document.createElement('div');
-        this.savedMappingModelsContainer.style.cssText = 'display:flex; flex-direction:column; gap:6px;';
+        this.savedMappingModelsContainer.style.cssText = 'display: none; flex-direction:column; gap:6px;';
         this.savedMappingModelsList = document.createElement('div');
         this.savedMappingModelsList.style.cssText = 'display:flex; flex-direction:column; gap:4px;';
         this.savedMappingModelsContainer.appendChild(this.savedMappingModelsList);
         this.sidebar.appendChild(this.savedMappingModelsContainer);
         this.renderSavedMappingModels();
+        
+        // Initialize visibility state
+        this.updateCreateMappingModelButtonState();
         this.updateEditMappingButtonVisibility();
 
         this.createVisualConfigurationSection(false);
@@ -291,66 +301,33 @@ export class LeftSidebar {
         this.updateSaveInstanceButtonVisibility();
     }
 
-    private createCustomMetamodel(): void {
+    private async createCustomMetamodel(): Promise<void> {
         if (!this.actionDispatcher) {
             console.error('Action dispatcher not available');
             return;
         }
 
-        const packageName = prompt('Enter package name for your custom metamodel:');
-        if (!packageName || !packageName.trim()) {
-            return;
-        }
-
-        const trimmedName = packageName.trim();
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedName)) {
-            alert('Package name must start with a letter or underscore and contain only letters, numbers, and underscores.');
-            return;
-        }
-
-        const defaultNsURI = `https://www.example.org/${trimmedName}`;
-        const nsURIInput = prompt('Enter Namespace URI for the metamodel:', defaultNsURI);
-        if (!nsURIInput || !nsURIInput.trim()) {
-            alert('Namespace URI is required.');
-            return;
-        }
-
-        const trimmedNsURI = nsURIInput.trim();
-        if (!/^https?:\/\//i.test(trimmedNsURI)) {
-            const proceed = confirm('Namespace URI does not start with http:// or https://. Continue anyway?');
-            if (!proceed) {
-                return;
-            }
-        }
-
-        const defaultPrefix = trimmedName.slice(0, 3).toLowerCase() || 'pkg';
-        const nsPrefixInput = prompt('Enter Namespace Prefix for the metamodel:', defaultPrefix);
-        if (!nsPrefixInput || !nsPrefixInput.trim()) {
-            alert('Namespace prefix is required.');
-            return;
-        }
-
-        const trimmedPrefix = nsPrefixInput.trim();
-        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(trimmedPrefix)) {
-            alert('Namespace prefix must start with a letter or underscore and contain only letters, numbers, and underscores.');
-            return;
-        }
-
         try {
+            const options = await this.createMetamodelDialog.show();
+
             const action = {
                 kind: 'createCustomMetamodel',
-                packageName: trimmedName,
-                nsURI: trimmedNsURI,
-                nsPrefix: trimmedPrefix
+                packageName: options.packageName,
+                nsURI: options.nsURI,
+                nsPrefix: options.nsPrefix
             };
             this.actionDispatcher.dispatch(action);
             // Mark that a metamodel has been loaded/created in this session
             this.metamodelLoadedInSession = true;
             // Show save button after creating metamodel
             setTimeout(() => this.updateSaveMetamodelButtonVisibility(), 500);
+            this.updateCreateMappingModelButtonState();
         } catch (error) {
-            console.error('Error creating custom metamodel:', error);
-            alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
+            // User cancelled or dialog was closed
+            if (error instanceof Error && error.message !== 'User cancelled') {
+                console.error('Error creating custom metamodel:', error);
+                alert(`Error creating custom metamodel: ${error instanceof Error ? error.message : String(error)}`);
+            }
         }
     }
 
@@ -405,6 +382,7 @@ export class LeftSidebar {
                 this.addLoadedMetamodel({ name: file.name, content });
                 // Mark that a metamodel has been loaded/created in this session
                 this.metamodelLoadedInSession = true;
+                this.updateCreateMappingModelButtonState();
                 this.updateSaveMetamodelButtonVisibility();
             } catch (e) {
                 console.error('Error loading metamodel:', e);
@@ -492,6 +470,7 @@ export class LeftSidebar {
             // Mark that a metamodel has been loaded/created in this session
             this.metamodelLoadedInSession = true;
             this.updateSaveMetamodelButtonVisibility();
+            this.updateCreateMappingModelButtonState();
         } catch (e) {
             console.error('Error reloading metamodel:', e);
             alert('Error reloading metamodel: ' + e);
@@ -529,6 +508,7 @@ export class LeftSidebar {
         // Mark that a graphical model has been saved (which means it was created/loaded)
         this.graphicalModelLoadedInSession = true;
         this.updateEditGraphicalModelButtonVisibility();
+        this.updateCreateMappingModelButtonState();
     }
 
     private getSavedGraphicalModels(): Array<{ name: string; content: string }> {
@@ -593,6 +573,7 @@ export class LeftSidebar {
                     // Mark that a graphical model has been loaded in this session
                     this.graphicalModelLoadedInSession = true;
                     this.updateEditGraphicalModelButtonVisibility();
+                    this.updateCreateMappingModelButtonState();
                 }, 100);
             } catch (e) {
                 console.error('Error reloading graphical model:', e);
@@ -983,6 +964,7 @@ export class LeftSidebar {
             if (mode === 'edit') {
                 this.graphicalModelLoadedInSession = true;
                 this.updateEditGraphicalModelButtonVisibility();
+                this.updateCreateMappingModelButtonState();
             }
             // For create mode, the flag will be set when the model is saved
         } else {
@@ -1015,9 +997,29 @@ export class LeftSidebar {
         }
     }
 
+    private updateCreateMappingModelButtonState(): void {
+        const shouldShow = this.metamodelLoadedInSession;
+        const display = shouldShow ? '' : 'none';
+        const containerDisplay = shouldShow ? 'flex' : 'none';
+
+        if (this.mappingModelLabel) {
+            this.mappingModelLabel.style.display = display;
+        }
+        if (this.mapShapesBtn) {
+            this.mapShapesBtn.style.display = display;
+        }
+        if (this.savedMappingModelsLabel) {
+            this.savedMappingModelsLabel.style.display = display;
+        }
+        if (this.savedMappingModelsContainer) {
+            this.savedMappingModelsContainer.style.display = containerDisplay;
+        }
+    }
+
     public markGraphicalModelLoaded(): void {
         this.graphicalModelLoadedInSession = true;
         this.updateEditGraphicalModelButtonVisibility();
+        this.updateCreateMappingModelButtonState();
     }
 
     private openShapeMappingDialog(mode: 'create' | 'edit' = 'create'): void {

@@ -116,6 +116,33 @@ export interface RenameClassAction {
     newClassName: string;
 }
 
+export interface RenameEnumAction {
+    kind: 'renameEnum';
+    oldEnumName: string;
+    newEnumName: string;
+}
+
+export interface AddEnumLiteralAction {
+    kind: 'addEnumLiteral';
+    enumName: string;
+    literalName: string;
+    literalValue?: number;
+}
+
+export interface UpdateEnumLiteralAction {
+    kind: 'updateEnumLiteral';
+    enumName: string;
+    oldLiteralName: string;
+    newLiteralName: string;
+    newLiteralValue?: number;
+}
+
+export interface DeleteEnumLiteralAction {
+    kind: 'deleteEnumLiteral';
+    enumName: string;
+    literalName: string;
+}
+
 export interface ChangeClassTypeAction {
     kind: 'changeClassType';
     className: string;
@@ -266,24 +293,6 @@ export interface SetClassVisualConfigurationAction extends Action {
     showReferences: boolean;
 }
 
-export interface VisualConfigurationResponse extends Action {
-    kind: 'visualConfigurationResponse';
-    success: boolean;
-    configurations: Array<{
-        className: string;
-        shape: string;
-        color: string;
-        showAttributes: boolean;
-        showReferences: boolean;
-    }>;
-    availableShapes: string[];
-    availableColors: string[];
-}
-
-export interface DeleteVisualConfigurationAction extends Action {
-    kind: 'deleteVisualConfiguration';
-    filename: string;
-}
 
 // Client-side mirrors for Class Properties panel
 export interface ClassPropertiesResponse extends Action {
@@ -330,12 +339,6 @@ export function createSetClassVisualConfigurationAction(
     };
 }
 
-export function createDeleteVisualConfigurationAction(filename: string): DeleteVisualConfigurationAction {
-    return {
-        kind: 'deleteVisualConfiguration',
-        filename
-    };
-}
 
 export interface SaveGraphicalModelAction extends Action {
     kind: typeof SaveGraphicalModelAction.KIND;
@@ -410,6 +413,56 @@ export function createRenameClassAction(
         kind: 'renameClass',
         oldClassName,
         newClassName
+    };
+}
+
+export function createRenameEnumAction(
+    oldEnumName: string,
+    newEnumName: string
+): RenameEnumAction {
+    return {
+        kind: 'renameEnum',
+        oldEnumName,
+        newEnumName
+    };
+}
+
+export function createAddEnumLiteralAction(
+    enumName: string,
+    literalName: string,
+    literalValue?: number
+): AddEnumLiteralAction {
+    return {
+        kind: 'addEnumLiteral',
+        enumName,
+        literalName,
+        literalValue
+    };
+}
+
+export function createUpdateEnumLiteralAction(
+    enumName: string,
+    oldLiteralName: string,
+    newLiteralName: string,
+    newLiteralValue?: number
+): UpdateEnumLiteralAction {
+    return {
+        kind: 'updateEnumLiteral',
+        enumName,
+        oldLiteralName,
+        newLiteralName,
+        newLiteralValue
+    };
+}
+
+export function createDeleteEnumLiteralAction(
+    enumName: string,
+    literalName: string
+): DeleteEnumLiteralAction {
+    return {
+        kind: 'deleteEnumLiteral',
+        enumName,
+        literalName
     };
 }
 

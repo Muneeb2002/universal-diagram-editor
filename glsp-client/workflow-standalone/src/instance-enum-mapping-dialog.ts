@@ -247,7 +247,7 @@ export class InstanceEnumMappingDialog {
 
         const selectBtn = document.createElement('button');
         selectBtn.textContent = 'Apply';
-        selectBtn.style.cssText = 'padding: 10px 20px; border: none; border-radius: 4px; background: #007bff; color: white; cursor: pointer; font-size: 14px;';
+        selectBtn.style.cssText = 'padding: 10px 20px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer; font-size: 14px;';
         selectBtn.addEventListener('click', () => {
             // Find the selected enum attribute and value
             let selectedAttribute: string | null = null;

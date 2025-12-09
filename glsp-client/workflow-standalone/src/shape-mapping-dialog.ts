@@ -133,7 +133,7 @@ export class ShapeMappingDialog {
             </div>
             <div style="padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="loadMappings" style="
-                    background: #007bff;
+                    background: #007acc;
                     color: white;
                     border: none;
                     padding: 10px 20px;
@@ -142,7 +142,7 @@ export class ShapeMappingDialog {
                     font-size: 14px;
                 ">Load Mappings</button>
                 <button id="saveMappings" style="
-                    background: #007bff;
+                    background: #007acc;
                     color: white;
                     border: none;
                     padding: 10px 20px;

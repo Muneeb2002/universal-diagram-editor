@@ -6,6 +6,10 @@ import {
     createDeleteAttributeAction,
     createOpenClassPropertiesAction,
     createRenameClassAction,
+    createRenameEnumAction,
+    createAddEnumLiteralAction,
+    createUpdateEnumLiteralAction,
+    createDeleteEnumLiteralAction,
     createUpdateAttributeAction,
     createUpdateMetamodelPropertiesAction,
     createDeleteClassAction,
@@ -23,7 +27,9 @@ export class ClassPropertiesPanel {
 
     private classes: ClassPropertiesResponse['classes'] = [];
     private metamodel: ClassPropertiesResponse['metamodel'] | null = null;
+    private enums: ClassPropertiesResponse['enums'] = [];
     private selectedClassName: string | null = null;
+    private selectedEnumName: string | null = null;
     private lastStatus: { message: string; isError: boolean } | null = null;
     private enumNames: string[] = [];
 
@@ -32,9 +38,16 @@ export class ClassPropertiesPanel {
     public show(payload: ClassPropertiesResponse): void {
         this.classes = payload.classes ?? [];
         this.metamodel = payload.metamodel ?? null;
+        this.enums = payload.enums ?? [];
 
         if (this.selectedClassName && !this.classes.some(({ className }) => className === this.selectedClassName)) {
             this.selectedClassName = null;
+        }
+
+        if (this.selectedEnumName && !this.enums.some(({ enumName }) => enumName === this.selectedEnumName)) {
+            // If enum was renamed, try to find it by checking if there's only one enum or by matching literals
+            // For now, just clear the selection if enum not found
+            this.selectedEnumName = null;
         }
 
         if (!this.root) {
@@ -55,6 +68,10 @@ export class ClassPropertiesPanel {
     }
 
     public setSelectedClass(className: string | null): void {
+        // Clear enum selection when selecting class
+        if (className) {
+            this.selectedEnumName = null;
+        }
         if (className && !this.classes.some(({ className: existing }) => existing === className)) {
             this.selectedClassName = null;
         } else {
@@ -66,6 +83,20 @@ export class ClassPropertiesPanel {
 
     public getSelectedClass(): string | null {
         return this.selectedClassName;
+    }
+
+    public setSelectedEnum(enumName: string | null): void {
+        // Clear class selection when selecting enum
+        if (enumName) {
+            this.selectedClassName = null;
+        }
+        this.selectedEnumName = enumName;
+        this.lastStatus = null;
+        this.renderDetail();
+    }
+
+    public getSelectedEnum(): string | null {
+        return this.selectedEnumName;
     }
 
     private create(): void {
@@ -99,6 +130,12 @@ export class ClassPropertiesPanel {
         }
 
         this.detailContainer.innerHTML = '';
+
+        // Check for enum selection first
+        if (this.selectedEnumName) {
+            this.renderEnumDetail(this.selectedEnumName);
+            return;
+        }
 
         if (this.selectedClassName) {
             const cls = this.classes.find(({ className }) => className === this.selectedClassName);
@@ -228,7 +265,7 @@ export class ClassPropertiesPanel {
         deleteRow.style.cssText = 'margin-bottom:16px;';
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'Delete Class';
-        deleteBtn.style.cssText = 'padding:6px 12px;background:#fbe9e9;color:#a61b1b;border:1px solid #f0c2c2;border-radius:4px;cursor:pointer;font-size:12px;';
+        deleteBtn.style.cssText = 'padding:6px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
         deleteBtn.addEventListener('click', async () => {
             const ok = confirm(`Delete class '${cls.className}'? This will remove references.`);
             if (!ok) {
@@ -358,7 +395,7 @@ export class ClassPropertiesPanel {
 
         const deleteBtn = document.createElement('button');
         deleteBtn.textContent = 'Delete';
-        deleteBtn.style.cssText = 'padding:4px 10px;background:#f2f2f2;color:#c33;border:1px solid #e0e0e0;border-radius:4px;cursor:pointer;font-size:12px;';
+        deleteBtn.style.cssText = 'padding:4px 10px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
         deleteBtn.addEventListener('click', async () => {
             const ok = confirm(`Delete attribute '${attr.name}'?`);
             if (!ok) {
@@ -432,7 +469,7 @@ export class ClassPropertiesPanel {
 
         const addBtn = document.createElement('button');
         addBtn.textContent = 'Add Attribute';
-        addBtn.style.cssText = 'margin-top:10px;padding:6px 12px;background:#28a745;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+        addBtn.style.cssText = 'margin-top:10px;padding:6px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
         addBtn.addEventListener('click', async () => {
             const name = nameInput.value.trim();
             const lower = Number(lowerInput.value);
@@ -663,6 +700,217 @@ export class ClassPropertiesPanel {
         });
     }
     
+    private renderEnumDetail(enumName: string): void {
+        if (!this.detailContainer) {
+            return;
+        }
+
+        const container = document.createElement('div');
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;';
+        const title = document.createElement('h3');
+        title.textContent = enumName;
+        title.style.cssText = 'margin:0;font-size:16px;color:#333;';
+        header.appendChild(title);
+
+        const typeTag = document.createElement('span');
+        typeTag.textContent = 'enum';
+        typeTag.style.cssText = 'font-size:11px;padding:2px 6px;border-radius:10px;background:#fff3cd;color:#856404;text-transform:uppercase;';
+        header.appendChild(typeTag);
+        container.appendChild(header);
+
+        // Enum name editing
+        const renameLabel = document.createElement('label');
+        renameLabel.textContent = 'Enum name';
+        renameLabel.style.cssText = 'display:block;font-size:12px;color:#555;margin-top:4px;';
+        container.appendChild(renameLabel);
+
+        const renameRow = document.createElement('div');
+        renameRow.style.cssText = 'display:flex;gap:8px;margin-bottom:12px;';
+        const renameInput = document.createElement('input');
+        renameInput.type = 'text';
+        renameInput.value = enumName;
+        renameInput.style.cssText = 'flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+        renameRow.appendChild(renameInput);
+
+        const renameBtn = document.createElement('button');
+        renameBtn.textContent = 'Rename';
+        renameBtn.style.cssText = 'padding:6px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+        renameBtn.addEventListener('click', async () => {
+            const newName = renameInput.value.trim();
+            if (!newName || newName === enumName) {
+                this.showStatus('Enter a new name to rename.', true);
+                return;
+            }
+            const dispatched = await this.dispatchAction(
+                createRenameEnumAction(enumName, newName),
+                `Renamed enum to '${newName}'.`,
+                `Failed to rename enum '${enumName}'.`
+            );
+            if (dispatched) {
+                this.selectedEnumName = newName;
+                await this.refreshProperties();
+            }
+        });
+        renameRow.appendChild(renameBtn);
+        container.appendChild(renameRow);
+
+        // Get enum literals from stored enum data (from ClassPropertiesResponse)
+        // This ensures we have the latest data after renaming
+        let enumData: { enumName: string; literals: Array<{ name: string; value?: number }> } | undefined;
+        if (this.enums) {
+            enumData = this.enums.find((e) => e.enumName === enumName);
+        }
+        
+        // Fallback to toolbar if not found in stored data (for backwards compatibility)
+        if (!enumData) {
+            const toolbar: any = (window as any).globalToolbar;
+            if (toolbar && toolbar.getEnums) {
+                const toolbarEnums = toolbar.getEnums();
+                enumData = toolbarEnums.find((e: any) => e.enumName === enumName);
+            }
+        }
+
+        const literals = enumData?.literals || [];
+
+        // Enum literals section
+        const literalsLabel = document.createElement('label');
+        literalsLabel.textContent = 'Enum Literals';
+        literalsLabel.style.cssText = 'display:block;font-size:12px;color:#555;margin-top:8px;margin-bottom:8px;font-weight:bold;';
+        container.appendChild(literalsLabel);
+
+        const literalsContainer = document.createElement('div');
+        literalsContainer.style.cssText = 'margin-bottom:12px;';
+        
+        if (literals.length === 0) {
+            const emptyMsg = document.createElement('div');
+            emptyMsg.textContent = 'No literals defined.';
+            emptyMsg.style.cssText = 'font-size:12px;color:#777;font-style:italic;padding:8px;';
+            literalsContainer.appendChild(emptyMsg);
+        } else {
+            literals.forEach((literal, index) => {
+                const literalRow = document.createElement('div');
+                literalRow.style.cssText = 'display:flex;gap:8px;align-items:center;margin-bottom:6px;';
+                
+                const literalInput = document.createElement('input');
+                literalInput.type = 'text';
+                literalInput.value = literal.name;
+                literalInput.style.cssText = 'flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+                literalInput.placeholder = 'Literal name';
+                literalRow.appendChild(literalInput);
+
+                const valueInput = document.createElement('input');
+                valueInput.type = 'number';
+                valueInput.value = literal.value !== undefined ? String(literal.value) : String(index);
+                valueInput.style.cssText = 'width:80px;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+                valueInput.placeholder = 'Value';
+                literalRow.appendChild(valueInput);
+
+                const updateBtn = document.createElement('button');
+                updateBtn.textContent = 'Update';
+                updateBtn.style.cssText = 'padding:4px 8px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;';
+                updateBtn.addEventListener('click', async () => {
+                    const newName = literalInput.value.trim();
+                    const newValue = parseInt(valueInput.value);
+                    if (!newName) {
+                        this.showStatus('Literal name cannot be empty.', true);
+                        return;
+                    }
+                    if (isNaN(newValue)) {
+                        this.showStatus('Literal value must be a valid number.', true);
+                        return;
+                    }
+                    const dispatched = await this.dispatchAction(
+                        createUpdateEnumLiteralAction(enumName, literal.name, newName, newValue),
+                        `Updated enum literal '${literal.name}' to '${newName}'.`,
+                        `Failed to update enum literal '${literal.name}'.`
+                    );
+                    if (dispatched) {
+                        await this.refreshProperties();
+                    }
+                });
+                literalRow.appendChild(updateBtn);
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.textContent = 'Delete';
+                deleteBtn.style.cssText = 'padding:4px 8px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:11px;';
+                deleteBtn.addEventListener('click', async () => {
+                    const dispatched = await this.dispatchAction(
+                        createDeleteEnumLiteralAction(enumName, literal.name),
+                        `Deleted enum literal '${literal.name}'.`,
+                        `Failed to delete enum literal '${literal.name}'.`
+                    );
+                    if (dispatched) {
+                        await this.refreshProperties();
+                    }
+                });
+                literalRow.appendChild(deleteBtn);
+
+                literalsContainer.appendChild(literalRow);
+            });
+        }
+        container.appendChild(literalsContainer);
+
+        // Add new literal section
+        const addLiteralSection = document.createElement('div');
+        addLiteralSection.style.cssText = 'margin-top:12px;padding-top:12px;border-top:1px solid #eee;';
+        
+        const addLiteralLabel = document.createElement('label');
+        addLiteralLabel.textContent = 'Add New Literal';
+        addLiteralLabel.style.cssText = 'display:block;font-size:12px;color:#555;margin-bottom:8px;font-weight:bold;';
+        addLiteralSection.appendChild(addLiteralLabel);
+
+        const addLiteralRow = document.createElement('div');
+        addLiteralRow.style.cssText = 'display:flex;gap:8px;';
+        
+        const newLiteralInput = document.createElement('input');
+        newLiteralInput.type = 'text';
+        newLiteralInput.placeholder = 'Literal name';
+        newLiteralInput.style.cssText = 'flex:1;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+        addLiteralRow.appendChild(newLiteralInput);
+
+        const newValueInput = document.createElement('input');
+        newValueInput.type = 'number';
+        newValueInput.value = String(literals.length);
+        newValueInput.placeholder = 'Value';
+        newValueInput.style.cssText = 'width:80px;padding:6px 8px;border:1px solid #ccc;border-radius:4px;font-size:12px;';
+        addLiteralRow.appendChild(newValueInput);
+
+        const addBtn = document.createElement('button');
+        addBtn.textContent = 'Add Literal';
+        addBtn.style.cssText = 'padding:6px 12px;background:#007acc;color:#fff;border:none;border-radius:4px;cursor:pointer;font-size:12px;';
+        addBtn.addEventListener('click', async () => {
+            const literalName = newLiteralInput.value.trim();
+            const literalValue = parseInt(newValueInput.value);
+            if (!literalName) {
+                this.showStatus('Literal name cannot be empty.', true);
+                return;
+            }
+            if (isNaN(literalValue)) {
+                this.showStatus('Literal value must be a valid number.', true);
+                return;
+            }
+            const dispatched = await this.dispatchAction(
+                createAddEnumLiteralAction(enumName, literalName, literalValue),
+                `Added enum literal '${literalName}'.`,
+                `Failed to add enum literal '${literalName}'.`
+            );
+            if (dispatched) {
+                // Clear the input fields
+                newLiteralInput.value = '';
+                newValueInput.value = String(literals.length + 1);
+                await this.refreshProperties();
+            }
+        });
+        addLiteralRow.appendChild(addBtn);
+        addLiteralSection.appendChild(addLiteralRow);
+        container.appendChild(addLiteralSection);
+
+        this.attachStatusMessage(container);
+        this.detailContainer.appendChild(container);
+    }
+
     /**
      * Updates all type select dropdowns in the panel with enum names
      */

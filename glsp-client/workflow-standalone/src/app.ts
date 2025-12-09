@@ -43,7 +43,6 @@ import { RequestAction } from '@eclipse-glsp/protocol';
 import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { LeftSidebar } from './left-sidebar';
-import { setupInteractiveResize } from './interactive-resize';
 import { SelectAction, SetModelAction, UpdateModelAction, SetEditModeAction, EditMode, TriggerEdgeCreationAction, DeleteElementOperation } from '@eclipse-glsp/protocol';
 import { EnableDefaultToolsAction } from '@eclipse-glsp/client';
 import { GraphicalModelEditor } from './graphical-model-editor';
@@ -56,7 +55,6 @@ declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
         showEEnumCreationDialog?: () => void;
-        debugVisualConfigurations?: () => void;
         globalGraphicalModelEditor?: GraphicalModelEditor;
         globalShapeMappingDialog?: ShapeMappingDialog;
         globalLeftSidebar?: LeftSidebar;
@@ -94,9 +92,6 @@ let paletteObserver: MutationObserver | undefined;
 // Add UI elements to the page
 document.addEventListener('DOMContentLoaded', () => {
     leftSidebar.attach();
-    // Toolbar is no longer docked to sidebar - it remains in its original position
-    // const toolbarElement = toolbar.getElement();
-    // leftSidebar.dockToolbar(toolbarElement);
 });
 
 function getToolPaletteElement(): HTMLElement | null {
@@ -209,14 +204,6 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     // Set up action handling for custom actions
     setupCustomActionHandling();
     
-    // Add visual configuration debugging
-    setupVisualConfigurationDebugging();
-    
-    // Set up interactive resize functionality with a delay to ensure DOM is ready
-    setTimeout(() => {
-        setupInteractiveResize();
-    }, 1000);
-    
     const diagramLoader = container.get(DiagramLoader);
     const loadResult = await diagramLoader.load({ requestModelOptions: { isReconnecting } });
     const loadResultAsRoot = (loadResult as unknown as GModelRoot) ?? undefined;
@@ -246,16 +233,40 @@ function setupContextMenu(): void {
         if (!target) {
             return;
         }
+        
+        // Check for enum elements first
+        const enumElement = target.closest('.ecore-enum, [data-svg-metadata-type="ecore:enum"]') as HTMLElement | null;
+        if (enumElement) {
+            const rawId = enumElement.id || '';
+            if (rawId) {
+                const enumName = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+                forwardSelectionToEnumProperties(enumName);
+                return;
+            }
+        }
+        
+        // Check for class elements
         const classElement = target.closest('.ecore-class') as HTMLElement | null;
-        if (!classElement) {
-            return;
+        if (classElement) {
+            const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
+            if (rawId) {
+                const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+                forwardSelectionToClassProperties(className);
+                return;
+            }
         }
-        const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
-        if (!rawId) {
-            return;
+        
+        // If clicked on canvas/empty area (not on class or enum), clear selection
+        // Check if click is on the diagram canvas (sprotty-root, svg element, or background)
+        const isCanvasClick = target.closest('.sprotty-root, svg, [id*="sprotty"], [class*="sprotty-graph"]') !== null ||
+                              target.tagName === 'svg' ||
+                              target.classList.contains('sprotty-root');
+        
+        if (isCanvasClick) {
+            // Clear both class and enum selections to show metamodel view
+            forwardSelectionToClassProperties(null);
+            forwardSelectionToEnumProperties(null);
         }
-        const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
-        forwardSelectionToClassProperties(className);
     });
 
     // Listen for double-clicks on edges
@@ -702,18 +713,6 @@ function setupCustomActionHandling(): void {
     };
 }
 
-function setupVisualConfigurationDebugging(): void {
-    // Visual configuration debugging functionality
-    window.debugVisualConfigurations = () => {
-        // Find all instance nodes
-        const instanceNodes = document.querySelectorAll('.ecore-instance');
-        
-        instanceNodes.forEach((node) => {
-            // Check for SVG children
-            node.querySelectorAll('rect, circle, ellipse, polygon, path');
-        });
-    };
-}
 
 function showEClassCreationDialog(): void {
     // Create a simple dialog for EClass creation
@@ -1865,6 +1864,13 @@ function forwardSelectionToClassProperties(className: string | null): void {
     }
 }
 
+function forwardSelectionToEnumProperties(enumName: string | null): void {
+    const panel = window.classPropertiesPanel;
+    if (panel && typeof panel.setSelectedEnum === 'function') {
+        panel.setSelectedEnum(enumName);
+    }
+}
+
 function setupClassSelectionForwarding(): void {
     if (classSelectionForwarderInstalled) {
         return;
@@ -1876,18 +1882,43 @@ function setupClassSelectionForwarding(): void {
         if (!target) {
             return;
         }
+        
+        // Check for enum elements first
+        const enumElement = target.closest('.ecore-enum, [data-svg-metadata-type="ecore:enum"]') as HTMLElement | null;
+        if (enumElement) {
+            const rawId = enumElement.id || '';
+            if (rawId) {
+                const enumName = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+                forwardSelectionToEnumProperties(enumName);
+                return;
+            }
+        }
+        
+        // Check for class elements
         const classElement = target.closest('.ecore-class') as HTMLElement | null;
-        if (!classElement) {
-            return;
+        if (classElement) {
+            const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
+            if (rawId) {
+                const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+                forwardSelectionToClassProperties(className);
+                return;
+            }
         }
-        const rawId = classElement.id || classElement.getAttribute('data-class-name') || '';
-        if (!rawId) {
-            return;
+        
+        // If clicked on canvas/empty area (not on class or enum), clear selection
+        // Check if click is on the diagram canvas (sprotty-root, svg element, or background)
+        const isCanvasClick = target.closest('.sprotty-root, svg, [id*="sprotty"], [class*="sprotty-graph"]') !== null ||
+                              target.tagName === 'svg' ||
+                              target.classList.contains('sprotty-root');
+        
+        if (isCanvasClick) {
+            // Clear both class and enum selections to show metamodel view
+            forwardSelectionToClassProperties(null);
+            forwardSelectionToEnumProperties(null);
         }
-        const className = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
-        forwardSelectionToClassProperties(className);
     });
 }
+
 
 
 function requestBoundsUpdate(): void {

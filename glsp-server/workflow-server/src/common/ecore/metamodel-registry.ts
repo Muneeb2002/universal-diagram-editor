@@ -845,6 +845,228 @@ export class MetamodelRegistry {
         }
     }
 
+    renameEnum(oldEnumName: string, newEnumName: string): boolean {
+        const eEnum = this.findEEnum(oldEnumName);
+        if (!eEnum) {
+            throw new Error(`Enum '${oldEnumName}' not found in active metamodel`);
+        }
+
+        // Check if new name already exists
+        const existingEnum = this.findEEnum(newEnumName);
+        if (existingEnum) {
+            throw new Error(`Enum '${newEnumName}' already exists in the metamodel`);
+        }
+
+        try {
+            // Validate the new name
+            this.validateName(newEnumName);
+
+            // Find all references to this enum before renaming
+            const referencesToUpdate = this.findAllReferencesToEnum(oldEnumName);
+
+            // Update the enum name
+            eEnum.set('name', newEnumName);
+
+            // Update all references to point to the new enum name
+            for (const {reference} of referencesToUpdate) {
+                const newType = this.findEEnum(newEnumName);
+                if (newType) {
+                    reference.set('eType', newType);
+                }
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Error renaming enum '${oldEnumName}' to '${newEnumName}':`, error);
+            throw error;
+        }
+    }
+
+    private findAllReferencesToEnum(enumName: string): Array<{reference: any; className: string; attributeName: string}> {
+        const references: Array<{reference: any; className: string; attributeName: string}> = [];
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            return references;
+        }
+
+        const allClasses = this.getAllEClasses();
+        for (const eClass of allClasses) {
+            const className = eClass.get ? eClass.get('name') : eClass.name;
+            const eAttributes = eClass.get ? eClass.get('eAttributes') : eClass.eAttributes;
+            const attributes = toArray(eAttributes);
+            
+            for (const attr of attributes) {
+                const eType = attr.get ? attr.get('eType') : attr.eType;
+                if (eType) {
+                    const typeName = eType.get ? eType.get('name') : eType.name;
+                    if (typeName === enumName) {
+                        references.push({
+                            reference: attr,
+                            className: className || 'Unknown',
+                            attributeName: (attr.get ? attr.get('name') : attr.name) || 'Unknown'
+                        });
+                    }
+                }
+            }
+        }
+
+        return references;
+    }
+
+    addEnumLiteral(enumName: string, literalName: string, literalValue?: number): boolean {
+        const eEnum = this.findEEnum(enumName);
+        if (!eEnum) {
+            throw new Error(`Enum '${enumName}' not found in active metamodel`);
+        }
+
+        try {
+            // Validate the literal name
+            this.validateName(literalName);
+
+            // Check if literal already exists
+            const eLiterals = eEnum.get ? eEnum.get('eLiterals') : eEnum.eLiterals;
+            const literalArray = toArray(eLiterals);
+            
+            for (const literal of literalArray) {
+                const existingName = literal.get ? literal.get('name') : literal.name;
+                if (existingName === literalName) {
+                    throw new Error(`Enum literal '${literalName}' already exists in enum '${enumName}'`);
+                }
+            }
+
+            // Create new enum literal
+            const { EEnumLiteral } = require('ecore-ts');
+            const enumLiteral = EEnumLiteral.create({
+                name: literalName,
+                value: literalValue !== undefined ? literalValue : literalArray.length,
+                literal: literalName
+            });
+
+            // Add to enum's eLiterals
+            const eLiteralsCollection = eEnum.get ? eEnum.get('eLiterals') : eEnum.eLiterals;
+            if (eLiteralsCollection && typeof eLiteralsCollection.add === 'function') {
+                eLiteralsCollection.add(enumLiteral);
+            } else if (Array.isArray(eLiteralsCollection)) {
+                eLiteralsCollection.push(enumLiteral);
+            } else {
+                // For plain objects, create array if needed
+                if (!eEnum.eLiterals) {
+                    eEnum.eLiterals = [];
+                }
+                eEnum.eLiterals.push({
+                    name: literalName,
+                    value: literalValue !== undefined ? literalValue : literalArray.length,
+                    literal: literalName
+                });
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Error adding enum literal '${literalName}' to enum '${enumName}':`, error);
+            throw error;
+        }
+    }
+
+    updateEnumLiteral(enumName: string, oldLiteralName: string, newLiteralName: string, newLiteralValue?: number): boolean {
+        const eEnum = this.findEEnum(enumName);
+        if (!eEnum) {
+            throw new Error(`Enum '${enumName}' not found in active metamodel`);
+        }
+
+        try {
+            // Validate the new literal name
+            this.validateName(newLiteralName);
+
+            // Find the literal to update
+            const eLiterals = eEnum.get ? eEnum.get('eLiterals') : eEnum.eLiterals;
+            const literalArray = toArray(eLiterals);
+            
+            let foundLiteral: any = null;
+            for (const literal of literalArray) {
+                const literalName = literal.get ? literal.get('name') : literal.name;
+                if (literalName === oldLiteralName) {
+                    foundLiteral = literal;
+                    break;
+                }
+            }
+
+            if (!foundLiteral) {
+                throw new Error(`Enum literal '${oldLiteralName}' not found in enum '${enumName}'`);
+            }
+
+            // Check if new name already exists (and it's not the same literal)
+            for (const literal of literalArray) {
+                const literalName = literal.get ? literal.get('name') : literal.name;
+                if (literalName === newLiteralName && literal !== foundLiteral) {
+                    throw new Error(`Enum literal '${newLiteralName}' already exists in enum '${enumName}'`);
+                }
+            }
+
+            // Update the literal
+            if (foundLiteral.set) {
+                foundLiteral.set('name', newLiteralName);
+                if (newLiteralValue !== undefined) {
+                    foundLiteral.set('value', newLiteralValue);
+                }
+                foundLiteral.set('literal', newLiteralName);
+            } else {
+                foundLiteral.name = newLiteralName;
+                if (newLiteralValue !== undefined) {
+                    foundLiteral.value = newLiteralValue;
+                }
+                foundLiteral.literal = newLiteralName;
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Error updating enum literal '${oldLiteralName}' in enum '${enumName}':`, error);
+            throw error;
+        }
+    }
+
+    deleteEnumLiteral(enumName: string, literalName: string): boolean {
+        const eEnum = this.findEEnum(enumName);
+        if (!eEnum) {
+            throw new Error(`Enum '${enumName}' not found in active metamodel`);
+        }
+
+        try {
+            // Find the literal to delete
+            const eLiterals = eEnum.get ? eEnum.get('eLiterals') : eEnum.eLiterals;
+            const literalArray = toArray(eLiterals);
+            
+            let foundIndex = -1;
+            for (let i = 0; i < literalArray.length; i++) {
+                const literal = literalArray[i];
+                const currentName = literal.get ? literal.get('name') : literal.name;
+                if (currentName === literalName) {
+                    foundIndex = i;
+                    break;
+                }
+            }
+
+            if (foundIndex === -1) {
+                throw new Error(`Enum literal '${literalName}' not found in enum '${enumName}'`);
+            }
+
+            // Remove the literal
+            if (eLiterals && typeof eLiterals.remove === 'function') {
+                eLiterals.remove(literalArray[foundIndex]);
+            } else if (Array.isArray(eLiterals)) {
+                eLiterals.splice(foundIndex, 1);
+            } else if (Array.isArray(eEnum.eLiterals)) {
+                eEnum.eLiterals.splice(foundIndex, 1);
+            } else {
+                throw new Error(`Cannot remove enum literal from enum '${enumName}' - eLiterals collection not supported`);
+            }
+
+            return true;
+        } catch (error) {
+            console.error(`Error deleting enum literal '${literalName}' from enum '${enumName}':`, error);
+            throw error;
+        }
+    }
+
     /**
      * Changes the type of a class (abstract, concrete, interface, abstract-interface).
      */

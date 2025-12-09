@@ -298,11 +298,6 @@ export class EcoreToolbar {
         }
     }
 
-    /**
-     * Sets the selected container instance for creating children.
-     * @param instanceId The ID of the container instance
-     * @param className The class name of the container instance
-     */
     public setContainer(instanceId: string, className: string): void {
         this.selectedContainerInstanceId = instanceId;
         this.selectedContainerClassName = className;
@@ -332,8 +327,6 @@ export class EcoreToolbar {
         }
         this.updateAvailableClassesForMode();
     }
-
-    // Removed implicit container instance detection
 
     private findInstancesOfClassByName(className: string): string[] {
         const instanceIds: string[] = [];
@@ -382,7 +375,8 @@ export class EcoreToolbar {
     }
 
     /**
-     * Recursively finds ALL elements in the model tree.
+     * Recursively finds ALL elements in the model tree. This method might not be needed anymore. Since we always have one root
+     * however, if we manage to link to other files, then we need the method. 
      */
     private findAllElements(element: GModelElement): GModelElement[] {
         const elements: GModelElement[] = [];
@@ -502,13 +496,6 @@ export class EcoreToolbar {
             this.instancePaletteContainer.classList.add('instance-palette-container');
         }
 
-        this.instancePaletteContainer.innerHTML = '';
-
-        if (!this.instancePaletteContainer) {
-            this.instancePaletteContainer = document.createElement('div');
-            this.instancePaletteContainer.classList.add('instance-palette-container');
-        }
-
         const container = this.instancePaletteContainer;
         container.innerHTML = '';
 
@@ -542,7 +529,7 @@ export class EcoreToolbar {
                 this.clearContainerButton.style.cssText = `
                     padding: 6px 12px;
                     margin: 4px 0;
-                    background-color: #007bff;
+                    background-color: #007acc;
                     color: white;
                     border: none;
                     border-radius: 4px;
@@ -609,7 +596,6 @@ export class EcoreToolbar {
         // Fallback: treat as edge-like if it has at least two non-containment refs
         const nonContainment = classInfo.references.filter(r => !r.containment);
         if (nonContainment.length >= 2) {
-            // Generic rule without metamodel-specific assumptions
             return true;
         }
         return false;
@@ -815,7 +801,7 @@ export class EcoreToolbar {
                 </div>
                 
                 <div style="display: flex; gap: 10px; justify-content: flex-end;">
-                    <button id="cancelBtn" style="padding: 8px 16px; border: 1px solid #ccc; background: #f5f5f5; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button id="cancelBtn" style="padding: 8px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer;">Cancel</button>
                     <button id="createBtn" style="padding: 8px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer;">Create</button>
                 </div>
             `;

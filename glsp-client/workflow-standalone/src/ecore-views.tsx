@@ -286,7 +286,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         const vnode = (
             <g {...groupAttrs}>
                 {shapeElement}
-                {node.selected ? this.renderResizeHandles(node, nodeWidth, nodeHeight) : null}
                 {context.renderChildren(node)}
             </g>
         );
@@ -294,123 +293,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         setAttr(vnode, 'data-svg-metadata-type', node.type);
         setClass(vnode, 'ecore-instance', true);
         return vnode;
-    }
-
-    private renderResizeHandles(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number): VNode {
-        const handleSize = 8;
-        const halfHandle = handleSize / 2;
-        
-        return (
-            <g class-resize-handles={true}>
-                {/* Corner handles */}
-                <rect
-                    class-resize-handle={true}
-                    class-resize-nw={true}
-                    x={-halfHandle}
-                    y={-halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="nw-resize"
-                    data-resize-direction="nw"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-ne={true}
-                    x={width - halfHandle}
-                    y={-halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="ne-resize"
-                    data-resize-direction="ne"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-sw={true}
-                    x={-halfHandle}
-                    y={height - halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="sw-resize"
-                    data-resize-direction="sw"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-se={true}
-                    x={width - halfHandle}
-                    y={height - halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="se-resize"
-                    data-resize-direction="se"
-                />
-                
-                {/* Edge handles */}
-                <rect
-                    class-resize-handle={true}
-                    class-resize-n={true}
-                    x={width / 2 - halfHandle}
-                    y={-halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="n-resize"
-                    data-resize-direction="n"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-s={true}
-                    x={width / 2 - halfHandle}
-                    y={height - halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="s-resize"
-                    data-resize-direction="s"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-w={true}
-                    x={-halfHandle}
-                    y={height / 2 - halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="w-resize"
-                    data-resize-direction="w"
-                />
-                <rect
-                    class-resize-handle={true}
-                    class-resize-e={true}
-                    x={width - halfHandle}
-                    y={height / 2 - halfHandle}
-                    width={handleSize}
-                    height={handleSize}
-                    fill="#1976D2"
-                    stroke="#ffffff"
-                    strokeWidth={1}
-                    cursor="e-resize"
-                    data-resize-direction="e"
-                />
-            </g>
-        );
     }
 
     private renderRectangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {

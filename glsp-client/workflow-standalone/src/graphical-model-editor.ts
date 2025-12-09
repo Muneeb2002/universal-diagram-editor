@@ -176,7 +176,7 @@ export class GraphicalModelEditor {
             </div>
             <div style="padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
                 <button id="saveGraphicalModel" style="
-                    background: #007bff;
+                    background: #007acc;
                     color: white;
                     border: none;
                     padding: 10px 20px;
@@ -186,7 +186,7 @@ export class GraphicalModelEditor {
                     font-weight: 500;
                 ">Save Graphical Model</button>
                 <button id="loadGraphicalModel" style="
-                    background: #007bff;
+                    background: #007acc;
                     color: white;
                     border: none;
                     padding: 10px 20px;
@@ -195,7 +195,7 @@ export class GraphicalModelEditor {
                     font-size: 14px;
                 ">Load Graphical Model</button>
                 <button id="clearCanvas" style="
-                    background: #007bff;
+                    background: #007acc;
                     color: white;
                     border: none;
                     padding: 10px 20px;
@@ -712,7 +712,7 @@ export class GraphicalModelEditor {
                     <button id="deleteElement" style="
                         width: 100%;
                         padding: 8px;
-                        background: #007bff;
+                        background: #007acc;
                         color: white;
                         border: none;
                         border-radius: 4px;
