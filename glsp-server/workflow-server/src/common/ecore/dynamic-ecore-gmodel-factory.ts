@@ -919,11 +919,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         const shapeConfig = {
             type: config.type,
+            width: config.width,
+            height: config.height,
             color: config.color,
             fillColor: config.fillColor,
             lineThickness: config.lineThickness,
             lineStyle: config.lineStyle,
-            arrowType: config.arrowType
+            arrowType: config.arrowType,
+            svgContent: config.svgContent
         };
         
         // Explicitly set as enumerable property to ensure serialization

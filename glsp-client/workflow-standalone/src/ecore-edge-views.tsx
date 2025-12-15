@@ -63,29 +63,38 @@ export class EcoreEdgeView extends PolylineEdgeView {
             path += ` L ${p.x},${p.y}`;
         }
         
-        // Apply mapping-based styles for instance edges
         const attrs: any = {
             d: path,
             fill: "none"
         };
-        
+
         if (edge.type === 'edge:instance') {
-            const style = this.getEdgeShapeStyle(edge);
-            // Always set styles for instance edges (with fallbacks)
-            attrs.stroke = style.stroke || '#444';
-            attrs['stroke-width'] = style.strokeWidth !== undefined ? String(style.strokeWidth) : '2';
-            if (style.dashArray) {
-                attrs['stroke-dasharray'] = style.dashArray;
+            const shapeConfig = (edge as any).shapeConfig as {
+                type?: string;
+                svgContent?: string;
+            } | undefined;
+
+            // If this instance edge uses a custom SVG marker, do not render a visible base line at all
+            if (shapeConfig?.type === 'custom-svg' && shapeConfig.svgContent) {
+                // Return an empty group so the edge has no line; only the custom SVG marker is shown
+                return <g />;
+            } else {
+                // Apply mapping-based styles for non-SVG instance edges
+                const style = this.getEdgeShapeStyle(edge);
+                attrs.stroke = style.stroke || '#444';
+                attrs['stroke-width'] = style.strokeWidth !== undefined ? String(style.strokeWidth) : '2';
+                if (style.dashArray) {
+                    attrs['stroke-dasharray'] = style.dashArray;
+                }
+                const stroke = style.stroke || '#444';
+                const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth + 'px' : '2px';
+                const dashArray = style.dashArray || 'none';
+                attrs.style = {
+                    '--instance-edge-stroke': stroke,
+                    '--instance-edge-stroke-width': strokeWidth,
+                    '--instance-edge-dasharray': dashArray
+                };
             }
-            // Set CSS variables as well to override !important rules
-            const stroke = style.stroke || '#444';
-            const strokeWidth = style.strokeWidth !== undefined ? style.strokeWidth + 'px' : '2px';
-            const dashArray = style.dashArray || 'none';
-            attrs.style = {
-                '--instance-edge-stroke': stroke,
-                '--instance-edge-stroke-width': strokeWidth,
-                '--instance-edge-dasharray': dashArray
-            };
         }
         
         return <path {...attrs} />;
@@ -124,16 +133,22 @@ export class EcoreEdgeView extends PolylineEdgeView {
     private createArrowForEdge(edge: GEdge, from: Point, to: Point, direction: 'start' | 'end', style: EdgeShapeStyle = {}): VNode | undefined {
         const type = edge.type ?? '';
         
-        // For instance edges, determine arrow style from mapping model
+        // For instance edges, determine arrow or custom SVG marker from mapping model
         if (type === 'edge:instance') {
             const shapeConfig = (edge as any).shapeConfig as { 
                 type?: string; 
                 width?: number; 
                 height?: number;
                 arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
+                svgContent?: string;
             } | undefined;
             const shapeType = shapeConfig?.type;
             const arrowType = shapeConfig?.arrowType;
+            
+            // If the mapping uses a custom SVG, render that at the edge tip
+            if (shapeType === 'custom-svg' && shapeConfig?.svgContent) {
+                return this.createCustomSvgMarker(to, shapeConfig);
+            }
             
             // Use dimensions from graphical model if available, otherwise use defaults
             const arrowLength = shapeConfig?.width ? Math.max(10, shapeConfig.width * 0.3) : 14;
@@ -163,7 +178,7 @@ export class EcoreEdgeView extends PolylineEdgeView {
                 return this.createFilledTriangle(from, to, type, direction, style, arrowLength, arrowWidth);
             }
             
-            // For other shape types or no shape type, no arrow
+            // For other shape types or no shape type, no arrow/marker
             return undefined;
         }
         
@@ -349,6 +364,82 @@ export class EcoreEdgeView extends PolylineEdgeView {
         }
         
         return <path {...attrs} />;
+    }
+
+    /**
+     * Renders a custom SVG marker at the edge tip for instance edges.
+     * The SVG content comes from the graphical model shape mapping (shapeConfig.svgContent).
+     */
+    private createCustomSvgMarker(
+        tip: Point,
+        shapeConfig: { svgContent?: string; width?: number; height?: number }
+    ): VNode | undefined {
+        if (!shapeConfig.svgContent) {
+            return undefined;
+        }
+
+        try {
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(shapeConfig.svgContent, 'image/svg+xml');
+            const parseError = svgDoc.querySelector('parsererror');
+            if (parseError) {
+                return undefined;
+            }
+
+            const sourceSvg = svgDoc.querySelector('svg');
+            if (!sourceSvg) {
+                return undefined;
+            }
+
+            const width = shapeConfig.width && shapeConfig.width > 0 ? shapeConfig.width : 24;
+            const height = shapeConfig.height && shapeConfig.height > 0 ? shapeConfig.height : 24;
+
+            // Ensure a proper viewBox so the SVG scales correctly
+            let viewBox = sourceSvg.getAttribute('viewBox');
+            if (!viewBox) {
+                const svgWidth = sourceSvg.getAttribute('width');
+                const svgHeight = sourceSvg.getAttribute('height');
+                if (svgWidth && svgHeight) {
+                    const w = parseFloat(svgWidth.replace('px', '').replace('pt', '').trim());
+                    const h = parseFloat(svgHeight.replace('px', '').replace('pt', '').trim());
+                    if (w > 0 && h > 0) {
+                        viewBox = `0 0 ${w} ${h}`;
+                    }
+                }
+                if (!viewBox) {
+                    viewBox = `0 0 ${width} ${height}`;
+                }
+            }
+
+            const svgElement = sourceSvg.cloneNode(true) as SVGSVGElement;
+            svgElement.removeAttribute('width');
+            svgElement.removeAttribute('height');
+            svgElement.setAttribute('viewBox', viewBox);
+            svgElement.setAttribute('width', width.toString());
+            svgElement.setAttribute('height', height.toString());
+            svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+            const svgString = new XMLSerializer().serializeToString(svgElement);
+            const encodedSvg = encodeURIComponent(svgString);
+            const dataUri = `data:image/svg+xml,${encodedSvg}`;
+
+            const x = tip.x - width / 2;
+            const y = tip.y - height / 2;
+
+            return (
+                <image
+                    href={dataUri}
+                    x={x}
+                    y={y}
+                    width={width}
+                    height={height}
+                    preserveAspectRatio="xMidYMid meet"
+                    pointer-events="none"
+                />
+            );
+        } catch {
+            return undefined;
+        }
     }
 
     private computeArrowGeometry(from: Point, to: Point, length: number, halfWidth: number):
