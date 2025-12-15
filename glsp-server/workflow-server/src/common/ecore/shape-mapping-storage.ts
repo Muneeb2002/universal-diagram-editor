@@ -20,6 +20,7 @@ export interface ShapeConfig {
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
+    svgContent?: string;
 }
 
 export interface ShapeMapping {

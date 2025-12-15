@@ -28,7 +28,6 @@ export class LoadInstanceActionHandler implements ActionHandler {
     protected gmodelFactory: GModelFactory;
 
     async execute(action: LoadInstanceAction): Promise<Action[]> {
-        console.log('LoadInstanceActionHandler.execute()', action);
 
         try {
             // Set view mode to instance

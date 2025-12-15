@@ -301,8 +301,44 @@ function setupContextMenu(): void {
         }
     });
 
-    // Listen for right-clicks on instance nodes
+    // Listen for right-clicks on instance nodes and edges
     document.addEventListener('contextmenu', (event) => {
+        const target = event.target as HTMLElement | null;
+        if (!target) {
+            return;
+        }
+        
+        // First check if clicking on an instance edge (arc instance)
+        // Instance edges have class 'sprotty-edge' and their ID follows pattern: `${instance.id}_${sourceId}_to_${targetId}`
+        const edgeElement = target.closest('.sprotty-edge') as HTMLElement | null;
+        if (edgeElement) {
+            // Get edge ID
+            const rawId = edgeElement.id || edgeElement.getAttribute('id') || '';
+            const cleanId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
+            
+            // Check if this is an instance edge by:
+            // 1. Checking for data attributes
+            // 2. Checking if ID matches instance edge pattern (contains '_to_')
+            const isInstanceEdge = edgeElement.getAttribute('data-edge-type') === 'instance' ||
+                                 edgeElement.getAttribute('data-svg-metadata-type') === 'edge:instance' ||
+                                 cleanId.includes('_to_');
+            
+            if (isInstanceEdge && cleanId) {
+                event.preventDefault();
+                event.stopPropagation();
+                
+                // Extract instance ID from edge ID
+                // Edge ID format: `${instance.id}_${sourceId}_to_${targetId}`
+                const instanceId = cleanId.split('_')[0]; // Extract instance ID (part before first underscore)
+                
+                if (instanceId) {
+                    // Show instance context menu
+                    showInstanceContextMenu(event, instanceId);
+                    return;
+                }
+            }
+        }
+        
         // Get click coordinates
         const clickX = (event as MouseEvent).clientX;
         const clickY = (event as MouseEvent).clientY;

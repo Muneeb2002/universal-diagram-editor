@@ -893,7 +893,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             fillColor: config.fillColor,
             filled: config.filled,
             lineThickness: config.lineThickness,
-            lineStyle: config.lineStyle
+            lineStyle: config.lineStyle,
+            svgContent: config.svgContent
         };
         
         // Ensure shapeConfig is enumerable so it gets serialized

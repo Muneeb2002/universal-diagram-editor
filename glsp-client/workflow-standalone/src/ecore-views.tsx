@@ -51,6 +51,7 @@ interface NodeShapeConfig {
     filled?: boolean;
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
+    svgContent?: string;
 }
 
 interface ShapeRenderStyle {
@@ -235,9 +236,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             case 'circle':
                 shapeElement = this.renderCircle(node, nodeWidth, nodeHeight, shapeStyle);
                 break;
-            case 'ellipse':
-                shapeElement = this.renderEllipse(node, nodeWidth, nodeHeight, shapeStyle);
-                break;
             case 'arrow':
                 shapeElement = this.renderArrow(node, nodeWidth, nodeHeight, shapeStyle);
                 break;
@@ -249,6 +247,9 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
                 break;
             case 'hexagon':
                 shapeElement = this.renderHexagon(node, nodeWidth, nodeHeight, shapeStyle);
+                break;
+            case 'custom-svg':
+                shapeElement = this.renderCustomSvg(node, nodeWidth, nodeHeight, shapeConfig);
                 break;
             default:
                 shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight, shapeStyle);
@@ -393,44 +394,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         return <circle {...attrs} />;
     }
 
-    private renderEllipse(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const centerX = width / 2;
-        const centerY = height / 2;
-        const radiusX = Math.max(0, width / 2 - 5);
-        const radiusY = Math.max(0, height / 2 - 5);
-        
-        const cssClasses = (node as any).cssClasses || [];
-        const borderClass = cssClasses.find((cls: string) => cls.startsWith('border-'));
-        const strokeDasharray = this.resolveDashArray(style.lineStyle, borderClass);
-        
-        const attrs: any = {
-            'class-sprotty-node': true,
-            'class-selected': node.selected,
-            'class-mouseover': node.hoverFeedback,
-            cx: centerX,
-            cy: centerY,
-            rx: radiusX,
-            ry: radiusY,
-            strokeDasharray: strokeDasharray
-        };
-        
-        if (style.fill) {
-            attrs.fill = style.fill;
-            attrs.style = { '--instance-node-fill': style.fill };
-        }
-        if (style.stroke) {
-            attrs.stroke = style.stroke;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke'] = style.stroke;
-        }
-        if (style.strokeWidth !== undefined) {
-            attrs.strokeWidth = style.strokeWidth;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
-        }
-        
-        return <ellipse {...attrs} />;
-    }
 
     private renderArrow(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
         // Create a line with an open arrowhead
@@ -598,6 +561,74 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             return '2,2';
         }
         return undefined;
+    }
+
+    private renderCustomSvg(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, shapeConfig?: NodeShapeConfig): VNode {
+        if (!shapeConfig?.svgContent) {
+            // Fallback to rectangle if no SVG content
+            return this.renderRectangle(node, width, height, {});
+        }
+
+        // Parse the SVG content
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(shapeConfig.svgContent, 'image/svg+xml');
+        const parseError = svgDoc.querySelector('parsererror');
+        if (parseError) {
+            // Fallback to rectangle on parse error
+            return this.renderRectangle(node, width, height, {});
+        }
+
+        const sourceSvg = svgDoc.querySelector('svg');
+        if (!sourceSvg) {
+            return this.renderRectangle(node, width, height, {});
+        }
+
+        // Get or create viewBox
+        let viewBox = sourceSvg.getAttribute('viewBox');
+        if (!viewBox) {
+            const svgWidth = sourceSvg.getAttribute('width');
+            const svgHeight = sourceSvg.getAttribute('height');
+            if (svgWidth && svgHeight) {
+                const w = parseFloat(svgWidth.replace('px', '').replace('pt', '').trim());
+                const h = parseFloat(svgHeight.replace('px', '').replace('pt', '').trim());
+                if (w > 0 && h > 0) {
+                    viewBox = `0 0 ${w} ${h}`;
+                }
+            }
+            if (!viewBox) {
+                viewBox = `0 0 ${width} ${height}`;
+            }
+        }
+
+        // Create a foreignObject to embed the SVG (allows proper rendering)
+        // We'll use an image with data URI for better compatibility
+        const svgElement = sourceSvg.cloneNode(true) as SVGSVGElement;
+        svgElement.removeAttribute('width');
+        svgElement.removeAttribute('height');
+        svgElement.setAttribute('viewBox', viewBox);
+        svgElement.setAttribute('width', width.toString());
+        svgElement.setAttribute('height', height.toString());
+        svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+        // Convert to data URI
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+        const encodedSvg = encodeURIComponent(svgString);
+        const dataUri = `data:image/svg+xml,${encodedSvg}`;
+
+        // Create image element
+        return (
+            <image
+                class-sprotty-node={true}
+                class-selected={node.selected}
+                class-mouseover={node.hoverFeedback}
+                href={dataUri}
+                x="0"
+                y="0"
+                width={width}
+                height={height}
+                preserveAspectRatio="xMidYMid meet"
+            />
+        );
     }
 }
 

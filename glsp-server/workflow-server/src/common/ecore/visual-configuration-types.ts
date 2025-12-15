@@ -12,20 +12,13 @@
  * Available shape types for class instances
  */
 export type ShapeType = 
-    | 'rectangle'
-    | 'circle'
-    | 'ellipse'
-    | 'arrow';
+    | 'rectangle';
 
 /**
  * Available color schemes for class instances
  */
 export type ColorScheme = 
-    | 'black'
-    | 'blue'
-    | 'red'
-    | 'white'
-    | 'grey';
+    | 'black';
 
 /**
  * Visual configuration for a single class
@@ -74,21 +67,14 @@ export interface MetamodelVisualConfiguration {
  * Predefined shape definitions with SVG paths
  */
 export const SHAPE_DEFINITIONS: Record<ShapeType, string> = {
-    rectangle: 'M0,0 L100,0 L100,60 L0,60 Z',
-    circle: 'M50,0 A50,50 0 1,1 50,100 A50,50 0 1,1 50,0',
-    ellipse: 'M0,30 A50,30 0 1,1 100,30 A50,30 0 1,1 0,30',
-    arrow: 'M10,30 L100,30 M100,30 L85,20 M100,30 L85,40'
+    rectangle: 'M0,0 L100,0 L100,60 L0,60 Z'
 };
 
 /**
  * Predefined color schemes with CSS values
  */
 export const COLOR_SCHEMES: Record<ColorScheme, { fill: string; stroke: string; text: string }> = {
-    black: { fill: '#1B1B1B', stroke: '#000000', text: '#FFFFFF' },
-    blue: { fill: '#E3F2FD', stroke: '#1976D2', text: '#0D47A1' },
-    red: { fill: '#FFEBEE', stroke: '#D32F2F', text: '#B71C1C' },
-    white: { fill: '#FFFFFF', stroke: '#9E9E9E', text: '#000000' },
-    grey: { fill: '#F5F5F5', stroke: '#616161', text: '#212121' }
+    black: { fill: '#1B1B1B', stroke: '#000000', text: '#FFFFFF' }
 };
 
 /**

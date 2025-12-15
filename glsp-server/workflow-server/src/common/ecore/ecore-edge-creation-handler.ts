@@ -30,7 +30,6 @@ export class EcoreEdgeCreationHandler extends GModelCreateEdgeOperationHandler {
 
     constructor() {
         super();
-        console.log('EcoreEdgeCreationHandler initialized with elementTypeIds:', this.elementTypeIds);
     }
 
     private currentOperation: CreateEdgeOperation | undefined;

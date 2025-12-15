@@ -365,7 +365,8 @@ export class ShapeMappingDialog {
                                 lineStyle: shape.lineStyle,
                                 arrowType: shape.type === 'arrow'
                                     ? (shape.arrowType ?? 'filled-triangle')
-                                    : undefined
+                                    : undefined,
+                                svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined
                             },
                             enumAttribute: enumAttr || undefined,
                             enumValue: enumValue || undefined
@@ -720,7 +721,9 @@ export class ShapeMappingDialog {
         const normalized = {
             ...config,
             // Ensure filled is set (default to false if not specified)
-            filled: config.filled !== undefined ? config.filled : false
+            filled: config.filled !== undefined ? config.filled : false,
+            // Preserve svgContent if it exists (for custom-svg shapes)
+            svgContent: config.svgContent
         } as ShapeMapping['shapeConfig'];
         if (normalized.type === 'arrow') {
             // If arrowType is missing, try to get it from the current shape definition
@@ -749,6 +752,7 @@ export class ShapeMappingDialog {
             // Remove arrowType for non-arrow shapes
             delete (normalized as any).arrowType;
         }
+        
         return normalized;
     }
 }

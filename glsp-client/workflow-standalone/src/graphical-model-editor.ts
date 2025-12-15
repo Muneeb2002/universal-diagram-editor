@@ -14,7 +14,7 @@ import { createSaveGraphicalModelAction } from './ecore-client-actions';
 export interface GraphicalElement {
     id: string;
     name: string;
-    type: string; // 'rectangle', 'circle', 'ellipse', 'triangle', 'diamond', 'hexagon', 'arrow'
+    type: string; // 'rectangle', 'circle', 'triangle', 'diamond', 'hexagon', 'arrow', 'custom-svg'
     x: number;
     y: number;
     width: number;
@@ -25,6 +25,7 @@ export interface GraphicalElement {
     lineThickness: number;
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none'; // For arrow shapes
+    svgContent?: string; // For custom SVG uploads - stores the SVG markup
     selected?: boolean;
 }
 
@@ -167,7 +168,7 @@ export class GraphicalModelEditor {
                     linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px),
                     linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px);
                     background-size: 20px 20px;">
-                    <div id="graphicalCanvas" style="position: relative; width: 2000px; height: 2000px; min-height: 100%;"></div>
+                    <div id="graphicalCanvas" style="position: relative; min-height: 100%;"></div>
                 </div>
                 <div id="propertiesContainer" style="width: 300px; border-left: 1px solid #eee; padding: 15px; overflow-y: auto; background: #f8f9fa;">
                     <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #333;">Properties</h3>
@@ -221,13 +222,10 @@ export class GraphicalModelEditor {
         const shapes = [
             { type: 'rectangle', label: 'Rectangle', icon: '▭' },
             { type: 'circle', label: 'Circle', icon: '○' },
-            { type: 'ellipse', label: 'Ellipse', icon: '◯' },
             { type: 'triangle', label: 'Triangle', icon: '△' },
             { type: 'diamond', label: 'Diamond', icon: '◇' },
             { type: 'hexagon', label: 'Hexagon', icon: '⬡' },
-            { type: 'arrow', label: 'Arrow', icon: '→' },
-            { type: 'star', label: 'Star', icon: '★' },
-            { type: 'pentagon', label: 'Pentagon', icon: '⬟' }
+            { type: 'arrow', label: 'Arrow', icon: '→' }
         ];
 
         shapes.forEach(shape => {
@@ -271,6 +269,31 @@ export class GraphicalModelEditor {
 
             this.palette!.appendChild(item);
         });
+
+        // Add Upload Custom SVG button
+        const uploadButton = document.createElement('button');
+        uploadButton.textContent = 'Upload Custom SVG';
+        uploadButton.style.cssText = `
+            width: 100%;
+            padding: 12px;
+            margin-top: 15px;
+            background: #007acc;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 14px;
+            font-weight: 500;
+            transition: background 0.2s;
+        `;
+        uploadButton.addEventListener('mouseenter', () => {
+            uploadButton.style.background = '#005fa3';
+        });
+        uploadButton.addEventListener('mouseleave', () => {
+            uploadButton.style.background = '#007acc';
+        });
+        uploadButton.addEventListener('click', () => this.handleSvgUpload());
+        this.palette!.appendChild(uploadButton);
     }
 
     private setupCanvas(): void {
@@ -284,6 +307,8 @@ export class GraphicalModelEditor {
 
         this.canvas.addEventListener('drop', (e) => {
             e.preventDefault();
+            
+            // Handle shape drag from palette
             const shapeType = e.dataTransfer!.getData('shapeType');
             if (shapeType) {
                 const rect = this.canvas!.getBoundingClientRect();
@@ -291,6 +316,12 @@ export class GraphicalModelEditor {
                 const y = e.clientY - rect.top;
                 this.createElement(shapeType, x, y);
             }
+        });
+        
+        // Enable drag over for file drops
+        this.canvas.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            e.dataTransfer!.dropEffect = 'copy';
         });
 
         // Click to select/deselect
@@ -301,21 +332,22 @@ export class GraphicalModelEditor {
         });
     }
 
-    private createElement(type: string, x: number, y: number): void {
+    private createElement(type: string, x: number, y: number, svgContent?: string, width?: number, height?: number): void {
         const element: GraphicalElement = {
             id: `element_${this.nextElementId++}`,
             name: `Element ${this.nextElementId - 1}`,
             type,
             x,
             y,
-            width: 100,
-            height: 80,
+            width: width ?? 100,
+            height: height ?? 80,
             color: '#333333',
             fillColor: '#E3F2FD',
             filled: false,
             lineThickness: 2,
             lineStyle: 'solid',
-            arrowType: type === 'arrow' ? 'filled-triangle' : undefined
+            arrowType: type === 'arrow' ? 'filled-triangle' : undefined,
+            svgContent: type === 'custom-svg' ? svgContent : undefined
         };
 
         this.elements.set(element.id, element);
@@ -335,6 +367,7 @@ export class GraphicalModelEditor {
         elementDiv.id = element.id;
         // Only show border/background for rectangle type, others use transparent container
         const isRectangle = element.type === 'rectangle';
+        const isCustomSvg = element.type === 'custom-svg';
         // Respect the filled property for rectangles - only show background if filled is true
         const shouldShowBackground = isRectangle && element.filled !== false;
         elementDiv.style.cssText = `
@@ -346,37 +379,43 @@ export class GraphicalModelEditor {
             border: ${isRectangle ? `${element.lineThickness}px ${element.lineStyle} ${element.color}` : 'none'};
             background: ${shouldShowBackground ? element.fillColor : 'transparent'};
             cursor: move;
-            display: flex;
-            align-items: center;
-            justify-content: center;
+            display: ${isCustomSvg ? 'block' : 'flex'};
+            align-items: ${isCustomSvg ? 'stretch' : 'center'};
+            justify-content: ${isCustomSvg ? 'flex-start' : 'center'};
             font-size: 12px;
             color: ${element.color};
             font-weight: 500;
             user-select: none;
+            overflow: ${isCustomSvg ? 'visible' : 'hidden'};
             ${element.selected ? 'box-shadow: 0 0 0 3px rgba(0, 123, 255, 0.5);' : ''}
         `;
 
         // Draw shape based on type
         this.drawShape(elementDiv, element);
 
-        // Add text label on top
-        const textLabel = document.createElement('div');
-        textLabel.textContent = element.name;
-        textLabel.style.cssText = `
-            position: relative;
-            z-index: 10;
-            pointer-events: none;
-            text-align: center;
-            width: 100%;
-            height: 100%;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 12px;
-            color: ${element.color};
-            font-weight: 500;
-        `;
-        elementDiv.appendChild(textLabel);
+        // Add text label on top (but hide it for custom SVG to avoid covering the image)
+        if (element.type !== 'custom-svg') {
+            const textLabel = document.createElement('div');
+            textLabel.textContent = element.name;
+            textLabel.style.cssText = `
+                position: relative;
+                z-index: 10;
+                pointer-events: none;
+                text-align: center;
+                width: 100%;
+                height: 100%;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                font-size: 12px;
+                color: ${element.color};
+                font-weight: 500;
+            `;
+            elementDiv.appendChild(textLabel);
+        } else {
+            // For custom SVG, add name as title attribute for tooltip
+            elementDiv.title = element.name;
+        }
 
         // Make draggable
         elementDiv.addEventListener('mousedown', (e) => {
@@ -395,6 +434,12 @@ export class GraphicalModelEditor {
     }
 
     private drawShape(container: HTMLElement, element: GraphicalElement): void {
+        // Handle custom SVG uploads
+        if (element.type === 'custom-svg' && element.svgContent) {
+            this.drawCustomSvg(container, element);
+            return;
+        }
+
         const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
         svg.setAttribute('width', '100%');
         svg.setAttribute('height', '100%');
@@ -410,13 +455,10 @@ export class GraphicalModelEditor {
         }
 
         const shape = document.createElementNS('http://www.w3.org/2000/svg', element.type === 'circle' ? 'circle' :
-            element.type === 'ellipse' ? 'ellipse' :
             element.type === 'triangle' ? 'polygon' :
             element.type === 'diamond' ? 'polygon' :
             element.type === 'hexagon' ? 'polygon' :
             element.type === 'arrow' ? 'path' :
-            element.type === 'star' ? 'polygon' :
-            element.type === 'pentagon' ? 'polygon' :
             'rect');
 
         const width = element.width;
@@ -441,12 +483,6 @@ export class GraphicalModelEditor {
                 (shape as SVGCircleElement).setAttribute('cy', cy.toString());
                 (shape as SVGCircleElement).setAttribute('r', Math.min(width, height) / 2 - element.lineThickness + '');
                 break;
-            case 'ellipse':
-                (shape as SVGEllipseElement).setAttribute('cx', cx.toString());
-                (shape as SVGEllipseElement).setAttribute('cy', cy.toString());
-                (shape as SVGEllipseElement).setAttribute('rx', (width / 2 - element.lineThickness).toString());
-                (shape as SVGEllipseElement).setAttribute('ry', (height / 2 - element.lineThickness).toString());
-                break;
             case 'triangle':
                 (shape as SVGPolygonElement).setAttribute('points', `0,${height} ${width / 2},0 ${width},${height}`);
                 break;
@@ -466,25 +502,6 @@ export class GraphicalModelEditor {
                 break;
             case 'arrow':
                 // handled above
-                break;
-            case 'star':
-                const starPoints: string[] = [];
-                const starPointsCount = 5;
-                for (let i = 0; i < starPointsCount * 2; i++) {
-                    const angle = (i * Math.PI) / starPointsCount;
-                    const radius = i % 2 === 0 ? Math.min(width, height) / 2 : Math.min(width, height) / 4;
-                    starPoints.push(`${cx + radius * Math.cos(angle - Math.PI / 2)},${cy + radius * Math.sin(angle - Math.PI / 2)}`);
-                }
-                (shape as SVGPolygonElement).setAttribute('points', starPoints.join(' '));
-                break;
-            case 'pentagon':
-                const pentPoints: string[] = [];
-                for (let i = 0; i < 5; i++) {
-                    const angle = (i * 2 * Math.PI) / 5 - Math.PI / 2;
-                    const radius = Math.min(width, height) / 2;
-                    pentPoints.push(`${cx + radius * Math.cos(angle)},${cy + radius * Math.sin(angle)}`);
-                }
-                (shape as SVGPolygonElement).setAttribute('points', pentPoints.join(' '));
                 break;
         }
 
@@ -660,7 +677,7 @@ export class GraphicalModelEditor {
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Shape Type:</label>
-                    <input type="text" value="${element.type}" disabled style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #f5f5f5;">
+                    <input type="text" value="${element.type === 'custom-svg' ? 'Custom SVG' : element.type}" disabled style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #f5f5f5;">
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Width:</label>
@@ -670,6 +687,7 @@ export class GraphicalModelEditor {
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Height:</label>
                     <input type="number" id="propHeight" value="${element.height}" min="20" max="500" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
                 </div>
+                ${element.type !== 'custom-svg' ? `
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Border Color:</label>
                     <input type="color" id="propColor" value="${element.color}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; height: 40px;">
@@ -696,6 +714,11 @@ export class GraphicalModelEditor {
                         <option value="dotted" ${element.lineStyle === 'dotted' ? 'selected' : ''}>Dotted</option>
                     </select>
                 </div>
+                ` : `
+                <div style="padding: 10px; background: #f0f7ff; border-radius: 4px; color: #0066cc; font-size: 12px;">
+                    Custom SVG: Original colors are preserved. Only size can be adjusted.
+                </div>
+                `}
                 ${element.type === 'arrow' ? `
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Arrow Type:</label>
@@ -728,11 +751,11 @@ export class GraphicalModelEditor {
         const nameInput = this.propertiesPanel.querySelector('#propName') as HTMLInputElement;
         const widthInput = this.propertiesPanel.querySelector('#propWidth') as HTMLInputElement;
         const heightInput = this.propertiesPanel.querySelector('#propHeight') as HTMLInputElement;
-        const colorInput = this.propertiesPanel.querySelector('#propColor') as HTMLInputElement;
-        const filledCheckbox = this.propertiesPanel.querySelector('#propFilled') as HTMLInputElement;
-        const fillColorInput = this.propertiesPanel.querySelector('#propFillColor') as HTMLInputElement;
-        const lineThicknessInput = this.propertiesPanel.querySelector('#propLineThickness') as HTMLInputElement;
-        const lineStyleSelect = this.propertiesPanel.querySelector('#propLineStyle') as HTMLSelectElement;
+        const colorInput = this.propertiesPanel.querySelector('#propColor') as HTMLInputElement | null;
+        const filledCheckbox = this.propertiesPanel.querySelector('#propFilled') as HTMLInputElement | null;
+        const fillColorInput = this.propertiesPanel.querySelector('#propFillColor') as HTMLInputElement | null;
+        const lineThicknessInput = this.propertiesPanel.querySelector('#propLineThickness') as HTMLInputElement | null;
+        const lineStyleSelect = this.propertiesPanel.querySelector('#propLineStyle') as HTMLSelectElement | null;
         const arrowTypeSelect = this.propertiesPanel.querySelector('#propArrowType') as HTMLSelectElement | null;
         const deleteBtn = this.propertiesPanel.querySelector('#deleteElement') as HTMLButtonElement;
 
@@ -741,27 +764,34 @@ export class GraphicalModelEditor {
             this.selectedElement.name = nameInput.value;
             this.selectedElement.width = parseInt(widthInput.value) || 100;
             this.selectedElement.height = parseInt(heightInput.value) || 80;
-            this.selectedElement.color = colorInput.value;
-            this.selectedElement.filled = filledCheckbox.checked;
-            this.selectedElement.fillColor = fillColorInput.value;
-            this.selectedElement.lineThickness = parseInt(lineThicknessInput.value) || 2;
-            this.selectedElement.lineStyle = lineStyleSelect.value as 'solid' | 'dashed' | 'dotted';
+            
+            // Only update color/styling properties for non-custom-SVG elements
+            if (this.selectedElement.type !== 'custom-svg') {
+                if (colorInput) this.selectedElement.color = colorInput.value;
+                if (filledCheckbox) this.selectedElement.filled = filledCheckbox.checked;
+                if (fillColorInput) {
+                    this.selectedElement.fillColor = fillColorInput.value;
+                    if (filledCheckbox) fillColorInput.disabled = !filledCheckbox.checked;
+                }
+                if (lineThicknessInput) this.selectedElement.lineThickness = parseInt(lineThicknessInput.value) || 2;
+                if (lineStyleSelect) this.selectedElement.lineStyle = lineStyleSelect.value as 'solid' | 'dashed' | 'dotted';
+            }
+            
             if (arrowTypeSelect && this.selectedElement.type === 'arrow') {
                 this.selectedElement.arrowType = arrowTypeSelect.value as 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
             }
-            // Update fill color input disabled state
-            fillColorInput.disabled = !filledCheckbox.checked;
+            
             this.renderElement(this.selectedElement);
         };
 
         nameInput.addEventListener('input', updateElement);
         widthInput.addEventListener('input', updateElement);
         heightInput.addEventListener('input', updateElement);
-        colorInput.addEventListener('input', updateElement);
-        filledCheckbox.addEventListener('change', updateElement);
-        fillColorInput.addEventListener('input', updateElement);
-        lineThicknessInput.addEventListener('input', updateElement);
-        lineStyleSelect.addEventListener('change', updateElement);
+        if (colorInput) colorInput.addEventListener('input', updateElement);
+        if (filledCheckbox) filledCheckbox.addEventListener('change', updateElement);
+        if (fillColorInput) fillColorInput.addEventListener('input', updateElement);
+        if (lineThicknessInput) lineThicknessInput.addEventListener('input', updateElement);
+        if (lineStyleSelect) lineStyleSelect.addEventListener('change', updateElement);
         if (arrowTypeSelect) {
             arrowTypeSelect.addEventListener('change', updateElement);
         }
@@ -1022,8 +1052,215 @@ export class GraphicalModelEditor {
             lineThickness: Number.isFinite(raw?.lineThickness) ? raw.lineThickness : 2,
             lineStyle: raw?.lineStyle === 'dashed' || raw?.lineStyle === 'dotted' ? raw.lineStyle : 'solid',
             arrowType,
+            svgContent: typeof raw?.svgContent === 'string' ? raw.svgContent : undefined,
             selected: false
         };
+    }
+
+    private handleSvgUpload(): void {
+        const fileInput = document.createElement('input');
+        fileInput.type = 'file';
+        fileInput.accept = '.svg,image/svg+xml';
+        fileInput.style.display = 'none';
+
+        fileInput.addEventListener('change', async (event) => {
+            const file = (event.target as HTMLInputElement).files?.[0];
+            if (!file) return;
+
+            const canvasRect = this.canvas!.getBoundingClientRect();
+            const x = Math.max(0, (canvasRect.width / 2) - 50);
+            const y = Math.max(0, (canvasRect.height / 2) - 40);
+            
+            await this.processSvgFile(file, x, y);
+        });
+
+        document.body.appendChild(fileInput);
+        fileInput.click();
+        document.body.removeChild(fileInput);
+    }
+
+    private async processSvgFile(file: File, x: number, y: number): Promise<void> {
+        // Validate file size (max 1MB)
+        if (file.size > 1024 * 1024) {
+            alert('SVG file is too large. Maximum size is 1MB.');
+            return;
+        }
+
+        try {
+            const text = await file.text();
+            
+            // Basic validation - check if it's valid SVG
+            if (!text.trim().startsWith('<svg') && !text.includes('<svg')) {
+                alert('Invalid SVG file. Please upload a valid SVG file.');
+                return;
+            }
+
+            // Parse and sanitize SVG
+            const parser = new DOMParser();
+            const svgDoc = parser.parseFromString(text, 'image/svg+xml');
+            const parseError = svgDoc.querySelector('parsererror');
+            if (parseError) {
+                alert('Invalid SVG file. Please upload a valid SVG file.');
+                return;
+            }
+
+            // Extract the SVG element
+            const svgElement = svgDoc.querySelector('svg');
+            if (!svgElement) {
+                alert('No SVG element found in file.');
+                return;
+            }
+
+            // Get original dimensions
+            const viewBox = svgElement.getAttribute('viewBox');
+            const widthAttr = svgElement.getAttribute('width');
+            const heightAttr = svgElement.getAttribute('height');
+            
+            let defaultWidth = 100;
+            let defaultHeight = 100;
+
+            // Check viewBox first to understand the coordinate system
+            let vbWidth = 0;
+            let vbHeight = 0;
+            if (viewBox) {
+                const parts = viewBox.split(/\s+/);
+                if (parts.length >= 4) {
+                    vbWidth = parseFloat(parts[2]);
+                    vbHeight = parseFloat(parts[3]);
+                }
+            }
+            
+            // Parse width/height attributes (remove units)
+            let attrWidth = 0;
+            let attrHeight = 0;
+            if (widthAttr && heightAttr) {
+                attrWidth = parseFloat(widthAttr.replace('px', '').replace('pt', '').trim());
+                attrHeight = parseFloat(heightAttr.replace('px', '').replace('pt', '').trim());
+            }
+            
+            // Use a reasonable default size
+            // If viewBox exists and is reasonable (> 20), use it as base
+            // If width/height attributes exist and are reasonable, use them
+            // Otherwise use default 100x100
+            if (vbWidth > 20 && vbHeight > 20) {
+                // ViewBox dimensions are reasonable, use them
+                defaultWidth = vbWidth;
+                defaultHeight = vbHeight;
+            } else if (attrWidth > 20 && attrHeight > 20) {
+                // Width/height attributes are reasonable, use them
+                defaultWidth = attrWidth;
+                defaultHeight = attrHeight;
+            } else if (vbWidth > 0 && vbHeight > 0) {
+                // ViewBox exists but is small (like 24x24), scale it up proportionally
+                // Scale to a reasonable display size (e.g., 100px) while maintaining aspect ratio
+                const aspectRatio = vbWidth / vbHeight;
+                if (aspectRatio >= 1) {
+                    defaultWidth = 100;
+                    defaultHeight = 100 / aspectRatio;
+                } else {
+                    defaultHeight = 100;
+                    defaultWidth = 100 * aspectRatio;
+                }
+            }
+            
+            // Ensure minimum size
+            if (defaultWidth < 20) defaultWidth = 100;
+            if (defaultHeight < 20) defaultHeight = 100;
+
+            // Remove width/height attributes to allow scaling
+            svgElement.removeAttribute('width');
+            svgElement.removeAttribute('height');
+            
+            // Set viewBox if not present
+            if (!svgElement.getAttribute('viewBox') && viewBox) {
+                svgElement.setAttribute('viewBox', viewBox);
+            } else if (!svgElement.getAttribute('viewBox')) {
+                svgElement.setAttribute('viewBox', `0 0 ${defaultWidth} ${defaultHeight}`);
+            }
+
+            // Get the cleaned SVG content
+            const svgContent = svgElement.outerHTML;
+
+            this.createElement('custom-svg', x, y, svgContent, defaultWidth, defaultHeight);
+        } catch (error) {
+            console.error('Error reading SVG file:', error);
+            alert('Error reading SVG file. Please try again.');
+        }
+    }
+
+    private drawCustomSvg(container: HTMLElement, element: GraphicalElement): void {
+        if (!element.svgContent) {
+            console.error('No svgContent in element');
+            return;
+        }
+
+        // Get the container dimensions
+        const containerWidth = element.width;
+        const containerHeight = element.height;
+
+        // Parse the SVG to validate it
+        const parser = new DOMParser();
+        const svgDoc = parser.parseFromString(element.svgContent, 'image/svg+xml');
+        const parseError = svgDoc.querySelector('parsererror');
+        if (parseError) {
+            console.error('SVG parse error:', parseError.textContent);
+            return;
+        }
+
+        const sourceSvg = svgDoc.querySelector('svg');
+        if (!sourceSvg) {
+            console.error('No SVG element found in svgContent');
+            return;
+        }
+
+        // Get or create viewBox from source
+        let viewBox = sourceSvg.getAttribute('viewBox');
+        if (!viewBox) {
+            const width = sourceSvg.getAttribute('width');
+            const height = sourceSvg.getAttribute('height');
+            if (width && height) {
+                const w = parseFloat(width) || containerWidth;
+                const h = parseFloat(height) || containerHeight;
+                viewBox = `0 0 ${w} ${h}`;
+            } else {
+                viewBox = `0 0 ${containerWidth} ${containerHeight}`;
+            }
+        }
+
+        // Update the SVG content with proper dimensions and viewBox
+        const svgElement = sourceSvg.cloneNode(true) as SVGSVGElement;
+        // Remove width/height to allow scaling based on viewBox
+        svgElement.removeAttribute('width');
+        svgElement.removeAttribute('height');
+        // Ensure viewBox is set
+        svgElement.setAttribute('viewBox', viewBox);
+        // Set dimensions for the img element (these will be used by the browser)
+        svgElement.setAttribute('width', containerWidth.toString());
+        svgElement.setAttribute('height', containerHeight.toString());
+        svgElement.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+
+        // Convert SVG to data URI
+        const svgString = new XMLSerializer().serializeToString(svgElement);
+        const encodedSvg = encodeURIComponent(svgString);
+        const dataUri = `data:image/svg+xml,${encodedSvg}`;
+
+        // Create an img element with the data URI - this is the most reliable way
+        const img = document.createElement('img');
+        img.src = dataUri;
+        img.style.cssText = `
+            width: ${containerWidth}px;
+            height: ${containerHeight}px;
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+            z-index: 1;
+            display: block;
+        `;
+        img.alt = element.name;
+
+        // Append to container
+        container.appendChild(img);
     }
 }
 
