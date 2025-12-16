@@ -38,15 +38,17 @@ import createContainer from './di.config';
 import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreContextMenu, EcoreEdgeContextMenu, EdgeInfo } from './ecore-context-menu';
 import { createOpenClassPropertiesAction } from './ecore-client-actions';
-import { createCreateEClassAction, createCreateEEnumAction, createAddAttributeAction, createDeleteAttributeAction, createSetInstanceAttributeAction } from './ecore-client-actions';
+import { createCreateEClassAction, createCreateEEnumAction, createAddAttributeAction, createDeleteAttributeAction } from './ecore-client-actions';
 import { RequestAction } from '@eclipse-glsp/protocol';
 import { setPendingEnumNameRequest, getPendingEnumNameRequest, clearPendingEnumNameRequest } from './enum-names-response-handler';
 import { setGlobalToolbar } from './load-metamodel-response-handler';
 import { LeftSidebar } from './left-sidebar';
-import { SelectAction, SetModelAction, UpdateModelAction, SetEditModeAction, EditMode, TriggerEdgeCreationAction, DeleteElementOperation } from '@eclipse-glsp/protocol';
+import { SelectAction, SetModelAction, UpdateModelAction, SetEditModeAction, EditMode, TriggerEdgeCreationAction } from '@eclipse-glsp/protocol';
 import { EnableDefaultToolsAction } from '@eclipse-glsp/client';
 import { GraphicalModelEditor } from './graphical-model-editor';
 import { ShapeMappingDialog } from './shape-mapping-dialog';
+import { InstanceManagementPanel } from './instance-management-panel';
+import { InstancesOverviewResponse } from './ecore-client-actions';
 
 let editorContextServiceRef: EditorContextService | undefined;
 let lastKnownModelRoot: GModelRoot | undefined;
@@ -81,6 +83,7 @@ const toolbar = new EcoreToolbar();
 const leftSidebar = new LeftSidebar();
 const contextMenu = new EcoreContextMenu();
 const edgeContextMenu = new EcoreEdgeContextMenu();
+let instanceManagementPanel: InstanceManagementPanel | null = null;
 
 toolbar.onModeChange(mode => leftSidebar.setMode(mode));
 
@@ -180,6 +183,9 @@ async function initialize(connectionProvider: MessageConnection, isReconnecting 
     const editorContextService = editorContextServiceProvider();
     editorContextServiceRef = editorContextService;
     toolbar.setEditorContextService(editorContextService);
+    
+    // Expose editorContextServiceRef globally for instance management panel
+    (window as any).editorContextServiceRef = editorContextService;
     
     // Set the global toolbar reference for the LoadMetamodelResponseHandler
     setGlobalToolbar(toolbar);
@@ -301,95 +307,7 @@ function setupContextMenu(): void {
         }
     });
 
-    // Listen for right-clicks on instance nodes and edges
-    document.addEventListener('contextmenu', (event) => {
-        const target = event.target as HTMLElement | null;
-        if (!target) {
-            return;
-        }
-        
-        // First check if clicking on an instance edge (arc instance)
-        // Instance edges have class 'sprotty-edge' and their ID follows pattern: `${instance.id}_${sourceId}_to_${targetId}`
-        const edgeElement = target.closest('.sprotty-edge') as HTMLElement | null;
-        if (edgeElement) {
-            // Get edge ID
-            const rawId = edgeElement.id || edgeElement.getAttribute('id') || '';
-            const cleanId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
-            
-            // Check if this is an instance edge by:
-            // 1. Checking for data attributes
-            // 2. Checking if ID matches instance edge pattern (contains '_to_')
-            const isInstanceEdge = edgeElement.getAttribute('data-edge-type') === 'instance' ||
-                                 edgeElement.getAttribute('data-svg-metadata-type') === 'edge:instance' ||
-                                 cleanId.includes('_to_');
-            
-            if (isInstanceEdge && cleanId) {
-                event.preventDefault();
-                event.stopPropagation();
-                
-                // Extract instance ID from edge ID
-                // Edge ID format: `${instance.id}_${sourceId}_to_${targetId}`
-                const instanceId = cleanId.split('_')[0]; // Extract instance ID (part before first underscore)
-                
-                if (instanceId) {
-                    // Show instance context menu
-                    showInstanceContextMenu(event, instanceId);
-                    return;
-                }
-            }
-        }
-        
-        // Get click coordinates
-        const clickX = (event as MouseEvent).clientX;
-        const clickY = (event as MouseEvent).clientY;
-        
-        // Find all instance elements in the DOM
-        const allInstances = document.querySelectorAll('[data-svg-metadata-type="ecore:instance"], .ecore-instance');
-        
-        // Find the instance that contains the click point (most specific/deepest one)
-        let deepestInstance: HTMLElement | null = null;
-        let maxDepth = -1;
-        
-        for (let i = 0; i < allInstances.length; i++) {
-            const inst = allInstances[i] as HTMLElement;
-            const rect = inst.getBoundingClientRect();
-            
-            // Check if click is within this instance's bounds
-            if (clickX >= rect.left && clickX <= rect.right && 
-                clickY >= rect.top && clickY <= rect.bottom) {
-                
-                // Calculate depth (how many instance ancestors this instance has)
-                let depth = 0;
-                let parent: HTMLElement | null = inst.parentElement;
-                while (parent && parent !== document.body) {
-                    const parentDataType = parent.getAttribute('data-svg-metadata-type');
-                    const hasInstanceClass = parent.classList && parent.classList.contains('ecore-instance');
-                    if (parentDataType === 'ecore:instance' || hasInstanceClass) {
-                        depth++;
-                    }
-                    parent = parent.parentElement;
-                }
-                
-                // Use the instance with the highest depth (most nested)
-                if (depth > maxDepth) {
-                    maxDepth = depth;
-                    deepestInstance = inst;
-                }
-            }
-        }
-        
-        if (deepestInstance) {
-            event.preventDefault();
-            event.stopPropagation();
-            
-            // Get instance information from the element
-            const rawId = deepestInstance.id || 'unknown-instance';
-            const instanceId = rawId.startsWith('sprotty_') ? rawId.substring(8) : rawId;
-            
-            // Show instance context menu
-            showInstanceContextMenu(event, instanceId);
-        }
-    });
+    // Instance context menu is now handled by InstanceManagementPanel
 }
 
 async function reconnect(connectionProvider: MessageConnection): Promise<void> {
@@ -430,6 +348,7 @@ function setupCustomActionHandling(): void {
     // This is a simplified approach - in a full implementation you'd use proper action handlers
     window.showEClassCreationDialog = showEClassCreationDialog;
     window.showEEnumCreationDialog = showEEnumCreationDialog;
+    
 
     // Listen for various custom actions
     // This is a workaround - in a full implementation you'd use proper action handlers
@@ -507,7 +426,17 @@ function setupCustomActionHandling(): void {
                 document.body.style.paddingBottom = '0px';
                 document.body.style.setProperty('--bottom-panel-height', '0px');
                 setToolPaletteVisible(metamodelAvailable);
+                
+                // Show instance management panel
+                if (!instanceManagementPanel) {
+                    instanceManagementPanel = new InstanceManagementPanel(actionDispatcher);
+                }
+                instanceManagementPanel.show();
             } else if (mode === 'metamodel') {
+                // Hide instance management panel
+                if (instanceManagementPanel) {
+                    instanceManagementPanel.hide();
+                }
                 try { await actionDispatcher.dispatch({ kind: 'openClassProperties' }); } catch {}
                 setToolPaletteVisible(metamodelAvailable);
                 
@@ -700,9 +629,14 @@ function setupCustomActionHandling(): void {
                 lastKnownModelRoot = contextRoot ?? (action.newRoot as unknown as GModelRoot);
                 scheduleBoundsUpdate();
                 
+                // Refresh instance management panel if visible and in instance mode
+                const currentMode = (window as any).currentViewMode || 'metamodel';
+                if (currentMode === 'instance' && instanceManagementPanel && instanceManagementPanel.isVisible()) {
+                    instanceManagementPanel.refreshInstances();
+                }
+                
                 // After model is set (especially after mode switch), ensure editor is in editable mode
                 // Check current mode to determine if we should set edit mode
-                const currentMode = (window as any).currentViewMode || 'metamodel';
                 if (metamodelAvailable && currentMode === 'metamodel') {
                     // Use multiple attempts to ensure edit mode is set
                     const setEditMode = async (attempt = 0) => {
@@ -738,10 +672,23 @@ function setupCustomActionHandling(): void {
                 const contextRoot = editorContextServiceRef?.modelRoot as unknown as GModelRoot | undefined;
                 lastKnownModelRoot = contextRoot ?? (action.newRoot as unknown as GModelRoot);
                 scheduleBoundsUpdate();
+                
+                // Refresh instance management panel if visible and in instance mode
+                const currentMode = (window as any).currentViewMode || 'metamodel';
+                if (currentMode === 'instance' && instanceManagementPanel && instanceManagementPanel.isVisible()) {
+                    instanceManagementPanel.refreshInstances();
+                }
             }, () => {
                 scheduleBoundsUpdate();
             });
             return result;
+        }
+        // Handle InstancesOverviewResponse to forward to panel
+        else if (action.kind === 'instancesOverviewResponse') {
+            if (instanceManagementPanel) {
+                instanceManagementPanel.handleInstancesOverviewResponse(action as InstancesOverviewResponse);
+            }
+            return originalDispatch(action);
         }
         
         // Otherwise, dispatch normally
@@ -1451,445 +1398,6 @@ function showDeleteAttributeDialog(className: string, attributes: Array<{name: s
 // Export to global scope so context menu can call it
 (window as any).showDeleteAttributeDialog = showDeleteAttributeDialog;
 
-function showInstanceContextMenu(event: MouseEvent, instanceId: string): void {
-    // Check if metamodel is loaded (check if toolbar has class info)
-    const toolbar = (window as any).globalToolbar;
-    const hasMetamodel = toolbar && toolbar.hasClassInfo && toolbar.hasClassInfo();
-    
-    // Create backdrop first so it's accessible in all click handlers
-    const backdrop = document.createElement('div');
-    backdrop.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        z-index: 9999;
-        background: transparent;
-    `;
-    
-    // Create a simple context menu for instances
-    const menu = document.createElement('div');
-    menu.style.cssText = `
-        position: fixed;
-        left: ${event.clientX}px;
-        top: ${event.clientY}px;
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 4px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        min-width: 200px;
-        font-family: Arial, sans-serif;
-        padding: 5px 0;
-    `;
-    
-    // Function to close the menu
-    const closeMenu = () => {
-        if (backdrop.parentNode) {
-            document.body.removeChild(backdrop);
-        }
-        if (menu.parentNode) {
-            document.body.removeChild(menu);
-        }
-    };
-    
-    backdrop.addEventListener('click', closeMenu);
-
-    // Add menu item to edit attributes
-    const editAttributesItem = document.createElement('div');
-    editAttributesItem.textContent = 'Edit Attributes';
-    editAttributesItem.style.cssText = `
-        padding: 10px 15px;
-        cursor: pointer;
-        font-size: 14px;
-    `;
-    editAttributesItem.addEventListener('mouseenter', () => {
-        editAttributesItem.style.background = '#f0f0f0';
-    });
-    editAttributesItem.addEventListener('mouseleave', () => {
-        editAttributesItem.style.background = 'transparent';
-    });
-    editAttributesItem.addEventListener('click', () => {
-        closeMenu();
-        showEditInstanceAttributeDialog(instanceId);
-    });
-
-    menu.appendChild(editAttributesItem);
-
-    // Add menu item to delete element
-    const deleteElementItem = document.createElement('div');
-    deleteElementItem.textContent = 'Delete Element';
-    deleteElementItem.style.cssText = `
-        padding: 10px 15px;
-        cursor: pointer;
-        font-size: 14px;
-        border-top: 1px solid #eee;
-        color: #000000;
-    `;
-    deleteElementItem.addEventListener('mouseenter', () => {
-        deleteElementItem.style.background = '#f0f0f0';
-    });
-    deleteElementItem.addEventListener('mouseleave', () => {
-        deleteElementItem.style.background = 'transparent';
-    });
-    deleteElementItem.addEventListener('click', () => {
-        closeMenu();
-        
-        // Confirm deletion
-        const confirmed = confirm('Are you sure you want to delete this element?');
-        if (confirmed && actionDispatcher) {
-            // Dispatch delete operation
-            actionDispatcher.dispatch(DeleteElementOperation.create([instanceId]));
-        }
-    });
-
-    menu.appendChild(deleteElementItem);
-
-    // Add menu item to set as container (only if metamodel is loaded)
-    if (hasMetamodel) {
-        const setContainerItem = document.createElement('div');
-        setContainerItem.textContent = 'Set as Container';
-        setContainerItem.style.cssText = `
-            padding: 10px 15px;
-            cursor: pointer;
-            font-size: 14px;
-            border-top: 1px solid #eee;
-        `;
-        setContainerItem.addEventListener('mouseenter', () => {
-            setContainerItem.style.background = '#f0f0f0';
-        });
-        setContainerItem.addEventListener('mouseleave', () => {
-            setContainerItem.style.background = 'transparent';
-        });
-        setContainerItem.addEventListener('click', () => {
-            const toolbar = (window as any).globalToolbar;
-            if (toolbar && toolbar.setContainer) {
-                const className = instanceId.split('_')[0]; // Extract class name from instance ID
-                toolbar.setContainer(instanceId, className);
-            }
-            // Backdrop will be declared later, find it by class or remove menu directly
-            const backdropElements = document.querySelectorAll('div[style*="z-index: 9999"]');
-            backdropElements.forEach(el => {
-                if (el.parentNode) {
-                    el.parentNode.removeChild(el);
-                }
-            });
-            document.body.removeChild(menu);
-        });
-        menu.appendChild(setContainerItem);
-    }
-
-    // Only show instance creation options if metamodel is loaded
-    if (!hasMetamodel) {
-        document.body.appendChild(backdrop);
-        document.body.appendChild(menu);
-        return;
-    }
-
-    // The backdrop is already created above, just append it here
-        document.body.appendChild(backdrop);
-        document.body.appendChild(menu);
-}
-
-function showEditInstanceAttributeDialog(instanceId: string): void {
-    // Extract class name from instance ID (e.g., "Token_3" -> "Token")
-    const classNameMatch = instanceId.match(/^([A-Z][a-zA-Z0-9]*)_\d+$/);
-    if (!classNameMatch) {
-        alert('Could not determine class name from instance ID: ' + instanceId);
-        return;
-    }
-    const className = classNameMatch[1];
-
-    // Get class information from toolbar
-    const toolbar = (window as any).globalToolbar;
-    if (!toolbar || !toolbar.allClasses) {
-        alert('Metamodel not loaded. Please load a metamodel first.');
-        return;
-    }
-
-    const classInfoList = toolbar.allClasses || [];
-    const classInfo = classInfoList.find((c: any) => c.className === className);
-    if (!classInfo) {
-        alert(`Class '${className}' not found in metamodel.`);
-        return;
-    }
-
-    // Function to recursively collect all attributes (own + inherited)
-    const collectAllAttributes = (cls: any, visited: Set<string> = new Set()): Array<{ attr: any; sourceClass: string }> => {
-        if (!cls || visited.has(cls.className)) {
-            return [];
-        }
-        visited.add(cls.className);
-
-        const allAttrs: Array<{ attr: any; sourceClass: string }> = [];
-
-        // First, collect attributes from supertypes (so inherited attributes appear first)
-        if (cls.eSuperTypes && Array.isArray(cls.eSuperTypes)) {
-            for (const superTypeName of cls.eSuperTypes) {
-                const superType = classInfoList.find((c: any) => c.className === superTypeName);
-                if (superType) {
-                    const inheritedAttrs = collectAllAttributes(superType, visited);
-                    allAttrs.push(...inheritedAttrs);
-                }
-            }
-        }
-
-        // Then, add own attributes
-        if (cls.attributes && Array.isArray(cls.attributes)) {
-            for (const attr of cls.attributes) {
-                allAttrs.push({ attr, sourceClass: cls.className });
-            }
-        }
-
-        return allAttrs;
-    };
-
-    // Collect all attributes (own + inherited)
-    const allAttributes = collectAllAttributes(classInfo);
-
-    // Get current instance attribute values from the model
-    let currentAttributes: Record<string, any> = {};
-    try {
-        const editorContextServiceProvider = container.get(TYPES.IEditorContextServiceProvider) as () => EditorContextService;
-        const ecs = editorContextServiceProvider();
-        const root = ecs.modelRoot;
-        
-        if (root && (root as any).index) {
-            const instanceNode = (root as any).index.getById(instanceId) as any;
-            if (instanceNode && instanceNode.attributes) {
-                currentAttributes = instanceNode.attributes;
-            }
-        }
-    } catch (e) {
-        // Fallback to lastKnownModelRoot
-        if (lastKnownModelRoot) {
-            const findNodeById = (element: any, nodeId: string): any => {
-                if (!element) return null;
-                if (element.id === nodeId) return element;
-                if (element.children && Array.isArray(element.children)) {
-                    for (const child of element.children) {
-                        const found = findNodeById(child, nodeId);
-                        if (found) return found;
-                    }
-                }
-                return null;
-            };
-            const instanceNode = findNodeById(lastKnownModelRoot, instanceId);
-            if (instanceNode && instanceNode.attributes) {
-                currentAttributes = instanceNode.attributes;
-            }
-        }
-    }
-
-    // Get enum names for type checking
-    const enumNames = toolbar.getEnumNames ? toolbar.getEnumNames() : [];
-
-    // Create a dialog for editing instance attributes
-    const dialog = document.createElement('div');
-    dialog.style.cssText = `
-        position: fixed;
-        top: 50%;
-        left: 50%;
-        transform: translate(-50%, -50%);
-        background: white;
-        border: 1px solid #ccc;
-        border-radius: 8px;
-        padding: 20px;
-        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-        z-index: 10000;
-        min-width: 500px;
-        max-width: 700px;
-        max-height: 80vh;
-        overflow-y: auto;
-        font-family: Arial, sans-serif;
-    `;
-
-    const title = document.createElement('h3');
-    title.textContent = `Edit Attributes: ${instanceId} (${className})`;
-    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
-    dialog.appendChild(title);
-
-    const description = document.createElement('p');
-    description.textContent = `Edit attribute values for this ${className} instance:`;
-    description.style.cssText = 'margin: 10px 0 20px 0; color: #666;';
-    dialog.appendChild(description);
-
-    // Create attribute inputs section
-    const attributeSection = document.createElement('div');
-    attributeSection.style.cssText = 'margin: 15px 0;';
-
-    // Store input elements for each attribute
-    const attributeInputs: Record<string, HTMLInputElement | HTMLSelectElement> = {};
-    
-    if (allAttributes.length === 0) {
-        const noAttributesMsg = document.createElement('p');
-        noAttributesMsg.textContent = 'This class has no attributes (including inherited).';
-        noAttributesMsg.style.cssText = 'color: #999; font-style: italic;';
-        attributeSection.appendChild(noAttributesMsg);
-    } else {
-        allAttributes.forEach(({ attr, sourceClass }) => {
-            const attrContainer = document.createElement('div');
-            attrContainer.style.cssText = 'margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #eee;';
-
-            const attrLabel = document.createElement('label');
-            const isInherited = sourceClass !== className;
-            attrLabel.textContent = `${attr.name} (${attr.type})`;
-            if (isInherited) {
-                attrLabel.textContent += ` [inherited from ${sourceClass}]`;
-            }
-            attrLabel.style.cssText = `display: block; margin-bottom: 5px; color: ${isInherited ? '#666' : '#555'}; font-weight: 500; font-style: ${isInherited ? 'italic' : 'normal'};`;
-            attrContainer.appendChild(attrLabel);
-
-            const attrTypeInfo = document.createElement('span');
-            attrTypeInfo.textContent = `[${attr.lowerBound}..${attr.upperBound === -1 ? '*' : attr.upperBound}]`;
-            attrTypeInfo.style.cssText = 'font-size: 11px; color: #999; margin-left: 5px;';
-            attrLabel.appendChild(attrTypeInfo);
-
-            // Check if this is an enum type
-            const isEnum = enumNames.includes(attr.type);
-            let inputElement: HTMLInputElement | HTMLSelectElement;
-
-            if (isEnum) {
-                // Create dropdown for enum
-                const select = document.createElement('select');
-                select.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
-                
-                // Add empty option for clearing
-                const emptyOption = document.createElement('option');
-                emptyOption.value = '';
-                emptyOption.textContent = '(none)';
-                select.appendChild(emptyOption);
-
-                // Get enum literals
-                const literals = toolbar.getEnumLiterals ? toolbar.getEnumLiterals(attr.type) : [];
-                literals.forEach((literal: string) => {
-                    const option = document.createElement('option');
-                    option.value = literal;
-                    option.textContent = literal;
-                    if (currentAttributes[attr.name] === literal) {
-                        option.selected = true;
-                    }
-                    select.appendChild(option);
-                });
-
-                inputElement = select;
-            } else {
-                // Create appropriate input based on type
-                const input = document.createElement('input');
-                
-                // Set input type based on attribute type
-                if (attr.type === 'EBoolean' || attr.type === 'boolean') {
-                    input.type = 'checkbox';
-                    input.checked = currentAttributes[attr.name] === true || currentAttributes[attr.name] === 'true';
-                } else if (attr.type === 'EInt' || attr.type === 'ELong' || attr.type === 'EDouble' || attr.type === 'EFloat' || attr.type === 'int' || attr.type === 'number') {
-                    input.type = 'number';
-                    if (currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null) {
-                        input.value = String(currentAttributes[attr.name]);
-                    }
-                } else {
-                    input.type = 'text';
-                    if (currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null) {
-                        input.value = String(currentAttributes[attr.name]);
-                    }
-                }
-
-                input.placeholder = `Enter ${attr.type} value`;
-                input.style.cssText = 'width: 100%; padding: 8px; margin-top: 5px; border: 1px solid #ddd; border-radius: 4px; box-sizing: border-box;';
-                inputElement = input;
-            }
-
-            attributeInputs[attr.name] = inputElement;
-            attrContainer.appendChild(inputElement);
-            attributeSection.appendChild(attrContainer);
-        });
-    }
-
-    dialog.appendChild(attributeSection);
-
-    // Buttons
-    const buttonContainer = document.createElement('div');
-    buttonContainer.style.cssText = 'margin-top: 20px; text-align: right; border-top: 1px solid #eee; padding-top: 15px;';
-
-    const cancelButton = document.createElement('button');
-    cancelButton.textContent = 'Cancel';
-    cancelButton.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
-    cancelButton.addEventListener('click', () => {
-        document.body.removeChild(backdrop);
-        document.body.removeChild(dialog);
-    });
-
-    const saveButton = document.createElement('button');
-    saveButton.textContent = 'Save All';
-    saveButton.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
-    saveButton.addEventListener('click', async () => {
-        if (!actionDispatcher) {
-            return;
-        }
-
-        // Save all attributes
-        try {
-            for (const { attr } of allAttributes) {
-                const input = attributeInputs[attr.name];
-                if (!input) {
-                    continue;
-                }
-
-                let value: any = null;
-                
-                if (input instanceof HTMLSelectElement) {
-                    value = input.value || null;
-                } else if (input.type === 'checkbox') {
-                    value = input.checked;
-                } else {
-                    const inputValue = input.value.trim();
-                    if (inputValue === '') {
-                        value = null;
-                    } else if (input.type === 'number') {
-                        value = Number(inputValue);
-                    } else {
-                        value = inputValue;
-                    }
-                }
-
-                // Only dispatch if value changed or is being cleared
-                const currentValue = currentAttributes[attr.name];
-                if (value !== currentValue) {
-                    await actionDispatcher.dispatch(createSetInstanceAttributeAction(instanceId, attr.name, value));
-                }
-            }
-
-                document.body.removeChild(backdrop);
-                document.body.removeChild(dialog);
-            } catch (error) {
-            console.error('Error setting instance attributes:', error);
-            alert('Error setting attributes: ' + error);
-        }
-    });
-
-    buttonContainer.appendChild(cancelButton);
-    buttonContainer.appendChild(saveButton);
-    dialog.appendChild(buttonContainer);
-
-    // Add backdrop
-    const backdrop = document.createElement('div');
-    backdrop.style.cssText = `
-        position: fixed;
-        top: 0;
-        left: 0;
-        width: 100%;
-        height: 100%;
-        background: rgba(0,0,0,0.3);
-        z-index: 9999;
-    `;
-    backdrop.addEventListener('click', () => {
-        document.body.removeChild(backdrop);
-        document.body.removeChild(dialog);
-    });
-
-    document.body.appendChild(backdrop);
-    document.body.appendChild(dialog);
-}
 
 let classSelectionForwarderInstalled = false;
 

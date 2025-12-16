@@ -61,9 +61,42 @@ export class EcoreDeleteOperationHandler extends GModelOperationHandler {
         elementIds.forEach(elementId => {
             const element = this.findElementById(currentModel, elementId);
             if (!element) {
-                // In instance mode, if element is not found, it might be an instance name
-                // Try to find it by searching all edges and nodes for matching instance IDs
+                // In instance mode, if element is not found, it might be an instance ID
+                // First check if it's a valid instance ID in storage
                 if (isInstanceMode) {
+                    const allInstances = this.instanceStorage.getAllInstances();
+                    const instance = allInstances.find(inst => inst.id === elementId);
+                    if (instance) {
+                        // This is a valid instance ID, check if it's an arc (edge) instance
+                        // For arc instances, we need to find the edge element
+                        if (instance.eClassName.toLowerCase().includes('arc') || 
+                            instance.eClassName.toLowerCase().includes('edge')) {
+                            // Try to find the edge element for this arc instance
+                            const foundEdgeId = this.findEdgeIdForInstance(instance.id, currentModel);
+                            if (foundEdgeId) {
+                                // Recursively process the found edge ID
+                                const edgeElement = this.findElementById(currentModel, foundEdgeId);
+                                if (edgeElement && edgeElement.type === 'edge:instance') {
+                                    const cleanElementId = foundEdgeId.startsWith('sprotty_') ? foundEdgeId.substring(8) : foundEdgeId;
+                                    const foundInstanceId = this.findInstanceIdFromEdgeId(cleanElementId);
+                                    if (foundInstanceId) {
+                                        instanceIds.push(foundInstanceId);
+                                        return;
+                                    }
+                                }
+                            } else {
+                                // If we can't find the edge, but it's a valid instance, delete it directly
+                                instanceIds.push(instance.id);
+                                return;
+                            }
+                        } else {
+                            // Regular node instance, delete directly
+                            instanceIds.push(instance.id);
+                            return;
+                        }
+                    }
+                    
+                    // Try to find by class name (old behavior for backward compatibility)
                     const foundInstanceId = this.findInstanceIdByName(elementId, currentModel);
                     if (foundInstanceId) {
                         instanceIds.push(foundInstanceId);
@@ -226,6 +259,31 @@ export class EcoreDeleteOperationHandler extends GModelOperationHandler {
         }
         
         return undefined;
+    }
+
+    private findEdgeIdForInstance(instanceId: string, root: GModelRoot): string | undefined {
+        // Recursively search for an edge with type 'edge:instance' that starts with instanceId
+        const findEdge = (element: any): string | undefined => {
+            if (!element) return undefined;
+            
+            if (element.type === 'edge:instance' && element.id) {
+                const cleanId = element.id.startsWith('sprotty_') ? element.id.substring(8) : element.id;
+                if (cleanId.startsWith(instanceId + '_')) {
+                    return element.id;
+                }
+            }
+            
+            if (element.children && Array.isArray(element.children)) {
+                for (const child of element.children) {
+                    const found = findEdge(child);
+                    if (found) return found;
+                }
+            }
+            
+            return undefined;
+        };
+        
+        return findEdge(root);
     }
 
     private findInstanceIdByName(instanceName: string, root: GModelRoot): string | undefined {

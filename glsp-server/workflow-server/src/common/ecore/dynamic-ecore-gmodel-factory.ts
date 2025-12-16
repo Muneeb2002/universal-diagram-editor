@@ -132,11 +132,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             }
         });
 
-        rootInstances.forEach(instance => {
-            const edges = this.createEdgesForInstanceReferences(instance);
-            edges.forEach(edge => root.children.push(edge));
-        });
-
         this.modelState.set('gmodel', root);
     }
 
@@ -747,7 +742,19 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         // Get EClass definition for structure
         const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
 
+        // Add name label above the node if instance has a 'name' attribute
+        const nameValue = instance.attributes.get('name');
+        if (nameValue !== undefined && nameValue !== null) {
+            const nameLabel = new GLabel();
+            nameLabel.type = 'label:text';
+            nameLabel.id = `${instance.id}_name_label`;
+            nameLabel.text = String(nameValue);
+            nameLabel.position = { x: 0, y: -15 };
+            node.children.push(nameLabel);
+        }
+
         // Add attributes compartment with values (only if configured to show)
+        // Exclude 'name' attribute from attributes compartment if it's shown as a label
         if (visualConfig.showAttributes && eClass && instance.attributes.size > 0) {
             const attributesCompartment = new GCompartment();
             attributesCompartment.id = `${instance.id}_attributes`;
@@ -756,6 +763,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
             const attributesText: string[] = [];
             instance.attributes.forEach((value, attrName) => {
+                // Skip 'name' attribute if it's being displayed as a label above the node
+                if (attrName === 'name' && nameValue !== undefined && nameValue !== null) {
+                    return;
+                }
                 const displayValue = value !== null && value !== undefined ? String(value) : '';
                 attributesText.push(displayValue);
             });
@@ -970,90 +981,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         
     }
 
-
-
-    /**
-     * Creates GEdges for an instance's references.
-     * Note: Containment references are excluded since they're shown as nested nodes.
-     */
-    private createEdgesForInstanceReferences(instance: EcoreInstance): GEdge[] {
-        const edges: GEdge[] = [];
-
-        if (this.isArcInstance(instance)) {
-            return edges;
-        }
-
-        if ((instance as any).hidden) {
-            return edges;
-        }
-
-        // Get EClass to check which references are containment
-        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
-        const containmentRefNames = new Set<string>();
-        if (eClass) {
-            const eReferences = this.getProp<any[]>(eClass, 'eReferences') ?? [];
-            eReferences.forEach((eRef: any) => {
-                const isContainment = this.getProp<boolean>(eRef, 'containment') === true;
-                if (isContainment) {
-                    const refName = this.getProp<string>(eRef, 'name');
-                    if (refName) {
-                        containmentRefNames.add(refName);
-                    }
-                }
-            });
-        }
-
-        instance.references.forEach((value, refName) => {
-            // Skip containment references - they're shown as nested nodes
-            if (containmentRefNames.has(refName)) {
-                return;
-            }
-
-            if (typeof value === 'string' && value) {
-                // Single reference
-                const edge = this.createInstanceEdge(instance.id, value, refName);
-                if (edge) {
-                    edges.push(edge);
-                }
-            } else if (Array.isArray(value)) {
-                // Multi-valued reference
-                value.forEach(targetId => {
-                    const edge = this.createInstanceEdge(instance.id, targetId, refName);
-                    if (edge) {
-                        edges.push(edge);
-                    }
-                });
-            }
-        });
-
-        return edges;
-    }
-
-    /**
-     * Creates a single instance reference edge.
-     */
-    private createInstanceEdge(sourceId: string, targetId: string, refName: string): GEdge | null {
-        if (!targetId) {
-            return null;
-        }
-
-        const edge = new GEdge();
-        edge.type = 'edge:instance';
-        edge.id = `${sourceId}_${refName}_${targetId}`;
-        edge.sourceId = sourceId;
-        edge.targetId = targetId;
-
-        // Add label for reference name
-        const label = new GLabel();
-        label.type = 'label:text';
-        label.id = `${edge.id}_label`;
-        label.text = refName;
-
-        edge.children.push(label);
-
-        return edge;
-    }
-
     private createEdgeForArcInstance(instance: EcoreInstance): GEdge | null {
         const { sourceId, targetId } = this.findArcEndpoints(instance);
         if (!sourceId || !targetId) {
@@ -1070,6 +997,22 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const mapping = this.shapeMappingStorage.getMapping(instance.eClassName);
         if (mapping) {
             this.applyShapeMappingToArc(edge, mapping);
+        }
+
+        // Add name label at the middle of the edge if instance has a 'name' attribute
+        const nameValue = instance.attributes.get('name');
+        if (nameValue !== undefined && nameValue !== null) {
+            const nameLabel = new GLabel();
+            nameLabel.type = 'label:text';
+            nameLabel.id = `${edge.id}_name_label`;
+            nameLabel.text = String(nameValue);
+            nameLabel.edgePlacement = {
+                position: 0.5,
+                offset: 0,
+                side: 'on',
+                rotate: false
+            };
+            edge.children.push(nameLabel);
         }
 
         return edge;

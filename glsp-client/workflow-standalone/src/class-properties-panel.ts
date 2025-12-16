@@ -115,7 +115,8 @@ export class ClassPropertiesPanel {
             border-top-left-radius: 0;
             border-top-right-radius: 10px;
             display: flex;
-            z-index: 1001;
+            /* Render below modal dialogs (which use z-index 1000/1001) */
+            z-index: 900;
             font-family: Arial, sans-serif;
         `;
 

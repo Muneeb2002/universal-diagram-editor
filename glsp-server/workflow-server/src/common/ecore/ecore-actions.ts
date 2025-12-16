@@ -228,7 +228,7 @@ export interface InstancesOverviewResponse extends Action {
     kind: typeof InstancesOverviewResponse.KIND;
     requestId: string;
     success: boolean;
-    instances: Array<{ id: string; className: string; hidden?: boolean }>;
+    instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>;
     message?: string;
 }
 
@@ -242,7 +242,7 @@ export namespace InstancesOverviewResponse {
     export function create(
         requestId: string,
         success: boolean,
-        instances: Array<{ id: string; className: string; hidden?: boolean }> = [],
+        instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }> = [],
         message?: string
     ): InstancesOverviewResponse {
         return {

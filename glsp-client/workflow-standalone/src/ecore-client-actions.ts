@@ -94,7 +94,7 @@ export interface InstancesOverviewResponse extends Action {
     kind: 'instancesOverviewResponse';
     requestId: string;
     success: boolean;
-    instances: Array<{ id: string; className: string; hidden?: boolean }>;
+    instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>;
     message?: string;
 }
 

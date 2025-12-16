@@ -53,11 +53,21 @@ export class RequestInstancesOverviewActionHandler implements ActionHandler {
                 }
                 return allowed.has(instance.eClassName);
             })
-            .map(instance => ({
-                id: instance.id,
-                className: instance.eClassName,
-                hidden: instance.hidden
-            }));
+            .map(instance => {
+                // Convert attributes Map to plain object
+                const attrsObj: Record<string, any> = {};
+                if (instance.attributes && instance.attributes.size > 0) {
+                    instance.attributes.forEach((value, key) => {
+                        attrsObj[key] = value;
+                    });
+                }
+                return {
+                    id: instance.id,
+                    className: instance.eClassName,
+                    hidden: instance.hidden,
+                    attributes: attrsObj
+                };
+            });
 
         return [
             InstancesOverviewResponse.create(

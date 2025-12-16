@@ -438,23 +438,47 @@ export class InstanceModelStorage {
     }
 
     /**
-     * Sets an attribute value on an instance.
-     * @param instanceId The ID of the instance
-     * @param attributeName The name of the attribute
-     * @param value The value to set
+     * Recursively collects all structural features (attributes and references) from a class and its supertypes.
+     * @param eClass The EClass to collect features from
+     * @param visited Set of already visited class names to prevent cycles
+     * @returns Array of all structural features including inherited ones
      */
-    setAttributeValue(instanceId: string, attributeName: string, value: any): void {
-        const instance = this.getInstance(instanceId);
-        if (!instance) {
-            throw new Error(`Instance '${instanceId}' not found`);
-        }
-
-        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
+    private collectAllStructuralFeatures(eClass: any, visited: Set<string> = new Set()): any[] {
         if (!eClass) {
-            throw new Error(`EClass '${instance.eClassName}' not found in metamodel`);
+            return [];
         }
 
-        // Get structural features (handle both ecore-ts objects and plain JS objects)
+        const className = eClass.get ? eClass.get('name') : eClass.name;
+        if (!className || visited.has(className)) {
+            return [];
+        }
+        visited.add(className);
+
+        const allFeatures: any[] = [];
+
+        // First, collect features from supertypes (so inherited features appear first)
+        const eSuperTypes = eClass.get ? eClass.get('eSuperTypes') : eClass.eSuperTypes;
+        if (eSuperTypes) {
+            let superTypes: any[] = [];
+            if (Array.isArray(eSuperTypes)) {
+                superTypes = eSuperTypes;
+            } else if (eSuperTypes.forEach) {
+                eSuperTypes.forEach((st: any) => superTypes.push(st));
+            }
+
+            for (const superType of superTypes) {
+                const superTypeName = superType.get ? superType.get('name') : superType.name;
+                if (superTypeName) {
+                    const superEClass = this.metamodelRegistry.findEClass(superTypeName);
+                    if (superEClass) {
+                        const inheritedFeatures = this.collectAllStructuralFeatures(superEClass, visited);
+                        allFeatures.push(...inheritedFeatures);
+                    }
+                }
+            }
+        }
+
+        // Then, add own structural features
         let structuralFeatures: any[] = [];
         if (eClass.eStructuralFeatures) {
             if (Array.isArray(eClass.eStructuralFeatures)) {
@@ -482,14 +506,38 @@ export class InstanceModelStorage {
             }
         }
 
-        // Validate attribute exists
-        const attributes = structuralFeatures.filter(isEAttribute);
+        allFeatures.push(...structuralFeatures);
+        return allFeatures;
+    }
+
+    /**
+     * Sets an attribute value on an instance.
+     * @param instanceId The ID of the instance
+     * @param attributeName The name of the attribute
+     * @param value The value to set
+     */
+    setAttributeValue(instanceId: string, attributeName: string, value: any): void {
+        const instance = this.getInstance(instanceId);
+        if (!instance) {
+            throw new Error(`Instance '${instanceId}' not found`);
+        }
+
+        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
+        if (!eClass) {
+            throw new Error(`EClass '${instance.eClassName}' not found in metamodel`);
+        }
+
+        // Collect all structural features including inherited ones
+        const allStructuralFeatures = this.collectAllStructuralFeatures(eClass);
+
+        // Validate attribute exists (including inherited attributes)
+        const attributes = allStructuralFeatures.filter(isEAttribute);
         const attr = attributes.find((a: any) => {
             const attrName = a.name || a.get?.('name');
             return attrName === attributeName;
         });
         if (!attr) {
-            throw new Error(`Attribute '${attributeName}' not found in class '${instance.eClassName}'`);
+            throw new Error(`Attribute '${attributeName}' not found in class '${instance.eClassName}' (including inherited attributes)`);
         }
 
         // TODO: Add type validation

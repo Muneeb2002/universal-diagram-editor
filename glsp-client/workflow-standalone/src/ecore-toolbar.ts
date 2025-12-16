@@ -583,21 +583,21 @@ export class EcoreToolbar {
     }
 
     /**
-     * Checks if a class requires source and target selection (e.g., Arc with source and target references).
+     * Checks if a class requires source and target selection based on mapping model configuration.
+     * Users configure this in the mapping model dialog by selecting source and target classes.
      */
     private requiresSourceAndTarget(classInfo: ClassInfo): boolean {
-        // Fast path by naming
-        const hasSourceByName = classInfo.references.some(ref => ref.name && ref.name.toLowerCase().includes('source') && !ref.containment);
-        const hasTargetByName = classInfo.references.some(ref => ref.name && ref.name.toLowerCase().includes('target') && !ref.containment);
-        if (hasSourceByName && hasTargetByName) {
-            return true;
+        // Check if mapping model specifies source/target pairs
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        if (mappingDialog) {
+            const mappings = mappingDialog.getMappings();
+            const mapping = mappings.get(classInfo.className);
+            if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs.length > 0) {
+                // Check if at least one pair has both source and target configured
+                return mapping.sourceTargetPairs.some((pair: {sourceClass: string, targetClass: string}) => pair.sourceClass && pair.targetClass);
+            }
         }
-
-        // Fallback: treat as edge-like if it has at least two non-containment refs
-        const nonContainment = classInfo.references.filter(r => !r.containment);
-        if (nonContainment.length >= 2) {
-            return true;
-        }
+        
         return false;
     }
 
@@ -605,8 +605,41 @@ export class EcoreToolbar {
      * Creates an instance that requires source and target selection.
      */
     private async createInstanceWithSourceAndTarget(selectedClass: string, classInfo: ClassInfo): Promise<void> {
+        // Get configured source/target pairs from mapping model
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        let configuredPairs: Array<{sourceClass: string, targetClass: string}> | undefined;
         
-        // Resolve source and target reference names (robust fallback)
+        if (mappingDialog) {
+            const mappings = mappingDialog.getMappings();
+            const mapping = mappings.get(selectedClass);
+            if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs.length > 0) {
+                // Filter to only pairs with both source and target configured
+                configuredPairs = mapping.sourceTargetPairs.filter((pair: {sourceClass: string, targetClass: string}) => pair.sourceClass && pair.targetClass);
+            }
+        }
+
+        // If no mapping configuration, fall back to reference-based detection
+        if (!configuredPairs || configuredPairs.length === 0) {
+            // Resolve source and target reference names (robust fallback)
+            const refs = this.getSourceTargetRefs(classInfo);
+            const sourceRef = refs.sourceRef;
+            const targetRef = refs.targetRef;
+
+            if (!sourceRef || !targetRef) {
+                alert(`Class ${selectedClass} has source/target references but they couldn't be identified.`);
+                return;
+            }
+
+            configuredPairs = [{
+                sourceClass: sourceRef.type,
+                targetClass: targetRef.type
+            }];
+        }
+
+        // Try to wait briefly for model; don't block Arc flow if not ready
+        await this.waitForModelRoot(800);
+
+        // Resolve reference names for creating the instance
         const refs = this.getSourceTargetRefs(classInfo);
         const sourceRef = refs.sourceRef;
         const targetRef = refs.targetRef;
@@ -616,30 +649,12 @@ export class EcoreToolbar {
             return;
         }
 
-        // Try to wait briefly for model; don't block Arc flow if not ready
-        await this.waitForModelRoot(800);
-
-        // Find all available source and target instances
-        const sourceInstances = await this.findAvailableInstancesForReference(sourceRef.type);
-        const targetInstances = await this.findAvailableInstancesForReference(targetRef.type);
-
-        if (sourceInstances.length === 0) {
-            alert(`No ${sourceRef.type} instances available for source. Please create some first.`);
-            return;
-        }
-
-        if (targetInstances.length === 0) {
-            alert(`No ${targetRef.type} instances available for target. Please create some first.`);
-            return;
-        }
-
-        // Show selection dialog
+        // Show selection dialog with all configured pairs
         const selection = await this.showSourceTargetSelectionDialog(
             selectedClass,
+            configuredPairs,
             sourceRef.name,
-            targetRef.name,
-            sourceInstances,
-            targetInstances
+            targetRef.name
         );
 
         if (!selection) {
@@ -746,15 +761,51 @@ export class EcoreToolbar {
 
     /**
      * Shows a dialog for selecting source and target instances.
+     * If multiple pairs are configured, user first selects which pair to use.
      */
     private async showSourceTargetSelectionDialog(
         className: string,
+        pairs: Array<{sourceClass: string, targetClass: string}>,
         sourceRefName: string,
-        targetRefName: string,
-        sourceInstances: Array<{id: string, className: string}>,
-        targetInstances: Array<{id: string, className: string}>
+        targetRefName: string
     ): Promise<{sourceId: string, targetId: string} | null> {
-        return new Promise((resolve) => {
+        return new Promise(async (resolve) => {
+            // If multiple pairs, let user select which one to use
+            let selectedPair: {sourceClass: string, targetClass: string} | null = null;
+            
+            if (pairs.length > 1) {
+                // Show pair selection dialog first
+                const pairSelection = await this.showPairSelectionDialog(className, pairs);
+                if (!pairSelection) {
+                    resolve(null);
+                    return;
+                }
+                selectedPair = pairSelection;
+            } else {
+                selectedPair = pairs[0];
+            }
+
+            if (!selectedPair) {
+                resolve(null);
+                return;
+            }
+
+            // Find all available instances for the selected pair
+            const sourceInstances = await this.findAvailableInstancesForReference(selectedPair.sourceClass);
+            const targetInstances = await this.findAvailableInstancesForReference(selectedPair.targetClass);
+
+            if (sourceInstances.length === 0) {
+                alert(`No ${selectedPair.sourceClass} instances available for source. Please create some first.`);
+                resolve(null);
+                return;
+            }
+
+            if (targetInstances.length === 0) {
+                alert(`No ${selectedPair.targetClass} instances available for target. Please create some first.`);
+                resolve(null);
+                return;
+            }
+
             // Create modal backdrop
             const backdrop = document.createElement('div');
             backdrop.style.cssText = `
@@ -784,19 +835,19 @@ export class EcoreToolbar {
 
             dialog.innerHTML = `
                 <h3 style="margin-top: 0; color: #333;">Create ${className}</h3>
-                <p style="color: #666; margin-bottom: 20px;">Select source and target for this ${className} instance.</p>
+                <p style="color: #666; margin-bottom: 20px;">Select source (${selectedPair.sourceClass}) and target (${selectedPair.targetClass}) for this ${className} instance.</p>
                 
                 <div style="margin-bottom: 15px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">${sourceRefName}:</label>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Source (${selectedPair.sourceClass}):</label>
                     <select id="sourceSelect" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        <option value="">-- Select ${sourceRefName} --</option>
+                        <option value="">-- Select ${selectedPair.sourceClass} --</option>
                     </select>
                 </div>
                 
                 <div style="margin-bottom: 20px;">
-                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">${targetRefName}:</label>
+                    <label style="display: block; margin-bottom: 5px; font-weight: bold;">Target (${selectedPair.targetClass}):</label>
                     <select id="targetSelect" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
-                        <option value="">-- Select ${targetRefName} --</option>
+                        <option value="">-- Select ${selectedPair.targetClass} --</option>
                     </select>
                 </div>
                 
@@ -847,6 +898,26 @@ export class EcoreToolbar {
                     return;
                 }
 
+                // Validate that selected instances match the configured classes
+                const selectedSourceInstance = sourceInstances.find(inst => inst.id === sourceId);
+                const selectedTargetInstance = targetInstances.find(inst => inst.id === targetId);
+
+                if (selectedSourceInstance && selectedSourceInstance.className !== selectedPair.sourceClass) {
+                    const isSubtype = this.isSubtypeOf(selectedSourceInstance.className, selectedPair.sourceClass);
+                    if (!isSubtype) {
+                        alert(`Source must be a ${selectedPair.sourceClass} instance.`);
+                        return;
+                    }
+                }
+
+                if (selectedTargetInstance && selectedTargetInstance.className !== selectedPair.targetClass) {
+                    const isSubtype = this.isSubtypeOf(selectedTargetInstance.className, selectedPair.targetClass);
+                    if (!isSubtype) {
+                        alert(`Target must be a ${selectedPair.targetClass} instance.`);
+                        return;
+                    }
+                }
+
                 document.body.removeChild(backdrop);
                 resolve({ sourceId, targetId });
             });
@@ -860,6 +931,90 @@ export class EcoreToolbar {
             });
 
             // Mount dialog inside backdrop and show
+            backdrop.appendChild(dialog);
+            document.body.appendChild(backdrop);
+        });
+    }
+
+    /**
+     * Shows a dialog for selecting which source/target pair to use when multiple are configured.
+     */
+    private async showPairSelectionDialog(
+        className: string,
+        pairs: Array<{sourceClass: string, targetClass: string}>
+    ): Promise<{sourceClass: string, targetClass: string} | null> {
+        return new Promise((resolve) => {
+            const backdrop = document.createElement('div');
+            backdrop.style.cssText = `
+                position: fixed;
+                top: 0;
+                left: 0;
+                width: 100%;
+                height: 100%;
+                background-color: rgba(0, 0, 0, 0.5);
+                z-index: 10000;
+                display: flex;
+                justify-content: center;
+                align-items: center;
+            `;
+
+            const dialog = document.createElement('div');
+            dialog.style.cssText = `
+                background: white;
+                border-radius: 8px;
+                padding: 20px;
+                box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+                min-width: 400px;
+                max-width: 600px;
+                font-family: Arial, sans-serif;
+            `;
+
+            dialog.innerHTML = `
+                <h3 style="margin-top: 0; color: #333;">Select Source/Target Pair</h3>
+                <p style="color: #666; margin-bottom: 20px;">Multiple source/target pairs are configured for ${className}. Select which one to use:</p>
+                
+                <div style="margin-bottom: 20px;">
+                    <select id="pairSelect" style="width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px;">
+                        <option value="">-- Select a pair --</option>
+                        ${pairs.map((pair: {sourceClass: string, targetClass: string}, index: number) => `
+                            <option value="${index}">${pair.sourceClass} → ${pair.targetClass}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                
+                <div style="display: flex; gap: 10px; justify-content: flex-end;">
+                    <button id="cancelBtn" style="padding: 8px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer;">Cancel</button>
+                    <button id="continueBtn" style="padding: 8px 16px; border: none; background: #007acc; color: white; border-radius: 4px; cursor: pointer;">Continue</button>
+                </div>
+            `;
+
+            const pairSelect = dialog.querySelector('#pairSelect') as HTMLSelectElement;
+            const cancelBtn = dialog.querySelector('#cancelBtn') as HTMLButtonElement;
+            const continueBtn = dialog.querySelector('#continueBtn') as HTMLButtonElement;
+
+            cancelBtn.addEventListener('click', () => {
+                document.body.removeChild(backdrop);
+                resolve(null);
+            });
+
+            continueBtn.addEventListener('click', () => {
+                const selectedIndex = parseInt(pairSelect.value);
+                if (isNaN(selectedIndex) || selectedIndex < 0 || selectedIndex >= pairs.length) {
+                    alert('Please select a source/target pair.');
+                    return;
+                }
+
+                document.body.removeChild(backdrop);
+                resolve(pairs[selectedIndex]);
+            });
+
+            backdrop.addEventListener('click', (e) => {
+                if (e.target === backdrop) {
+                    document.body.removeChild(backdrop);
+                    resolve(null);
+                }
+            });
+
             backdrop.appendChild(dialog);
             document.body.appendChild(backdrop);
         });

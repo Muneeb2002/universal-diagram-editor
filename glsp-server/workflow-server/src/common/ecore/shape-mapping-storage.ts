@@ -31,6 +31,11 @@ export interface ShapeMapping {
     // Optional enum conditions for submappings
     enumAttribute?: string; // Name of the enum attribute (e.g., "Status")
     enumValue?: string; // Value of the enum literal (e.g., "Active", "Pending")
+    // Optional source and target class configurations (multiple pairs allowed)
+    sourceTargetPairs?: Array<{
+        sourceClass: string;
+        targetClass: string;
+    }>;
 }
 
 @injectable()

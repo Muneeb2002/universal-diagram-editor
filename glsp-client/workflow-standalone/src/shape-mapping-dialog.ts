@@ -11,6 +11,7 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { GraphicalElement } from './graphical-model-editor';
 import { createSaveShapeMappingsAction, createApplyShapeMappingsAction, createOpenClassPropertiesAction } from './ecore-client-actions';
+import { getContainmentRequirements } from './containment-utils';
 
 export interface ShapeMapping {
     className: string;
@@ -20,6 +21,11 @@ export interface ShapeMapping {
     // Optional enum conditions for submappings
     enumAttribute?: string; // Name of the enum attribute (e.g., "Status")
     enumValue?: string; // Value of the enum literal (e.g., "Active", "Pending")
+    // Optional source and target class configurations (multiple pairs allowed)
+    sourceTargetPairs?: Array<{
+        sourceClass: string;
+        targetClass: string;
+    }>;
 }
 
 export class ShapeMappingDialog {
@@ -141,6 +147,15 @@ export class ShapeMappingDialog {
                     cursor: pointer;
                     font-size: 14px;
                 ">Load Mappings</button>
+                <button id="applyMappings" style="
+                    background: #007acc;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Apply Mappings</button>
                 <button id="saveMappings" style="
                     background: #007acc;
                     color: white;
@@ -155,6 +170,15 @@ export class ShapeMappingDialog {
         `;
 
         this.setupEventListeners();
+        
+        // Attach pair event listeners for all classes after initial render
+        this.classNames.forEach(className => {
+            const mappingKey = this.getMappingKey(className);
+            const mapping = this.mappings.get(mappingKey);
+            if (mapping) {
+                this.attachPairEventListeners(className);
+            }
+        });
     }
 
     private createMappingRows(): string {
@@ -170,8 +194,12 @@ export class ShapeMappingDialog {
         const toolbar = (window as any).globalToolbar;
         const classInfoList = toolbar && toolbar.allClasses ? toolbar.allClasses : [];
         const enumNames = toolbar && toolbar.getEnumNames ? toolbar.getEnumNames() : [];
+        
+        // Identify root classes and exclude them from mappable classes
+        const rootClassNames = this.getRootClassNames();
+        const mappableClassNames = this.classNames.filter(className => !rootClassNames.has(className));
 
-        return this.classNames.map(className => {
+        return mappableClassNames.map(className => {
             const classInfo = classInfoList.find((c: any) => c.className === className);
             const enumAttributes = classInfo?.attributes?.filter((attr: any) => 
                 enumNames.includes(attr.type)
@@ -234,6 +262,25 @@ export class ShapeMappingDialog {
                                 </div>
                             `}
                         </div>
+                    </div>
+                    <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #eee;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px;">
+                            <label style="font-weight: 500; color: #555; font-size: 13px;">Source/Target Pairs (optional):</label>
+                            <button type="button" class="add-source-target-pair-btn" data-class="${className}" ${!baseMapping ? 'disabled' : ''} style="
+                                padding: 4px 12px;
+                                background: ${baseMapping ? '#007acc' : '#ccc'};
+                                color: white;
+                                border: none;
+                                border-radius: 4px;
+                                cursor: ${baseMapping ? 'pointer' : 'not-allowed'};
+                                font-size: 12px;
+                                ${!baseMapping ? 'opacity: 0.6;' : ''}
+                            ">+ Add Pair</button>
+                        </div>
+                        <div class="source-target-pairs-container" data-class="${className}" style="display: flex; flex-direction: column; gap: 10px;">
+                            ${this.renderSourceTargetPairs(className, baseMapping, rootClassNames)}
+                        </div>
+                        ${!baseMapping ? '<div style="font-size: 11px; color: #999; margin-top: 5px; font-style: italic;">Select a shape first to configure source/target pairs</div>' : ''}
                     </div>
             `;
 
@@ -320,15 +367,98 @@ export class ShapeMappingDialog {
         return [];
     }
 
+    /**
+     * Gets the set of root class names (classes with no containment requirements).
+     */
+    private getRootClassNames(): Set<string> {
+        const toolbar = (window as any).globalToolbar;
+        const classInfoList = toolbar && toolbar.allClasses ? toolbar.allClasses : [];
+        const rootClassNames = new Set<string>();
+        
+        if (classInfoList.length > 0) {
+            classInfoList.forEach((cls: any) => {
+                const requirements = getContainmentRequirements(cls.className, classInfoList);
+                if (requirements.length === 0) {
+                    rootClassNames.add(cls.className);
+                }
+            });
+        }
+        
+        return rootClassNames;
+    }
+
+    private renderSourceTargetPairs(className: string, mapping: ShapeMapping | undefined, rootClassNames: Set<string>): string {
+        const pairs = mapping?.sourceTargetPairs || [];
+        if (pairs.length === 0) {
+            return '<div style="color: #999; font-size: 12px; font-style: italic;">No source/target pairs configured</div>';
+        }
+        
+        // Filter out root classes and the current class from options
+        const availableClassNames = this.classNames.filter(cn => cn !== className && !rootClassNames.has(cn));
+        
+        return pairs.map((pair, index) => `
+            <div class="source-target-pair-row" data-class="${className}" data-pair-index="${index}" style="
+                display: flex;
+                gap: 10px;
+                align-items: center;
+                padding: 8px;
+                background: #f8f9fa;
+                border-radius: 4px;
+                border: 1px solid #e0e0e0;
+            ">
+                <div style="flex: 1;">
+                    <select class="pair-source-select" data-class="${className}" data-pair-index="${index}" style="
+                        width: 100%;
+                        padding: 6px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 13px;
+                    ">
+                        <option value="">-- Select Source --</option>
+                        ${availableClassNames.map(cn => `
+                            <option value="${cn}" ${pair.sourceClass === cn ? 'selected' : ''}>${cn}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <div style="flex: 0 0 auto; color: #666; font-size: 14px;">→</div>
+                <div style="flex: 1;">
+                    <select class="pair-target-select" data-class="${className}" data-pair-index="${index}" style="
+                        width: 100%;
+                        padding: 6px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 13px;
+                    ">
+                        <option value="">-- Select Target --</option>
+                        ${availableClassNames.map(cn => `
+                            <option value="${cn}" ${pair.targetClass === cn ? 'selected' : ''}>${cn}</option>
+                        `).join('')}
+                    </select>
+                </div>
+                <button type="button" class="remove-pair-btn" data-class="${className}" data-pair-index="${index}" style="
+                    padding: 4px 8px;
+                    background: #dc3545;
+                    color: white;
+                    border: none;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 12px;
+                ">×</button>
+            </div>
+        `).join('');
+    }
+
     private setupEventListeners(): void {
         const closeBtn = this.dialog!.querySelector('#closeMappingDialog');
         const saveBtn = this.dialog!.querySelector('#saveMappings');
         const loadBtn = this.dialog!.querySelector('#loadMappings');
+        const applyBtn = this.dialog!.querySelector('#applyMappings');
 
         closeBtn?.addEventListener('click', () => this.hide());
 
         saveBtn?.addEventListener('click', () => this.saveMappings());
         loadBtn?.addEventListener('click', () => this.loadMappingsFromFile());
+        applyBtn?.addEventListener('click', () => this.applyMappings());
 
         // Handle shape selection changes
         const shapeSelects = this.dialog!.querySelectorAll('.shape-select');
@@ -349,6 +479,8 @@ export class ShapeMappingDialog {
                 if (shapeId) {
                     const shape = this.savedShapes.get(shapeId);
                     if (shape) {
+                        // Preserve existing sourceTargetPairs if they exist
+                        const existingMapping = this.mappings.get(mappingKey);
                         const mapping: ShapeMapping = {
                             className,
                             shapeId: shape.id,
@@ -369,14 +501,163 @@ export class ShapeMappingDialog {
                                 svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined
                             },
                             enumAttribute: enumAttr || undefined,
-                            enumValue: enumValue || undefined
+                            enumValue: enumValue || undefined,
+                            sourceTargetPairs: existingMapping?.sourceTargetPairs || []
                         };
                         this.mappings.set(mappingKey, mapping);
+                        // Refresh the pairs UI if this is a base mapping
+                        if (mappingType === 'base') {
+                            this.refreshSourceTargetPairs(className);
+                        }
                     }
                 } else {
                     this.mappings.delete(mappingKey);
+                    if (mappingType === 'base') {
+                        this.refreshSourceTargetPairs(className);
+                    }
                 }
                 this.updateMappingStatus(className, enumAttr, enumValue);
+            });
+        });
+
+        // Handle add source/target pair button
+        const addPairBtns = this.dialog!.querySelectorAll('.add-source-target-pair-btn');
+        addPairBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLButtonElement;
+                if (target.disabled) {
+                    return;
+                }
+                const className = target.getAttribute('data-class')!;
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping) {
+                    if (!mapping.sourceTargetPairs) {
+                        mapping.sourceTargetPairs = [];
+                    }
+                    mapping.sourceTargetPairs.push({ sourceClass: '', targetClass: '' });
+                    this.mappings.set(mappingKey, mapping);
+                    this.refreshSourceTargetPairs(className);
+                }
+            });
+        });
+
+        // Handle remove pair button
+        const removePairBtns = this.dialog!.querySelectorAll('.remove-pair-btn');
+        removePairBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLButtonElement;
+                const className = target.getAttribute('data-class')!;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs) {
+                    mapping.sourceTargetPairs.splice(pairIndex, 1);
+                    this.mappings.set(mappingKey, mapping);
+                    this.refreshSourceTargetPairs(className);
+                }
+            });
+        });
+
+        // Handle pair source select changes
+        const pairSourceSelects = this.dialog!.querySelectorAll('.pair-source-select');
+        pairSourceSelects.forEach(select => {
+            select.addEventListener('change', (e) => {
+                const target = e.target as HTMLSelectElement;
+                const className = target.getAttribute('data-class')!;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const sourceClass = target.value;
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs[pairIndex]) {
+                    mapping.sourceTargetPairs[pairIndex].sourceClass = sourceClass;
+                    this.mappings.set(mappingKey, mapping);
+                }
+            });
+        });
+
+        // Handle pair target select changes
+        const pairTargetSelects = this.dialog!.querySelectorAll('.pair-target-select');
+        pairTargetSelects.forEach(select => {
+            select.addEventListener('change', (e) => {
+                const target = e.target as HTMLSelectElement;
+                const className = target.getAttribute('data-class')!;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const targetClass = target.value;
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs[pairIndex]) {
+                    mapping.sourceTargetPairs[pairIndex].targetClass = targetClass;
+                    this.mappings.set(mappingKey, mapping);
+                }
+            });
+        });
+    }
+
+    private refreshSourceTargetPairs(className: string): void {
+        const row = this.dialog!.querySelector(`[data-class-name="${className}"]`);
+        if (!row) return;
+        
+        const mappingKey = this.getMappingKey(className);
+        const mapping = this.mappings.get(mappingKey);
+        const rootClassNames = this.getRootClassNames();
+        const container = row.querySelector('.source-target-pairs-container');
+        if (container) {
+            container.innerHTML = this.renderSourceTargetPairs(className, mapping, rootClassNames);
+            // Re-attach event listeners for the new elements
+            this.attachPairEventListeners(className);
+        }
+    }
+
+    private attachPairEventListeners(className: string): void {
+        const row = this.dialog!.querySelector(`[data-class-name="${className}"]`);
+        if (!row) return;
+
+        // Remove pair buttons
+        const removeBtns = row.querySelectorAll('.remove-pair-btn');
+        removeBtns.forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const target = e.target as HTMLButtonElement;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs) {
+                    mapping.sourceTargetPairs.splice(pairIndex, 1);
+                    this.mappings.set(mappingKey, mapping);
+                    this.refreshSourceTargetPairs(className);
+                }
+            });
+        });
+
+        // Pair source selects
+        const pairSourceSelects = row.querySelectorAll('.pair-source-select');
+        pairSourceSelects.forEach(select => {
+            select.addEventListener('change', (e) => {
+                const target = e.target as HTMLSelectElement;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const sourceClass = target.value;
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs[pairIndex]) {
+                    mapping.sourceTargetPairs[pairIndex].sourceClass = sourceClass;
+                    this.mappings.set(mappingKey, mapping);
+                }
+            });
+        });
+
+        // Pair target selects
+        const pairTargetSelects = row.querySelectorAll('.pair-target-select');
+        pairTargetSelects.forEach(select => {
+            select.addEventListener('change', (e) => {
+                const target = e.target as HTMLSelectElement;
+                const pairIndex = parseInt(target.getAttribute('data-pair-index') || '0');
+                const targetClass = target.value;
+                const mappingKey = this.getMappingKey(className);
+                const mapping = this.mappings.get(mappingKey);
+                if (mapping && mapping.sourceTargetPairs && mapping.sourceTargetPairs[pairIndex]) {
+                    mapping.sourceTargetPairs[pairIndex].targetClass = targetClass;
+                    this.mappings.set(mappingKey, mapping);
+                }
             });
         });
     }
@@ -421,6 +702,32 @@ export class ShapeMappingDialog {
                     statusDiv.textContent = 'Not mapped';
                 }
             }
+
+            // Update add pair button state and refresh source/target pairs
+            const addPairBtn = row.querySelector('.add-source-target-pair-btn') as HTMLButtonElement;
+            if (addPairBtn) {
+                addPairBtn.disabled = !mapping;
+                addPairBtn.style.background = mapping ? '#007acc' : '#ccc';
+                addPairBtn.style.cursor = mapping ? 'pointer' : 'not-allowed';
+                addPairBtn.style.opacity = mapping ? '1' : '0.6';
+            }
+            
+            // Show/hide hint text
+            const hintText = row.querySelector('.source-target-pairs-container')?.parentElement?.querySelector('div[style*="font-style: italic"]') as HTMLElement;
+            if (hintText) {
+                hintText.style.display = mapping ? 'none' : 'block';
+            }
+            
+            // Refresh source/target pairs if mapping exists
+            if (mapping) {
+                this.refreshSourceTargetPairs(className);
+            } else {
+                // Clear pairs container if no mapping
+                const container = row.querySelector('.source-target-pairs-container');
+                if (container) {
+                    container.innerHTML = '<div style="color: #999; font-size: 12px; font-style: italic;">No source/target pairs configured</div>';
+                }
+            }
         }
     }
 
@@ -453,13 +760,30 @@ export class ShapeMappingDialog {
 
         try {
             await this.actionDispatcher.dispatch(createSaveShapeMappingsAction(filename, prettyJson));
-            await this.syncMappingsWithServer(json);
-            
-            // Don't cache on save - only cache when loading
             alert(`Saved ${mappingsArray.length} shape mapping(s) to server folder 'samples/mappings/${filename}'.`);
         } catch (error) {
             console.error('Error saving shape mappings to server:', error);
             alert('Error saving shape mappings to server: ' + error);
+        }
+    }
+
+    /**
+     * Applies the current mapping model to the running editor without saving it to disk.
+     * This sends the in-memory mappings to the server (ApplyShapeMappingsAction) only.
+     */
+    private async applyMappings(): Promise<void> {
+        if (!this.actionDispatcher) {
+            alert('Action dispatcher not available');
+            return;
+        }
+
+        try {
+            // Use current in-memory mappings; serialize and sync with server.
+            await this.syncMappingsWithServer();
+            alert(`Applied ${this.mappings.size} shape mapping(s) to the current editor session.`);
+        } catch (error) {
+            console.error('Error applying shape mappings to server:', error);
+            alert('Error applying shape mappings: ' + error);
         }
     }
 
@@ -697,11 +1021,29 @@ export class ShapeMappingDialog {
         if (!mapping) {
             return mapping;
         }
-        return {
+        
+        // Migrate old format (sourceClass/targetClass) to new format (sourceTargetPairs)
+        let sourceTargetPairs = mapping.sourceTargetPairs;
+        if (!sourceTargetPairs && (mapping as any).sourceClass && (mapping as any).targetClass) {
+            // Convert old single pair format to new array format
+            sourceTargetPairs = [{
+                sourceClass: (mapping as any).sourceClass,
+                targetClass: (mapping as any).targetClass
+            }];
+        }
+        
+        const normalized: ShapeMapping = {
             ...mapping,
             shapeName: mapping.shapeName || `Shape ${index + 1}`,
-            shapeConfig: this.normalizeShapeConfig(mapping.shapeConfig, mapping.shapeId)
+            shapeConfig: this.normalizeShapeConfig(mapping.shapeConfig, mapping.shapeId),
+            sourceTargetPairs: sourceTargetPairs
         };
+        
+        // Remove old properties if they exist
+        delete (normalized as any).sourceClass;
+        delete (normalized as any).targetClass;
+        
+        return normalized;
     }
 
     private normalizeShapeConfig(config: ShapeMapping['shapeConfig'], shapeId?: string): ShapeMapping['shapeConfig'] {

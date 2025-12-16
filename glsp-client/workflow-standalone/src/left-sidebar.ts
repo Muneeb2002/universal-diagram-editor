@@ -219,7 +219,11 @@ export class LeftSidebar {
             font-size: 12px;
             display: none;
         `;
-        this.mapShapesBtn.addEventListener('click', () => this.openShapeMappingDialog('create'));
+        this.mapShapesBtn.addEventListener('click', async () => {
+            // Ensure we are in metamodel view before creating a mapping model
+            await this.switchToMetamodelMode();
+            this.openShapeMappingDialog('create');
+        });
         this.sidebar.appendChild(this.mapShapesBtn);
 
         const editMappingBtn = document.createElement('button');
@@ -236,7 +240,11 @@ export class LeftSidebar {
             margin-top: 6px;
             display: none;
         `;
-        editMappingBtn.addEventListener('click', () => this.openShapeMappingDialog('edit'));
+        editMappingBtn.addEventListener('click', async () => {
+            // Ensure we are in metamodel view before editing a mapping model
+            await this.switchToMetamodelMode();
+            this.openShapeMappingDialog('edit');
+        });
         this.sidebar.appendChild(editMappingBtn);
         // Store reference for visibility updates
         (this as any).editMappingBtn = editMappingBtn;
@@ -668,14 +676,20 @@ export class LeftSidebar {
                 const toolbar: any = (window as any).globalToolbar;
                 let classNames: string[] = [];
                 
-                // Try to get all class names (prefer all classes, fallback to concrete only)
-                if (toolbar && toolbar.getAllClassNames) {
-                    classNames = toolbar.getAllClassNames();
-                } else if (toolbar && toolbar.getConcreteClasses) {
-                    classNames = toolbar.getConcreteClasses();
-                } else if (toolbar && toolbar.allClasses && Array.isArray(toolbar.allClasses)) {
-                    // Fallback: extract from allClasses directly if method doesn't exist
-                    classNames = toolbar.allClasses.map((cls: any) => cls.className || cls);
+                // Prefer concrete (non-abstract, non-interface) classes for the mapping dialog,
+                // so abstract base types like 'Object' or 'Node' are not shown.
+                if (toolbar) {
+                    if (typeof toolbar.getConcreteClasses === 'function') {
+                        classNames = toolbar.getConcreteClasses();
+                    } else if (Array.isArray(toolbar.allClasses)) {
+                        // Derive concrete classes from allClasses metadata
+                        classNames = toolbar.allClasses
+                            .filter((cls: any) => !cls.isAbstract && !cls.isInterface)
+                            .map((cls: any) => cls.className || cls);
+                    } else if (typeof toolbar.getAllClassNames === 'function') {
+                        // Fallback: use all class names if we don't have better metadata
+                        classNames = toolbar.getAllClassNames();
+                    }
                 }
                 
                 // Load the content with classNames and savedShapes, and autoMount=true to show the dialog immediately

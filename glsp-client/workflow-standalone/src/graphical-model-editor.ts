@@ -176,6 +176,15 @@ export class GraphicalModelEditor {
                 </div>
             </div>
             <div style="padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
+                <button id="applyGraphicalModel" style="
+                    background: #007acc;
+                    color: white;
+                    border: none;
+                    padding: 10px 20px;
+                    border-radius: 4px;
+                    cursor: pointer;
+                    font-size: 14px;
+                ">Apply Graphical Model</button>
                 <button id="saveGraphicalModel" style="
                     background: #007acc;
                     color: white;
@@ -824,15 +833,34 @@ export class GraphicalModelEditor {
 
     private setupEventListeners(): void {
         const closeBtn = this.dialog!.querySelector('#closeGraphicalEditor');
+        const applyBtn = this.dialog!.querySelector('#applyGraphicalModel');
         const saveBtn = this.dialog!.querySelector('#saveGraphicalModel');
         const loadBtn = this.dialog!.querySelector('#loadGraphicalModel');
         const clearBtn = this.dialog!.querySelector('#clearCanvas');
 
         closeBtn?.addEventListener('click', () => this.hide());
 
+        applyBtn?.addEventListener('click', () => this.applyGraphicalModel());
         saveBtn?.addEventListener('click', () => this.saveGraphicalModel());
         loadBtn?.addEventListener('click', () => this.loadGraphicalModel());
         clearBtn?.addEventListener('click', () => this.clearCanvas());
+    }
+
+    /**
+     * Applies the current graphical model to the client session without saving to disk.
+     * This updates the cached shapes used by the mapping dialog and notifies the sidebar
+     * that a graphical model is available, but does not send any save action to the server.
+     */
+    private applyGraphicalModel(): void {
+        // Update cached shapes from the current in-memory elements
+        this.updateCachedShapesFromElements();
+
+        // Notify sidebar that a graphical model has been "loaded" for this session
+        const sidebar = (window as any).globalLeftSidebar;
+        if (sidebar && sidebar.markGraphicalModelLoaded) {
+            sidebar.markGraphicalModelLoaded();
+        }
+        alert('Graphical model applied to the client session.');
     }
 
     private async saveGraphicalModel(): Promise<void> {
