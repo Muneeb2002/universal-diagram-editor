@@ -349,65 +349,123 @@ export class InstanceManagementPanel {
                 `;
                 attrRow.appendChild(attrLabel);
 
-                const attrInput = document.createElement('input');
-                attrInput.type = 'text';
-                attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
-                    ? String(currentAttributes[attr.name]) 
-                    : '';
-                attrInput.placeholder = `Enter ${attr.type} value`;
-                attrInput.style.cssText = `
-                    flex: 1;
-                    padding: 6px 8px;
-                    border: 1px solid #ddd;
-                    border-radius: 4px;
-                    font-size: 12px;
-                `;
-                
-                // Handle value changes
-                attrInput.addEventListener('blur', () => {
-                    const value = attrInput.value.trim();
-                    let parsedValue: any = null;
+                // Check if this attribute type is an enum
+                const toolbar = (window as any).globalToolbar;
+                const isEnum = toolbar && typeof toolbar.getEnumNames === 'function' 
+                    ? toolbar.getEnumNames().includes(attr.type)
+                    : false;
+
+                if (isEnum) {
+                    // Create dropdown for enum attributes
+                    const enumSelect = document.createElement('select');
+                    const enumLiterals = toolbar && typeof toolbar.getEnumLiterals === 'function'
+                        ? toolbar.getEnumLiterals(attr.type)
+                        : [];
                     
-                    if (value === '') {
-                        parsedValue = null;
-                    } else if (attr.type === 'EInt' || attr.type === 'ELong') {
-                        parsedValue = parseInt(value, 10);
-                        if (isNaN(parsedValue)) {
-                            alert(`Invalid ${attr.type} value: ${value}`);
-                            attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
-                                ? String(currentAttributes[attr.name]) 
-                                : '';
-                            return;
-                        }
-                    } else if (attr.type === 'EDouble' || attr.type === 'EFloat') {
-                        parsedValue = parseFloat(value);
-                        if (isNaN(parsedValue)) {
-                            alert(`Invalid ${attr.type} value: ${value}`);
-                            attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
-                                ? String(currentAttributes[attr.name]) 
-                                : '';
-                            return;
-                        }
-                    } else if (attr.type === 'EBoolean' || attr.type === 'boolean') {
-                        parsedValue = value === 'true' || value === 'True' || value === '1';
-                    } else {
-                        parsedValue = value;
-                    }
+                    // Add empty option for clearing the value
+                    const emptyOption = document.createElement('option');
+                    emptyOption.value = '';
+                    emptyOption.textContent = '(none)';
+                    enumSelect.appendChild(emptyOption);
                     
-                    // Only dispatch if value changed
+                    // Add enum literal options
+                    enumLiterals.forEach((literal: string) => {
+                        const option = document.createElement('option');
+                        option.value = literal;
+                        option.textContent = literal;
+                        enumSelect.appendChild(option);
+                    });
+                    
+                    // Set current value
                     const currentValue = currentAttributes[attr.name];
-                    if (parsedValue !== currentValue) {
-                        this.dispatcher.dispatch(createSetInstanceAttributeAction(instance.id, attr.name, parsedValue));
+                    if (currentValue !== undefined && currentValue !== null) {
+                        enumSelect.value = String(currentValue);
+                    } else {
+                        enumSelect.value = '';
                     }
-                });
+                    
+                    enumSelect.style.cssText = `
+                        flex: 1;
+                        padding: 6px 8px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 12px;
+                        background: white;
+                    `;
+                    
+                    // Handle value changes
+                    enumSelect.addEventListener('change', () => {
+                        const value = enumSelect.value === '' ? null : enumSelect.value;
+                        const currentValue = currentAttributes[attr.name];
+                        if (value !== currentValue) {
+                            this.dispatcher.dispatch(createSetInstanceAttributeAction(instance.id, attr.name, value));
+                        }
+                    });
 
-                attrInput.addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        attrInput.blur();
-                    }
-                });
+                    attrRow.appendChild(enumSelect);
+                } else {
+                    // Create text input for non-enum attributes
+                    const attrInput = document.createElement('input');
+                    attrInput.type = 'text';
+                    attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
+                        ? String(currentAttributes[attr.name]) 
+                        : '';
+                    attrInput.placeholder = `Enter ${attr.type} value`;
+                    attrInput.style.cssText = `
+                        flex: 1;
+                        padding: 6px 8px;
+                        border: 1px solid #ddd;
+                        border-radius: 4px;
+                        font-size: 12px;
+                    `;
+                    
+                    // Handle value changes
+                    attrInput.addEventListener('blur', () => {
+                        const value = attrInput.value.trim();
+                        let parsedValue: any = null;
+                        
+                        if (value === '') {
+                            parsedValue = null;
+                        } else if (attr.type === 'EInt' || attr.type === 'ELong') {
+                            parsedValue = parseInt(value, 10);
+                            if (isNaN(parsedValue)) {
+                                alert(`Invalid ${attr.type} value: ${value}`);
+                                attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
+                                    ? String(currentAttributes[attr.name]) 
+                                    : '';
+                                return;
+                            }
+                        } else if (attr.type === 'EDouble' || attr.type === 'EFloat') {
+                            parsedValue = parseFloat(value);
+                            if (isNaN(parsedValue)) {
+                                alert(`Invalid ${attr.type} value: ${value}`);
+                                attrInput.value = currentAttributes[attr.name] !== undefined && currentAttributes[attr.name] !== null 
+                                    ? String(currentAttributes[attr.name]) 
+                                    : '';
+                                return;
+                            }
+                        } else if (attr.type === 'EBoolean' || attr.type === 'boolean') {
+                            parsedValue = value === 'true' || value === 'True' || value === '1';
+                        } else {
+                            parsedValue = value;
+                        }
+                        
+                        // Only dispatch if value changed
+                        const currentValue = currentAttributes[attr.name];
+                        if (parsedValue !== currentValue) {
+                            this.dispatcher.dispatch(createSetInstanceAttributeAction(instance.id, attr.name, parsedValue));
+                        }
+                    });
 
-                attrRow.appendChild(attrInput);
+                    attrInput.addEventListener('keypress', (e) => {
+                        if (e.key === 'Enter') {
+                            attrInput.blur();
+                        }
+                    });
+
+                    attrRow.appendChild(attrInput);
+                }
+
                 attributesSection.appendChild(attrRow);
             });
         }

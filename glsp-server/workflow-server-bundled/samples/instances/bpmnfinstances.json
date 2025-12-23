@@ -1,0 +1,233 @@
+{
+  "metamodelKey": "bpmnfmetamodel",
+  "instances": [
+    {
+      "id": "BPMN_1",
+      "eClassName": "BPMN",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {
+        "pools": [
+          "Pool_2"
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 0,
+        "height": 0
+      },
+      "hidden": true,
+      "isRoot": true
+    },
+    {
+      "id": "Pool_2",
+      "eClassName": "Pool",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {
+        "nodes": [
+          "Event_3",
+          "Task_4",
+          "Gateaway_5",
+          "Event_6",
+          "Event_7"
+        ]
+      },
+      "position": {
+        "x": 392.3713647777679,
+        "y": 104.06755144432543
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Event_3",
+      "eClassName": "Event",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {
+        "eventType": "START"
+      },
+      "references": {},
+      "position": {
+        "x": 692.3713647777679,
+        "y": 104.06755144432543
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Task_4",
+      "eClassName": "Task",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {},
+      "position": {
+        "x": 692.3713647777679,
+        "y": 254.06755144432543
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Gateaway_5",
+      "eClassName": "Gateaway",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {},
+      "position": {
+        "x": 692.3713647777679,
+        "y": 404.06755144432543
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Event_6",
+      "eClassName": "Event",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {
+        "eventType": "END"
+      },
+      "references": {},
+      "position": {
+        "x": 692.3713647777679,
+        "y": 554.0675514443254
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Event_7",
+      "eClassName": "Event",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {
+        "eventType": "END"
+      },
+      "references": {},
+      "position": {
+        "x": 692.3713647777679,
+        "y": 704.0675514443254
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_8",
+      "eClassName": "Arc",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {
+        "source": "Event_3",
+        "target": "Task_4"
+      },
+      "position": {
+        "x": 576.5,
+        "y": 429
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_9",
+      "eClassName": "Arc",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {},
+      "references": {
+        "source": "Task_4",
+        "target": "Gateaway_5"
+      },
+      "position": {
+        "x": 576.5,
+        "y": 429
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_10",
+      "eClassName": "Arc",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {
+        "label": "yes"
+      },
+      "references": {
+        "source": "Gateaway_5",
+        "target": "Event_6"
+      },
+      "position": {
+        "x": 576.5,
+        "y": 429
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_11",
+      "eClassName": "Arc",
+      "metamodelKey": "bpmnfmetamodel",
+      "attributes": {
+        "label": "no"
+      },
+      "references": {
+        "source": "Gateaway_5",
+        "target": "Event_7"
+      },
+      "position": {
+        "x": 576.5,
+        "y": 429
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    }
+  ],
+  "rootInstances": [
+    "BPMN_1",
+    "Arc_8",
+    "Arc_9",
+    "Arc_10",
+    "Arc_11"
+  ]
+}

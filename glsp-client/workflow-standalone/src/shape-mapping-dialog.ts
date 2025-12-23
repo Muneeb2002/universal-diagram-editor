@@ -196,8 +196,16 @@ export class ShapeMappingDialog {
         const enumNames = toolbar && toolbar.getEnumNames ? toolbar.getEnumNames() : [];
         
         // Identify root classes and exclude them from mappable classes
+        // However, Arc classes should always be included even if they're root classes
         const rootClassNames = this.getRootClassNames();
-        const mappableClassNames = this.classNames.filter(className => !rootClassNames.has(className));
+        const mappableClassNames = this.classNames.filter(className => {
+            // Always include Arc classes (edge/connection types that should be mappable)
+            if (this.isArcClass(className, classInfoList)) {
+                return true;
+            }
+            // Exclude other root classes
+            return !rootClassNames.has(className);
+        });
 
         return mappableClassNames.map(className => {
             const classInfo = classInfoList.find((c: any) => c.className === className);
@@ -385,6 +393,34 @@ export class ShapeMappingDialog {
         }
         
         return rootClassNames;
+    }
+
+    /**
+     * Checks if a class is an Arc type (edge/connection type).
+     * Arc classes should always be mappable even if they're root classes.
+     * @param className The class name to check
+     * @param classInfoList The list of all class information
+     * @returns True if the class is an Arc type
+     */
+    private isArcClass(className: string, classInfoList: any[]): boolean {
+        if (!className) {
+            return false;
+        }
+        
+        // Check if class name is "Arc" (case-insensitive)
+        if (className.toLowerCase() === 'arc') {
+            return true;
+        }
+        
+        // Check if class has "Arc" as a supertype
+        const classInfo = classInfoList.find((c: any) => c.className === className);
+        if (classInfo && classInfo.eSuperTypes && Array.isArray(classInfo.eSuperTypes)) {
+            return classInfo.eSuperTypes.some((superType: string) => 
+                superType && superType.toLowerCase() === 'arc'
+            );
+        }
+        
+        return false;
     }
 
     private renderSourceTargetPairs(className: string, mapping: ShapeMapping | undefined, rootClassNames: Set<string>): string {

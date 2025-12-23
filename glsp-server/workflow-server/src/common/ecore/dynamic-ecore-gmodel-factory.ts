@@ -24,7 +24,7 @@ import { MetamodelRegistry } from './metamodel-registry';
 import { InstanceModelStorage } from './instance-model-storage';
 import { VisualConfigurationStorage } from './visual-configuration-storage';
 import { ShapeMappingStorage, ShapeMapping } from './shape-mapping-storage';
-import { EcoreInstance } from './instance-model-types';
+import { EcoreInstance, InstanceModel } from './instance-model-types';
 
 @injectable()
 export class DynamicEcoreGModelFactory implements GModelFactory {
@@ -120,7 +120,19 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return instanceModel && instanceModel.rootInstances.has(instance.id);
         });
 
-        rootInstances.forEach(instance => {
+        // Also add visible instances whose parents are hidden (they should be rendered as root instances)
+        const instancesWithHiddenParents = nodeInstances.filter(instance => {
+            if (instanceModel && instanceModel.rootInstances.has(instance.id)) {
+                return false; // Already a root instance
+            }
+            const parent = this.findParentInstance(instance, instanceModel);
+            return parent && (parent as any).hidden; // Parent exists but is hidden
+        });
+
+        // Combine root instances and instances with hidden parents
+        const instancesToRender = [...rootInstances, ...instancesWithHiddenParents];
+
+        instancesToRender.forEach(instance => {
             const node = this.createNodeForInstance(instance);
             root.children.push(node);
         });
@@ -992,6 +1004,13 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         edge.id = `${instance.id}_${sourceId}_to_${targetId}`;
         edge.sourceId = sourceId;
         edge.targetId = targetId;
+        // Set router kind to ensure proper routing for both nested and non-nested nodes
+        // GLSP's edge router will automatically calculate routing points, handling coordinate
+        // transformation for nested nodes (local to global) and direct routing for root-level nodes
+        // This ensures consistent routing behavior regardless of whether source/target are in containers
+        edge.routerKind = 'manhattan';
+        // Initialize empty routing points - GLSP client will calculate them automatically
+        edge.routingPoints = [];
         // No CSS classes - styling comes from mapping model
 
         const mapping = this.shapeMappingStorage.getMapping(instance.eClassName);
@@ -1070,6 +1089,39 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return refValue;
         }
         return [refValue];
+    }
+
+    /**
+     * Finds the parent instance that contains the given instance.
+     * @param instance The child instance
+     * @param instanceModel The instance model to search in
+     * @returns The parent instance, or undefined if not found
+     */
+    private findParentInstance(instance: EcoreInstance, instanceModel: InstanceModel | undefined): EcoreInstance | undefined {
+        if (!instanceModel) {
+            return undefined;
+        }
+
+        // Search through all instances to find which one contains this instance
+        for (const [, parentInstance] of instanceModel.instances.entries()) {
+            if (!parentInstance.references) {
+                continue;
+            }
+
+            // Check all containment references of the parent
+            for (const [, refValue] of parentInstance.references.entries()) {
+                // Check if this reference contains our instance
+                if (Array.isArray(refValue)) {
+                    if (refValue.includes(instance.id)) {
+                        return parentInstance;
+                    }
+                } else if (refValue === instance.id) {
+                    return parentInstance;
+                }
+            }
+        }
+
+        return undefined;
     }
 
     private isArcInstance(instance: EcoreInstance): boolean {

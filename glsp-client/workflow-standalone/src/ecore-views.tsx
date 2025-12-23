@@ -239,17 +239,20 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             case 'arrow':
                 shapeElement = this.renderArrow(node, nodeWidth, nodeHeight, shapeStyle);
                 break;
-            case 'triangle':
-                shapeElement = this.renderTriangle(node, nodeWidth, nodeHeight, shapeStyle);
-                break;
-            case 'diamond':
-                shapeElement = this.renderDiamond(node, nodeWidth, nodeHeight, shapeStyle);
-                break;
-            case 'hexagon':
-                shapeElement = this.renderHexagon(node, nodeWidth, nodeHeight, shapeStyle);
-                break;
             case 'custom-svg':
                 shapeElement = this.renderCustomSvg(node, nodeWidth, nodeHeight, shapeConfig);
+                break;
+            // Triangle, diamond, hexagon, and any other unsupported shapes fall through to custom-svg
+            case 'triangle':
+            case 'diamond':
+            case 'hexagon':
+                // Convert unsupported shapes to custom-svg if shapeConfig has svgContent, otherwise use rectangle
+                if (shapeConfig && shapeConfig.svgContent) {
+                    shapeElement = this.renderCustomSvg(node, nodeWidth, nodeHeight, shapeConfig);
+                } else {
+                    // Fall back to rectangle for unsupported shapes without custom SVG
+                    shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight, shapeStyle);
+                }
                 break;
             default:
                 shapeElement = this.renderRectangle(node, nodeWidth, nodeHeight, shapeStyle);
@@ -428,105 +431,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         );
     }
 
-    private renderTriangle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const padding = 10;
-        const points = [
-            `${width / 2},${padding}`,
-            `${width - padding},${height - padding}`,
-            `${padding},${height - padding}`
-        ].join(' ');
-        const strokeDasharray = this.resolveDashArray(style.lineStyle);
-        const attrs: any = {
-            'class-sprotty-node': true,
-            'class-selected': node.selected,
-            'class-mouseover': node.hoverFeedback,
-            points: points,
-            strokeDasharray: strokeDasharray
-        };
-        
-        if (style.fill) {
-            attrs.fill = style.fill;
-            attrs.style = { '--instance-node-fill': style.fill };
-        }
-        if (style.stroke) {
-            attrs.stroke = style.stroke;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke'] = style.stroke;
-        }
-        if (style.strokeWidth !== undefined) {
-            attrs.strokeWidth = style.strokeWidth;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
-        }
-        
-        return <polygon {...attrs} />;
-    }
-
-    private renderDiamond(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const padding = 10;
-        const cx = width / 2;
-        const cy = height / 2;
-        const points = [
-            `${cx},${padding}`,
-            `${width - padding},${cy}`,
-            `${cx},${height - padding}`,
-            `${padding},${cy}`
-        ].join(' ');
-        const strokeDasharray = this.resolveDashArray(style.lineStyle);
-        const attrs: any = {
-            'class-sprotty-node': true,
-            'class-selected': node.selected,
-            'class-mouseover': node.hoverFeedback,
-            points: points,
-            strokeDasharray: strokeDasharray
-        };
-        
-        if (style.fill) {
-            attrs.fill = style.fill;
-            attrs.style = { '--instance-node-fill': style.fill };
-        }
-        if (style.stroke) {
-            attrs.stroke = style.stroke;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke'] = style.stroke;
-        }
-        if (style.strokeWidth !== undefined) {
-            attrs.strokeWidth = style.strokeWidth;
-            attrs.style = attrs.style || {};
-            attrs.style['--instance-node-stroke-width'] = style.strokeWidth + 'px';
-        }
-        
-        return <polygon {...attrs} />;
-    }
-
-    private renderHexagon(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const padding = 10;
-        const w = width - padding * 2;
-        const h = height - padding * 2;
-        const x = padding;
-        const y = padding;
-        const points = [
-            `${x + w * 0.25},${y}`,
-            `${x + w * 0.75},${y}`,
-            `${x + w},${y + h / 2}`,
-            `${x + w * 0.75},${y + h}`,
-            `${x + w * 0.25},${y + h}`,
-            `${x},${y + h / 2}`
-        ].join(' ');
-        const strokeDasharray = this.resolveDashArray(style.lineStyle);
-        return (
-            <polygon
-                class-sprotty-node={true}
-                class-selected={node.selected}
-                class-mouseover={node.hoverFeedback}
-                points={points}
-                fill={style.fill}
-                stroke={style.stroke}
-                strokeWidth={style.strokeWidth}
-                strokeDasharray={strokeDasharray}
-            />
-        );
-    }
 
     private getShapeConfig(node: any): NodeShapeConfig | undefined {
         return node?.shapeConfig as NodeShapeConfig | undefined;

@@ -14,7 +14,7 @@ import { createSaveGraphicalModelAction } from './ecore-client-actions';
 export interface GraphicalElement {
     id: string;
     name: string;
-    type: string; // 'rectangle', 'circle', 'triangle', 'diamond', 'hexagon', 'arrow', 'custom-svg'
+    type: string; // 'rectangle', 'circle', 'arrow', 'custom-svg'
     x: number;
     y: number;
     width: number;
@@ -231,9 +231,6 @@ export class GraphicalModelEditor {
         const shapes = [
             { type: 'rectangle', label: 'Rectangle', icon: '▭' },
             { type: 'circle', label: 'Circle', icon: '○' },
-            { type: 'triangle', label: 'Triangle', icon: '△' },
-            { type: 'diamond', label: 'Diamond', icon: '◇' },
-            { type: 'hexagon', label: 'Hexagon', icon: '⬡' },
             { type: 'arrow', label: 'Arrow', icon: '→' }
         ];
 
@@ -464,10 +461,9 @@ export class GraphicalModelEditor {
         }
 
         const shape = document.createElementNS('http://www.w3.org/2000/svg', element.type === 'circle' ? 'circle' :
-            element.type === 'triangle' ? 'polygon' :
-            element.type === 'diamond' ? 'polygon' :
-            element.type === 'hexagon' ? 'polygon' :
             element.type === 'arrow' ? 'path' :
+            // Triangle, diamond, hexagon are deprecated but kept for backward compatibility
+            (element.type === 'triangle' || element.type === 'diamond' || element.type === 'hexagon') ? 'polygon' :
             'rect');
 
         const width = element.width;
@@ -870,7 +866,7 @@ export class GraphicalModelEditor {
         }
 
         const elementsArray = Array.from(this.elements.values()).map(el => {
-            const { selected, x, y, ...rest } = el;
+            const { selected, ...rest } = el;
             return rest;
         });
 

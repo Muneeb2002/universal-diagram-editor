@@ -709,7 +709,15 @@ export class EcoreToolbar {
             }
         }
 
-        return Array.from(collected.values());
+        // Final deduplication by ID to ensure each instance appears only once
+        const uniqueInstances = new Map<string, { id: string; className: string }>();
+        Array.from(collected.values()).forEach(instance => {
+            if (!uniqueInstances.has(instance.id)) {
+                uniqueInstances.set(instance.id, instance);
+            }
+        });
+
+        return Array.from(uniqueInstances.values());
     }
 
     /**
@@ -857,22 +865,30 @@ export class EcoreToolbar {
                 </div>
             `;
 
-            // Populate source dropdown
+            // Populate source dropdown - ensure no duplicates by ID
             const sourceSelect = dialog.querySelector('#sourceSelect') as HTMLSelectElement;
+            const seenSourceIds = new Set<string>();
             sourceInstances.forEach(instance => {
-                const option = document.createElement('option');
-                option.value = instance.id;
-                option.textContent = `${instance.className} (${instance.id})`;
-                sourceSelect.appendChild(option);
+                if (!seenSourceIds.has(instance.id)) {
+                    seenSourceIds.add(instance.id);
+                    const option = document.createElement('option');
+                    option.value = instance.id;
+                    option.textContent = `${instance.className} (${instance.id})`;
+                    sourceSelect.appendChild(option);
+                }
             });
 
-            // Populate target dropdown
+            // Populate target dropdown - ensure no duplicates by ID
             const targetSelect = dialog.querySelector('#targetSelect') as HTMLSelectElement;
+            const seenTargetIds = new Set<string>();
             targetInstances.forEach(instance => {
-                const option = document.createElement('option');
-                option.value = instance.id;
-                option.textContent = `${instance.className} (${instance.id})`;
-                targetSelect.appendChild(option);
+                if (!seenTargetIds.has(instance.id)) {
+                    seenTargetIds.add(instance.id);
+                    const option = document.createElement('option');
+                    option.value = instance.id;
+                    option.textContent = `${instance.className} (${instance.id})`;
+                    targetSelect.appendChild(option);
+                }
             });
 
             // Add event listeners

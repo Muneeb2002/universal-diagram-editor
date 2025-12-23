@@ -1,0 +1,177 @@
+{
+  "ePackages": [
+    {
+      "name": "BPMN",
+      "nsURI": "https://www.example.org/bpmn",
+      "nsPrefix": "bpmn",
+      "eClassifiers": [
+        {
+          "name": "BPMN",
+          "eAttributes": [],
+          "eReferences": [
+            {
+              "name": "pools",
+              "lowerBound": 1,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Pool"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Pool",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "nodes",
+              "lowerBound": 1,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Node",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Arc",
+          "eAttributes": [
+            {
+              "name": "label",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "source",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false,
+              "container": null
+            },
+            {
+              "name": "target",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false,
+              "container": null
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Event",
+          "eAttributes": [
+            {
+              "name": "eventType",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EventType"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Task",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Gateaway",
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "eClass": "ecore:EEnum",
+          "name": "EventType",
+          "eLiterals": [
+            {
+              "name": "START",
+              "value": 0,
+              "literal": "START"
+            },
+            {
+              "name": "END",
+              "value": 1,
+              "literal": "END"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
