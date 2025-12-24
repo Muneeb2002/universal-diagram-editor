@@ -1147,12 +1147,40 @@ export class MetamodelRegistry {
             }
 
             for (const pkg of activeMetamodel.ePackages) {
-                const eClassifiers = pkg.get('eClassifiers') as any;
-                if (eClassifiers && eClassifiers.remove) {
-                    // Try to remove the class from the package
+                // Handle both ecore-ts objects (with .get()) and plain JS objects
+                let eClassifiers: any;
+                const isEcoreTs = typeof (pkg as any).get === 'function';
+                if (isEcoreTs) {
+                    eClassifiers = (pkg as any).get('eClassifiers');
+                } else {
+                    eClassifiers = (pkg as any).eClassifiers;
+                }
+                
+                if (!eClassifiers) {
+                    continue;
+                }
+                
+                if (isEcoreTs && eClassifiers.remove) {
+                    // ecore-ts EList - use remove method
                     if (eClassifiers.contains && eClassifiers.contains(eClass)) {
                         eClassifiers.remove(eClass);
-                        console.log(`Deleted class '${className}' from metamodel`);
+                        console.log(`Deleted class '${className}' from metamodel (ecore-ts)`);
+                        return true;
+                    }
+                } else if (Array.isArray(eClassifiers)) {
+                    // Plain JavaScript array - find and remove by reference or name
+                    const index = eClassifiers.findIndex((classifier: any) => {
+                        if (classifier === eClass) {
+                            return true;
+                        }
+                        // Also check by name in case it's a different object reference
+                        const classifierName = classifier.get ? classifier.get('name') : classifier.name;
+                        return classifierName === className;
+                    });
+                    
+                    if (index !== -1) {
+                        eClassifiers.splice(index, 1);
+                        console.log(`Deleted class '${className}' from metamodel (plain array)`);
                         return true;
                     }
                 }

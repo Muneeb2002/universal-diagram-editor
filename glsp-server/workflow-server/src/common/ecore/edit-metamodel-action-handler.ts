@@ -99,11 +99,18 @@ export class EditMetamodelActionHandler implements ActionHandler {
 
             // If successful, regenerate the model (except for save actions)
             if (success && !SaveMetamodelAction.is(action)) {
+                console.log('Regenerating model after successful operation...');
                 this.gmodelFactory.createModel();
                 const gmodel = this.modelState.get('gmodel') as GModelRoot;
+                console.log('Generated gmodel:', gmodel ? `type=${gmodel.type}, id=${gmodel.id}, children=${gmodel.children?.length}` : 'null');
                 if (gmodel && gmodel.type && gmodel.id) {
+                    console.log('Returning SetModelAction to update client');
                     return [SetModelAction.create(gmodel)];
+                } else {
+                    console.warn('Generated gmodel is invalid, not returning SetModelAction');
                 }
+            } else {
+                console.log(`Operation not successful or is save action. success=${success}, isSave=${SaveMetamodelAction.is(action)}`);
             }
 
             return [];
@@ -225,12 +232,22 @@ export class EditMetamodelActionHandler implements ActionHandler {
 
     private async handleDeleteClass(action: DeleteClassAction): Promise<{ success: boolean; message: string }> {
         try {
-            this.metamodelRegistry.deleteClass(action.className, action.force);
-            return {
-                success: true,
-                message: `Successfully deleted class '${action.className}'${action.force ? ' and all its references' : ''}`
-            };
+            console.log(`Attempting to delete class '${action.className}' (force=${action.force})`);
+            const deleted = this.metamodelRegistry.deleteClass(action.className, action.force);
+            console.log(`Delete class result: ${deleted}`);
+            if (deleted) {
+                return {
+                    success: true,
+                    message: `Successfully deleted class '${action.className}'${action.force ? ' and all its references' : ''}`
+                };
+            } else {
+                return {
+                    success: false,
+                    message: `Failed to delete class '${action.className}' - class not found or could not be removed`
+                };
+            }
         } catch (error) {
+            console.error(`Error deleting class '${action.className}':`, error);
             return {
                 success: false,
                 message: `Failed to delete class: ${error instanceof Error ? error.message : String(error)}`

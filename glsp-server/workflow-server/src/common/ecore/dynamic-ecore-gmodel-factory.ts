@@ -481,11 +481,30 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         label.type = 'label:text';
         label.id = `${edge.id}_label`;
         label.text = labelText;
-        if (containment || isBidirectional) {
+        
+        // Set label placement for all edge types
+        if (containment) {
+            // Containment: near target, on the edge
             label.edgePlacement = {
                 position: 0.95,
                 offset: 12,
-                side: containment ? 'on' : 'right',
+                side: 'on',
+                rotate: false
+            };
+        } else if (isBidirectional) {
+            // Bidirectional: near target, on the right side
+            label.edgePlacement = {
+                position: 0.95,
+                offset: 12,
+                side: 'right',
+                rotate: false
+            };
+        } else {
+            // Regular reference: near target (arrow side), on the right side
+            label.edgePlacement = {
+                position: 0.9,
+                offset: 12,
+                side: 'right',
                 rotate: false
             };
         }

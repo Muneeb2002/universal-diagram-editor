@@ -113,6 +113,11 @@ export function isEAttribute(feature: any): boolean {
 }
 
 export function isEReference(feature: any): boolean {
+    // First check if it's an attribute - attributes should never be references
+    if (isEAttribute(feature)) {
+        return false;
+    }
+    
     // Check for real Ecore EReference objects
     if (feature && feature.eClass && feature.eClass.values && feature.eClass.values.name === 'EReference') {
         return true;
@@ -128,12 +133,13 @@ export function isEReference(feature: any): boolean {
         return true;
     }
     
-    // Check for plain JSON objects
+    // Check for plain JSON objects - must have containment property (even if false)
+    // Attributes don't have containment, so this distinguishes them
     if (
         feature &&
         typeof feature.name === 'string' &&
         feature.eType !== undefined &&
-        (typeof feature.containment === 'boolean' || feature.containment === undefined)
+        'containment' in feature  // Must explicitly have containment property (not just undefined)
     ) {
         return true;
     }
