@@ -69,18 +69,7 @@
         },
         {
           "name": "Token",
-          "eAttributes": [
-            {
-              "name": "Status",
-              "lowerBound": 0,
-              "upperBound": 1,
-              "unique": true,
-              "ordered": false,
-              "eType": {
-                "name": "Status"
-              }
-            }
-          ],
+          "eAttributes": [],
           "eReferences": [],
           "eSuperTypes": []
         },
@@ -148,24 +137,70 @@
             }
           ],
           "eSuperTypes": []
-        },
-        {
-          "eClass": "ecore:EEnum",
-          "name": "Status",
-          "eLiterals": [
-            {
-              "name": "Active",
-              "value": 0,
-              "literal": "Active"
-            },
-            {
-              "name": "Pending",
-              "value": 1,
-              "literal": "Pending"
-            }
-          ]
         }
       ]
     }
-  ]
+  ],
+  "diagramPositions": {
+    "PetriNet": {
+      "position": {
+        "x": 100,
+        "y": -20
+      },
+      "size": {
+        "width": 135.9956512451172,
+        "height": 69.49468803405762
+      }
+    },
+    "Node": {
+      "position": {
+        "x": 90,
+        "y": 230
+      },
+      "size": {
+        "width": 132.68517303466797,
+        "height": 39.14524841308594
+      }
+    },
+    "Arc": {
+      "position": {
+        "x": 450,
+        "y": 210
+      },
+      "size": {
+        "width": 48.00771141052246,
+        "height": 39.14524841308594
+      }
+    },
+    "Transition": {
+      "position": {
+        "x": -30,
+        "y": 350
+      },
+      "size": {
+        "width": 82.21853256225586,
+        "height": 39.14524841308594
+      }
+    },
+    "Place": {
+      "position": {
+        "x": 140,
+        "y": 350
+      },
+      "size": {
+        "width": 60.011762619018555,
+        "height": 39.14524841308594
+      }
+    },
+    "Token": {
+      "position": {
+        "x": 140,
+        "y": 430
+      },
+      "size": {
+        "width": 62.00529861450195,
+        "height": 39.14524841308594
+      }
+    }
+  }
 }

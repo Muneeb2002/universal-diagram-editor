@@ -86,7 +86,7 @@
                 "name": "Node"
               },
               "containment": false,
-              "container": null
+              "container": false
             },
             {
               "name": "target",
@@ -98,7 +98,7 @@
                 "name": "Node"
               },
               "containment": false,
-              "container": null
+              "container": false
             }
           ],
           "eSuperTypes": []
@@ -173,5 +173,57 @@
         }
       ]
     }
-  ]
+  ],
+  "diagramPositions": {
+    "Pool": {
+      "position": {
+        "x": 110,
+        "y": -220
+      },
+      "size": {
+        "width": 135.99588775634766,
+        "height": 68.8965835571289
+      }
+    },
+    "BPMN": {
+      "position": {
+        "x": 150,
+        "y": -430
+      },
+      "size": {
+        "width": 64.65613555908203,
+        "height": 38.89530563354492
+      }
+    },
+    "Gateaway": {
+      "position": {
+        "x": -20,
+        "y": 270
+      },
+      "size": {
+        "width": 84.01408386230469,
+        "height": 39.849730491638184
+      }
+    },
+    "Task": {
+      "position": {
+        "x": 290,
+        "y": 250
+      },
+      "size": {
+        "width": 136.0028839111328,
+        "height": 70.69243717193604
+      }
+    },
+    "EventType": {
+      "position": {
+        "x": 90,
+        "y": 530
+      },
+      "size": {
+        "width": 174.6883087158203,
+        "height": 73.53514385223389
+      }
+    }
+  }
 }

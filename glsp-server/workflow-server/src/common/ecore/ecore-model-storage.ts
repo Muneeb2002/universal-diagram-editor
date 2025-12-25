@@ -13,6 +13,7 @@ import { RequestModelAction, SaveModelAction } from '@eclipse-glsp/protocol';
 import { ModelState, SOURCE_URI_ARG, SourceModelStorage } from '@eclipse-glsp/server';
 import { EcoreParser } from './ecore-parser';
 import { EcoreModel } from './ecore-types';
+import { DiagramPositionStorage } from './diagram-position-storage';
 
 @injectable()
 export class EcoreModelStorage implements SourceModelStorage {
@@ -21,6 +22,9 @@ export class EcoreModelStorage implements SourceModelStorage {
 
     @inject(ModelState)
     protected modelState: ModelState;
+
+    @inject(DiagramPositionStorage)
+    protected diagramPositionStorage: DiagramPositionStorage;
 
     async loadSourceModel(action: RequestModelAction): Promise<void> {
         const sourceUri = this.getSourceUri(action);
@@ -63,6 +67,19 @@ export class EcoreModelStorage implements SourceModelStorage {
                     const ecoreModel = await this.ecoreParser.parseEcoreJson(JSON.stringify(jsonObject));
                     this.modelState.set('ecoreModel', ecoreModel);
                     this.modelState.set('modelType', 'ecore');
+                    
+                    // Restore diagram positions if they exist in the saved file
+                    if (jsonObject && typeof jsonObject === 'object' && 'diagramPositions' in jsonObject) {
+                        const positionsObj = (jsonObject as any).diagramPositions;
+                        if (positionsObj && typeof positionsObj === 'object') {
+                            const positionsMap = new Map<string, { position?: { x: number; y: number }; size?: { width: number; height: number } }>();
+                            for (const [key, value] of Object.entries(positionsObj)) {
+                                positionsMap.set(key, value as { position?: { x: number; y: number }; size?: { width: number; height: number } });
+                            }
+                            this.diagramPositionStorage.restorePositions(positionsMap);
+                        }
+                    }
+                    
                     console.log('Detected and parsed Ecore model from JSON file');
                 } catch (ecoreError) {
                     // It's not an Ecore model, store as generic JSON
@@ -107,12 +124,25 @@ export class EcoreModelStorage implements SourceModelStorage {
         const modelType = this.modelState.get('modelType') as string;
 
         if (modelType === 'ecore') {
-            // For now, we'll save as JSON since converting back to Ecore XML is complex
-            // In a full implementation, you'd want to implement proper Ecore serialization
             const ecoreModel = this.modelState.get('ecoreModel') as EcoreModel;
-            this.writeFile(fileUri, ecoreModel);
+            const viewMode = this.modelState.get('viewMode') as string;
+            
+            // Include diagram positions in the saved model if in metamodel mode
+            const modelToSave: any = this.convertToPlainJson(ecoreModel);
+            if (viewMode === 'metamodel') {
+                const diagramPositions = this.diagramPositionStorage.getAllPositions();
+                if (diagramPositions.size > 0) {
+                    // Convert Map to plain object for JSON serialization
+                    const positionsObj: any = {};
+                    diagramPositions.forEach((value, key) => {
+                        positionsObj[key] = value;
+                    });
+                    modelToSave.diagramPositions = positionsObj;
+                }
+            }
+            
+            this.writeFile(fileUri, modelToSave);
         } else {
-            // Save as JSON
             const sourceModel = this.modelState.get('sourceModel');
             this.writeFile(fileUri, sourceModel);
         }
@@ -128,9 +158,84 @@ export class EcoreModelStorage implements SourceModelStorage {
 
     private writeFile(fileUri: string, model: unknown): void {
         const path = this.toPath(fileUri);
-        const content = JSON.stringify(model, undefined, 2);
+        // Convert model to plain JSON, ensuring all properties including diagramPosition/diagramSize are included
+        const plainModel = this.convertToPlainJson(model);
+        const content = JSON.stringify(plainModel, undefined, 2);
         const fs = require('fs');
         fs.writeFileSync(path, content);
+    }
+
+    /**
+     * Converts EcoreModel (which may contain Ecore objects with get/set methods) to plain JSON
+     * This ensures that custom properties like diagramPosition and diagramSize are included in the serialization
+     */
+    private convertToPlainJson(obj: any): any {
+        if (obj === null || obj === undefined) {
+            return obj;
+        }
+
+        // Handle arrays
+        if (Array.isArray(obj)) {
+            return obj.map(item => this.convertToPlainJson(item));
+        }
+
+        // Handle objects
+        if (typeof obj === 'object') {
+            const result: any = {};
+            
+            // Get all properties, including those set via set() method
+            const keys = new Set<string>();
+            
+            // Add all enumerable properties
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    keys.add(key);
+                }
+            }
+            
+            // If it's an Ecore object with get method, try to get all properties
+            if (typeof obj.get === 'function') {
+                // Try common Ecore properties
+                const commonProps = ['name', 'nsURI', 'nsPrefix', 'abstract', 'interface', 
+                                     'diagramPosition', 'diagramSize', 'eClassifiers', 'eAttributes', 
+                                     'eReferences', 'eSuperTypes', 'eType', 'lowerBound', 'upperBound'];
+                commonProps.forEach(prop => {
+                    try {
+                        const value = obj.get(prop);
+                        if (value !== undefined) {
+                            keys.add(prop);
+                        }
+                    } catch {
+                        // Property doesn't exist, ignore
+                    }
+                });
+            }
+            
+            // Convert each property
+            for (const key of keys) {
+                let value = obj[key];
+                
+                // If it's an Ecore object, try to get the value using get() method
+                if (typeof obj.get === 'function') {
+                    try {
+                        const getValue = obj.get(key);
+                        if (getValue !== undefined) {
+                            value = getValue;
+                        }
+                    } catch {
+                        // Use direct property access
+                    }
+                }
+                
+                // Recursively convert nested objects
+                result[key] = this.convertToPlainJson(value);
+            }
+            
+            return result;
+        }
+
+        // Primitive values
+        return obj;
     }
 
     protected createModelForEmptyFile(path: string): unknown | undefined {

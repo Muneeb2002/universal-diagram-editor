@@ -36,7 +36,8 @@ import { SwitchModeActionHandler } from './switch-mode-action-handler';
 import { EditMetamodelActionHandler } from './edit-metamodel-action-handler';
 import { DeleteEdgeActionHandler } from './edge-action-handlers';
 import { EcoreDeleteOperationHandler } from './ecore-delete-operation-handler';
-import { GModelDeleteOperationHandler } from '@eclipse-glsp/server';
+import { GModelDeleteOperationHandler, GModelChangeBoundsOperationHandler } from '@eclipse-glsp/server';
+import { EcoreChangeBoundsOperationHandler } from './ecore-change-bounds-operation-handler';
 import { CreateCustomMetamodelActionHandler } from './create-custom-metamodel-action-handler';
 import { TriggerEClassCreationActionHandler } from './trigger-eclass-creation-action-handler';
 import { TriggerEEnumCreationActionHandler } from './trigger-eenum-creation-action-handler';
@@ -60,6 +61,10 @@ import { SaveShapeMappingsActionHandler } from './save-shape-mappings-action-han
 import { ApplyShapeMappingsActionHandler } from './apply-shape-mappings-action-handler';
 import { SaveInstanceActionHandler } from './save-instance-action-handler';
 import { LoadInstanceActionHandler } from './load-instance-action-handler';
+import { OperationHandlerRegistry } from '@eclipse-glsp/server';
+import { EcoreCompoundOperationHandler } from './ecore-compound-operation-handler';
+import { CompoundOperationHandler } from '@eclipse-glsp/server';
+import { DiagramPositionStorage } from './diagram-position-storage';
 
 @injectable()
 export class EcoreDiagramModule extends GModelDiagramModule {
@@ -81,11 +86,16 @@ export class EcoreDiagramModule extends GModelDiagramModule {
 
     protected override configureOperationHandlers(binding: InstanceMultiBinding<OperationHandlerConstructor>): void {
         super.configureOperationHandlers(binding);
-        // Remove the default GModelDeleteOperationHandler so our custom handler can take its place
+        
         binding.remove(GModelDeleteOperationHandler);
+        binding.remove(CompoundOperationHandler);
+        binding.add(EcoreCompoundOperationHandler);
+        binding.remove(GModelChangeBoundsOperationHandler);
+        
         binding.add(DynamicCreateNodeHandler);
         binding.add(EcoreDeleteOperationHandler);
         binding.add(EcoreEdgeCreationHandler);
+        binding.add(EcoreChangeBoundsOperationHandler);
     }
 
     protected override configureActionHandlers(binding: InstanceMultiBinding<ActionHandlerConstructor>): void {
@@ -123,13 +133,17 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         return EcoreToolPaletteItemProvider;
     }
 
+    protected override bindOperationHandlerRegistry(): BindingTarget<OperationHandlerRegistry> {
+        return OperationHandlerRegistry;
+    }
+
     protected override configure(bind: interfaces.Bind, unbind: interfaces.Unbind, isBound: interfaces.IsBound, rebind: interfaces.Rebind): void {
         super.configure(bind, unbind, isBound, rebind);
 
-        // Bind core services as singletons
         bind(EcoreParser).toSelf().inSingletonScope();
         bind(MetamodelRegistry).toSelf().inSingletonScope();
         bind(InstanceModelStorage).toSelf().inSingletonScope();
+        bind(DiagramPositionStorage).toSelf().inSingletonScope();
         bind(VisualConfigurationStorage).toSelf().inSingletonScope();
         bind(ShapeMappingStorage).toSelf().inSingletonScope();
     }

@@ -411,7 +411,7 @@ export class InstanceModelStorage {
      * @param instanceId The ID of the instance
      * @returns The instance or undefined if not found
      */
-    private getInstance(instanceId: string): EcoreInstance | undefined {
+    getInstance(instanceId: string): EcoreInstance | undefined {
         const instanceModel = this.getActiveInstanceModel();
         if (!instanceModel) {
             return undefined;
@@ -854,6 +854,7 @@ export class InstanceModelStorage {
      */
     saveInstanceModel(filename?: string): { success: boolean; message: string; filePath?: string } {
         const instanceModel = this.getActiveInstanceModel();
+        console.log('instanceModel', instanceModel);
         
         if (!instanceModel) {
             return {

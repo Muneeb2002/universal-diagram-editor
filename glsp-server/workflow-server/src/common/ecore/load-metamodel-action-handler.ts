@@ -14,6 +14,7 @@ import { Action, SetModelAction } from '@eclipse-glsp/protocol';
 import { LoadMetamodelAction, LoadMetamodelResponse, ClassInfo } from './ecore-actions';
 import { EcoreParser } from './ecore-parser';
 import { MetamodelRegistry } from './metamodel-registry';
+import { DiagramPositionStorage } from './diagram-position-storage';
 
 @injectable()
 export class LoadMetamodelActionHandler implements ActionHandler {
@@ -34,14 +35,28 @@ export class LoadMetamodelActionHandler implements ActionHandler {
     @inject(GModelSerializer)
     protected gmodelSerializer: GModelSerializer;
 
-    async execute(action: LoadMetamodelAction): Promise<Action[]> {
-        console.log('LoadMetamodelActionHandler.execute()', action);
+    @inject(DiagramPositionStorage)
+    protected diagramPositionStorage: DiagramPositionStorage;
 
+    async execute(action: LoadMetamodelAction): Promise<Action[]> {
         try {
+            // Parse the JSON content to check for diagram positions
+            const jsonObject = JSON.parse(action.content);
+            
             // Use reliable parser for JSON parsing with validation
             const ecoreModel = await this.ecoreParser.parseEcoreJson(action.content);
-
-            console.log('Parsed Ecore model:', ecoreModel);
+            
+            // Restore diagram positions if they exist in the loaded file
+            if (jsonObject && typeof jsonObject === 'object' && 'diagramPositions' in jsonObject) {
+                const positionsObj = jsonObject.diagramPositions;
+                if (positionsObj && typeof positionsObj === 'object') {
+                    const positionsMap = new Map<string, { position?: { x: number; y: number }; size?: { width: number; height: number } }>();
+                    for (const [key, value] of Object.entries(positionsObj)) {
+                        positionsMap.set(key, value as { position?: { x: number; y: number }; size?: { width: number; height: number } });
+                    }
+                    this.diagramPositionStorage.restorePositions(positionsMap);
+                }
+            }
 
             // Generate a key for the metamodel (use filename or nsURI)
             let metamodelKey = action.filename.replace(/\.json$/, ''); // Remove extension
@@ -51,7 +66,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
 
             // Register the metamodel
             this.metamodelRegistry.registerMetamodel(metamodelKey, ecoreModel);
-            console.log(`Registered JSON metamodel with key: ${metamodelKey}`);
 
             // Set as active if requested
             if (action.setAsActive !== false) {
@@ -63,8 +77,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 this.modelState.set('sourceUri', action.filename);
                 this.modelState.set('modelType', 'ecore');
                 this.modelState.set('viewMode', 'metamodel');
-
-                console.log('Set modelType to ecore, viewMode to metamodel');
             }
 
             // Get all class information
@@ -100,11 +112,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 const attributes: any[] = [];
                 const references: any[] = [];
                 
-                console.log(`Extracting structural features for class '${className}'`);
-                console.log(`Raw structuralFeatures:`, structuralFeatures);
-                console.log(`Raw eAttributes:`, eAttributes);
-                console.log(`Raw eReferences:`, eReferences);
-                
                 // Process attributes
                 if (eAttributes) {
                     let attrs: any[] = [];
@@ -113,8 +120,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                     } else if (eAttributes.forEach) {
                         eAttributes.forEach((f: any) => attrs.push(f));
                     }
-                    
-                    console.log(`Found ${attrs.length} attributes for ${className}`);
                     
                     for (const attr of attrs) {
                         const name = attr.get ? attr.get('name') : attr.name;
@@ -134,7 +139,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                             unique: unique !== false,
                             ordered: ordered === true
                         });
-                        console.log(`Added attribute: ${name} -> ${typeName}`);
                     }
                 }
                 
@@ -146,8 +150,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                     } else if (eReferences.forEach) {
                         eReferences.forEach((f: any) => refs.push(f));
                     }
-                    
-                    console.log(`Found ${refs.length} references for ${className}`);
                     
                     for (const ref of refs) {
                         const name = ref.get ? ref.get('name') : ref.name;
@@ -172,7 +174,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                             unique: unique !== false,
                             ordered: ordered === true
                         });
-                        console.log(`Added reference: ${name} -> ${typeName} (containment: ${containment === true})`);
                     }
                 }
                 
@@ -184,8 +185,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                     } else if (structuralFeatures.forEach) {
                         structuralFeatures.forEach((f: any) => features.push(f));
                     }
-                    
-                    console.log(`Found ${features.length} structural features for ${className} (fallback)`);
                     
                     for (const feature of features) {
                         const name = feature.get ? feature.get('name') : feature.name;
@@ -223,12 +222,9 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                                 unique: unique !== false,
                                 ordered: ordered === true
                             });
-                            console.log(`Added reference: ${name} -> ${typeName} (containment: ${containment === true})`);
                         }
                     }
                 }
-                
-                console.log(`Final result for ${className}: ${references.length} references, ${attributes.length} attributes`);
                 
                 return {
                     className,
@@ -250,7 +246,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 return e.get ? e.get('name') : e.name;
             }).filter((name): name is string => !!name);
 
-            console.log(`Found ${allClasses.length} total classes, ${classNames.length} non-abstract classes:`, classNames);
 
             // Create the GModel
             this.gmodelFactory.createModel();
@@ -274,7 +269,6 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                 throw new Error('Failed to create GModel');
             }
         } catch (error) {
-            console.error('Error loading metamodel:', error);
             return [
                 LoadMetamodelResponse.create(
                     false,

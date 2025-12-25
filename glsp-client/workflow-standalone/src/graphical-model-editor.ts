@@ -38,6 +38,8 @@ export class GraphicalModelEditor {
     private propertiesPanel: HTMLDivElement | null = null;
     private elements: Map<string, GraphicalElement> = new Map();
     private selectedElement: GraphicalElement | null = null;
+    private selectedElements: Set<string> = new Set(); // For multi-select
+    private isCombineMode = false; // Track if we're in combine mode
     private nextElementId = 1;
     private isDragging = false;
     private dragOffset = { x: 0, y: 0 };
@@ -175,44 +177,89 @@ export class GraphicalModelEditor {
                     <div id="propertiesPanel" style="color: #666; font-size: 14px;">Select an element to edit its properties</div>
                 </div>
             </div>
-            <div style="padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: flex-end; gap: 10px;">
-                <button id="applyGraphicalModel" style="
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                ">Apply Graphical Model</button>
-                <button id="saveGraphicalModel" style="
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                    font-weight: 500;
-                ">Save Graphical Model</button>
-                <button id="loadGraphicalModel" style="
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                ">Load Graphical Model</button>
-                <button id="clearCanvas" style="
-                    background: #007acc;
-                    color: white;
-                    border: none;
-                    padding: 10px 20px;
-                    border-radius: 4px;
-                    cursor: pointer;
-                    font-size: 14px;
-                ">Clear Canvas</button>
+            <div style="padding: 15px; border-top: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+                <div style="display: flex; gap: 10px; align-items: center;">
+                    <button id="enterCombineMode" style="
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                    ">Combine Shapes</button>
+                    <button id="exitCombineMode" style="
+                        background: #dc3545;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                        display: none;
+                    ">Cancel Combine</button>
+                    <button id="combineSelected" style="
+                        background: #007bff;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                        display: none;
+                    ">Combine Selected (0)</button>
+                    <div id="selectionInfo" style="
+                        padding: 10px 15px;
+                        background: #e7f3ff;
+                        border: 1px solid #b3d9ff;
+                        border-radius: 4px;
+                        font-size: 14px;
+                        color: #0066cc;
+                        display: none;
+                    ">Click on shapes to select them for combining</div>
+                </div>
+                <div style="display: flex; gap: 10px;">
+                    <button id="applyGraphicalModel" style="
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">Apply Graphical Model</button>
+                    <button id="saveGraphicalModel" style="
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                        font-weight: 500;
+                    ">Save Graphical Model</button>
+                    <button id="loadGraphicalModel" style="
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">Load Graphical Model</button>
+                    <button id="clearCanvas" style="
+                        background: #007acc;
+                        color: white;
+                        border: none;
+                        padding: 10px 20px;
+                        border-radius: 4px;
+                        cursor: pointer;
+                        font-size: 14px;
+                    ">Clear Canvas</button>
+                </div>
             </div>
         `;
 
@@ -332,7 +379,7 @@ export class GraphicalModelEditor {
 
         // Click to select/deselect
         this.canvas.addEventListener('click', (e) => {
-            if (e.target === this.canvas) {
+            if (e.target === this.canvas && !this.isCombineMode) {
                 this.deselectElement();
             }
         });
@@ -424,16 +471,60 @@ export class GraphicalModelEditor {
         }
 
         // Make draggable
+        let mouseDownTime = 0;
+        let mouseDownX = 0;
+        let mouseDownY = 0;
+        let hasMoved = false;
+        const DRAG_THRESHOLD = 5; // pixels
+        const CLICK_TIME_THRESHOLD = 300; // milliseconds
+
         elementDiv.addEventListener('mousedown', (e) => {
             if (e.target === elementDiv || elementDiv.contains(e.target as Node)) {
-                this.selectElement(element);
+                mouseDownTime = Date.now();
+                mouseDownX = e.clientX;
+                mouseDownY = e.clientY;
+                hasMoved = false;
+
+                if (this.isCombineMode) {
+                    // In combine mode: allow dragging, but also handle selection
+                    // Don't prevent default - allow drag to work
+                } else {
+                    // Normal mode: single select
+                    this.clearMultiSelect();
+                    this.selectElement(element);
+                }
+                
+                // Always start drag - we'll check if it was actually a drag or click later
                 this.startDrag(e, element);
             }
         });
 
+        elementDiv.addEventListener('mousemove', (e) => {
+            if (mouseDownTime > 0) {
+                const distance = Math.sqrt(
+                    Math.pow(e.clientX - mouseDownX, 2) + 
+                    Math.pow(e.clientY - mouseDownY, 2)
+                );
+                if (distance > DRAG_THRESHOLD) {
+                    hasMoved = true;
+                }
+            }
+        }, { passive: true });
+
         elementDiv.addEventListener('click', (e) => {
             e.stopPropagation();
-            this.selectElement(element);
+            const timeSinceMouseDown = Date.now() - mouseDownTime;
+            
+            // Only handle click if it was a real click (not a drag) and in combine mode
+            if (this.isCombineMode && !hasMoved && timeSinceMouseDown < CLICK_TIME_THRESHOLD) {
+                // In combine mode: toggle selection on click (if not dragged)
+                this.toggleElementSelection(element);
+                this.updateSelectionUI();
+            }
+            
+            // Reset tracking
+            mouseDownTime = 0;
+            hasMoved = false;
         });
 
         this.canvas.appendChild(elementDiv);
@@ -654,6 +745,44 @@ export class GraphicalModelEditor {
         element.selected = true;
         this.renderElement(element);
         this.updatePropertiesPanel();
+        this.updateSelectionUI();
+    }
+
+    private toggleElementSelection(element: GraphicalElement): void {
+        if (this.selectedElements.has(element.id)) {
+            // Deselect
+            this.selectedElements.delete(element.id);
+            element.selected = false;
+            this.renderElement(element);
+        } else {
+            // Select
+            this.selectedElements.add(element.id);
+            element.selected = true;
+            this.renderElement(element);
+        }
+        
+        // Update single selection if only one is selected
+        if (this.selectedElements.size === 1) {
+            const selectedId = Array.from(this.selectedElements)[0];
+            this.selectedElement = this.elements.get(selectedId) || null;
+        } else {
+            this.selectedElement = null;
+        }
+        
+        this.updatePropertiesPanel();
+        this.updateSelectionUI();
+    }
+
+    private clearMultiSelect(): void {
+        this.selectedElements.forEach(id => {
+            const element = this.elements.get(id);
+            if (element) {
+                element.selected = false;
+                this.renderElement(element);
+            }
+        });
+        this.selectedElements.clear();
+        this.updateSelectionUI();
     }
 
     private deselectElement(): void {
@@ -662,7 +791,214 @@ export class GraphicalModelEditor {
             this.renderElement(this.selectedElement);
             this.selectedElement = null;
         }
+        this.clearMultiSelect();
         this.updatePropertiesPanel();
+    }
+
+    private updateSelectionUI(): void {
+        const combineSelectedBtn = this.dialog?.querySelector('#combineSelected') as HTMLButtonElement;
+        const selectionInfo = this.dialog?.querySelector('#selectionInfo') as HTMLDivElement;
+        
+        if (!combineSelectedBtn || !selectionInfo) return;
+
+        const count = this.selectedElements.size;
+        if (this.isCombineMode) {
+            selectionInfo.style.display = 'block';
+            if (count >= 2) {
+                combineSelectedBtn.style.display = 'block';
+                combineSelectedBtn.textContent = `Combine Selected (${count})`;
+                selectionInfo.textContent = `${count} shapes selected. Click "Combine Selected" to merge them.`;
+            } else {
+                combineSelectedBtn.style.display = 'none';
+                selectionInfo.textContent = count === 1 
+                    ? '1 shape selected. Select at least one more to combine.'
+                    : 'Click on shapes to select them for combining.';
+            }
+        } else {
+            combineSelectedBtn.style.display = 'none';
+            selectionInfo.style.display = 'none';
+        }
+    }
+
+    private enterCombineMode(): void {
+        this.isCombineMode = true;
+        this.clearMultiSelect();
+        this.deselectElement();
+        
+        const enterBtn = this.dialog?.querySelector('#enterCombineMode') as HTMLButtonElement;
+        const exitBtn = this.dialog?.querySelector('#exitCombineMode') as HTMLButtonElement;
+        
+        if (enterBtn) enterBtn.style.display = 'none';
+        if (exitBtn) exitBtn.style.display = 'block';
+        
+        this.updateSelectionUI();
+    }
+
+    private exitCombineMode(): void {
+        this.isCombineMode = false;
+        this.clearMultiSelect();
+        
+        const enterBtn = this.dialog?.querySelector('#enterCombineMode') as HTMLButtonElement;
+        const exitBtn = this.dialog?.querySelector('#exitCombineMode') as HTMLButtonElement;
+        
+        if (enterBtn) enterBtn.style.display = 'block';
+        if (exitBtn) exitBtn.style.display = 'none';
+        
+        this.updateSelectionUI();
+    }
+
+    private combineSelectedElements(): void {
+        if (this.selectedElements.size < 2) {
+            alert('Please select at least 2 elements to combine');
+            return;
+        }
+
+        const elementsToCombine: GraphicalElement[] = [];
+        let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+
+        // Collect elements and calculate bounding box
+        this.selectedElements.forEach(id => {
+            const element = this.elements.get(id);
+            if (element) {
+                elementsToCombine.push(element);
+                minX = Math.min(minX, element.x);
+                minY = Math.min(minY, element.y);
+                maxX = Math.max(maxX, element.x + element.width);
+                maxY = Math.max(maxY, element.y + element.height);
+            }
+        });
+
+        if (elementsToCombine.length < 2) {
+            alert('Could not find all selected elements');
+            return;
+        }
+
+        // Generate combined SVG
+        const combinedWidth = maxX - minX;
+        const combinedHeight = maxY - minY;
+        const svgParts: string[] = [];
+
+        elementsToCombine.forEach(element => {
+            const relativeX = element.x - minX;
+            const relativeY = element.y - minY;
+            
+            // Generate SVG for each element type
+            if (element.type === 'rectangle') {
+                const fill = element.filled !== false ? element.fillColor : 'none';
+                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
+                svgParts.push(`<rect x="${relativeX}" y="${relativeY}" width="${element.width}" height="${element.height}" fill="${fill}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+            } else if (element.type === 'circle') {
+                const cx = relativeX + element.width / 2;
+                const cy = relativeY + element.height / 2;
+                const r = Math.min(element.width, element.height) / 2 - element.lineThickness / 2;
+                const fill = element.filled !== false ? element.fillColor : 'none';
+                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
+                svgParts.push(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+            } else if (element.type === 'arrow') {
+                // Draw arrow as a path
+                const width = element.width;
+                const height = element.height;
+                const cy = height / 2;
+                const margin = Math.max(element.lineThickness, 6);
+                const arrowHeadLength = Math.max(10, width * 0.3);
+                const arrowHeadWidth = Math.max(3, height * 0.2);
+                
+                const arrowType = element.arrowType || 'filled-triangle';
+                const strokeColor = element.color;
+                const fillColor = element.filled !== false ? element.fillColor : 'none';
+                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
+                
+                if (arrowType === 'filled-triangle') {
+                    // Filled triangle arrow
+                    const path = `M ${relativeX + margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy - arrowHeadWidth/2} L ${relativeX + width - margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy + arrowHeadWidth/2} Z`;
+                    svgParts.push(`<path d="${path}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                } else if (arrowType === 'open-triangle') {
+                    // Open triangle arrow
+                    const linePath = `M ${relativeX + margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy}`;
+                    const arrowPath = `M ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy - arrowHeadWidth/2} L ${relativeX + width - margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy + arrowHeadWidth/2}`;
+                    svgParts.push(`<path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                    svgParts.push(`<path d="${arrowPath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                } else if (arrowType === 'open-arrow') {
+                    // Open arrow (V shape)
+                    const linePath = `M ${relativeX + margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy}`;
+                    const arrowPath = `M ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy - arrowHeadWidth/2} L ${relativeX + width - margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy + arrowHeadWidth/2} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy - arrowHeadWidth/2}`;
+                    svgParts.push(`<path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                    svgParts.push(`<path d="${arrowPath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                } else {
+                    // Default: simple line with filled triangle
+                    const path = `M ${relativeX + margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy - arrowHeadWidth/2} L ${relativeX + width - margin} ${relativeY + cy} L ${relativeX + width - margin - arrowHeadLength} ${relativeY + cy + arrowHeadWidth/2} Z`;
+                    svgParts.push(`<path d="${path}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`);
+                }
+            } else if (element.type === 'custom-svg' && element.svgContent) {
+                // For custom SVG, extract the inner content and position it
+                const parser = new DOMParser();
+                const svgDoc = parser.parseFromString(element.svgContent, 'image/svg+xml');
+                const sourceSvg = svgDoc.querySelector('svg');
+                if (sourceSvg) {
+                    // Get viewBox or dimensions from source SVG
+                    let viewBox = sourceSvg.getAttribute('viewBox');
+                    if (!viewBox) {
+                        const width = sourceSvg.getAttribute('width');
+                        const height = sourceSvg.getAttribute('height');
+                        if (width && height) {
+                            viewBox = `0 0 ${width} ${height}`;
+                        } else {
+                            viewBox = `0 0 ${element.width} ${element.height}`;
+                        }
+                    }
+                    
+                    // Clone and transform the SVG content
+                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+                    g.setAttribute('transform', `translate(${relativeX}, ${relativeY})`);
+                    
+                    // Clone all children from source SVG
+                    Array.from(sourceSvg.children).forEach(child => {
+                        g.appendChild(child.cloneNode(true));
+                    });
+                    
+                    // Convert group to string
+                    const serializer = new XMLSerializer();
+                    svgParts.push(serializer.serializeToString(g));
+                }
+            }
+        });
+
+        const combinedSvg = `<svg viewBox="0 0 ${combinedWidth} ${combinedHeight}" xmlns="http://www.w3.org/2000/svg">${svgParts.join('')}</svg>`;
+
+        // Create new combined element
+        const combinedElement: GraphicalElement = {
+            id: `element_${this.nextElementId++}`,
+            name: `Combined Shape`,
+            type: 'custom-svg',
+            x: minX,
+            y: minY,
+            width: combinedWidth,
+            height: combinedHeight,
+            color: '#333333',
+            fillColor: 'transparent',
+            filled: false,
+            lineThickness: 2,
+            lineStyle: 'solid',
+            svgContent: combinedSvg
+        };
+
+        // Remove old elements and add combined one
+        this.selectedElements.forEach(id => {
+            this.elements.delete(id);
+            const element = document.getElementById(id);
+            if (element) element.remove();
+        });
+        this.selectedElements.clear();
+        this.selectedElement = null;
+
+        // Add and render combined element
+        this.elements.set(combinedElement.id, combinedElement);
+        this.renderElement(combinedElement);
+        this.selectElement(combinedElement);
+        this.updateSelectionUI();
+        
+        // Exit combine mode after combining
+        this.exitCombineMode();
     }
 
     private updatePropertiesPanel(): void {
@@ -807,9 +1143,11 @@ export class GraphicalModelEditor {
                 
                 // Clear selection first (before removing from DOM)
                 this.selectedElement = null;
+                this.selectedElements.delete(elementId);
                 if (this.propertiesPanel) {
                     this.propertiesPanel.innerHTML = '<div style="color: #666; font-size: 14px;">Select an element to edit its properties</div>';
                 }
+                this.updateSelectionUI();
                 
                 // Find and remove the DOM element from the canvas
                 // Iterate through canvas children to find the element
@@ -840,6 +1178,17 @@ export class GraphicalModelEditor {
         saveBtn?.addEventListener('click', () => this.saveGraphicalModel());
         loadBtn?.addEventListener('click', () => this.loadGraphicalModel());
         clearBtn?.addEventListener('click', () => this.clearCanvas());
+        
+        const enterCombineBtn = this.dialog?.querySelector('#enterCombineMode') as HTMLButtonElement;
+        const exitCombineBtn = this.dialog?.querySelector('#exitCombineMode') as HTMLButtonElement;
+        const combineSelectedBtn = this.dialog?.querySelector('#combineSelected') as HTMLButtonElement;
+        
+        enterCombineBtn?.addEventListener('click', () => this.enterCombineMode());
+        exitCombineBtn?.addEventListener('click', () => this.exitCombineMode());
+        combineSelectedBtn?.addEventListener('click', () => {
+            this.combineSelectedElements();
+            this.exitCombineMode();
+        });
     }
 
     /**
@@ -908,6 +1257,7 @@ export class GraphicalModelEditor {
                     this.canvas.innerHTML = '';
                 }
                 this.deselectElement();
+                this.selectedElements.clear();
                 
                 // Load new elements
                 shapesArray.forEach((el: any, index: number) => {
@@ -915,6 +1265,7 @@ export class GraphicalModelEditor {
                     this.elements.set(element.id, element);
                     this.renderElement(element);
                 });
+                this.updateSelectionUI();
                 this.updateCachedShapesFromElements();
                 // Update nextElementId to avoid ID conflicts
                 this.updateNextElementId();
@@ -954,6 +1305,7 @@ export class GraphicalModelEditor {
                         this.canvas.innerHTML = '';
                     }
                     this.deselectElement();
+                    this.selectedElements.clear();
                     
                     // Load new elements
                     shapesArray.forEach((el: any, index: number) => {
@@ -962,6 +1314,7 @@ export class GraphicalModelEditor {
                         this.renderElement(element);
                     });
                     this.updateCachedShapesFromElements();
+                    this.updateSelectionUI();
                     // Update nextElementId to avoid ID conflicts
                     this.updateNextElementId();
                     // Cache the loaded graphical model in the sidebar
@@ -993,7 +1346,9 @@ export class GraphicalModelEditor {
             if (this.canvas) {
                 this.canvas.innerHTML = '';
             }
+            this.selectedElements.clear();
             this.deselectElement();
+            this.updateSelectionUI();
         }
     }
 
@@ -1010,6 +1365,7 @@ export class GraphicalModelEditor {
         this.palette = null;
         this.propertiesPanel = null;
         this.selectedElement = null;
+        this.selectedElements.clear();
     }
 
     private updateCachedShapesFromElements(): void {

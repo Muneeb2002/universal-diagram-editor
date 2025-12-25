@@ -13,6 +13,7 @@ import { Action } from '@eclipse-glsp/protocol';
 import { ModelState, ActionHandler, GModelFactory, GModelSerializer, GModelRoot } from '@eclipse-glsp/server';
 import { SetModelAction } from '@eclipse-glsp/protocol';
 import { MetamodelRegistry } from './metamodel-registry';
+import { DiagramPositionStorage } from './diagram-position-storage';
 import { 
     RenameClassAction,
     RenameEnumAction,
@@ -58,6 +59,9 @@ export class EditMetamodelActionHandler implements ActionHandler {
     @inject(GModelSerializer)
     protected gmodelSerializer: GModelSerializer;
 
+    @inject(DiagramPositionStorage)
+    protected diagramPositionStorage: DiagramPositionStorage;
+
     async execute(action: Action): Promise<Action[]> {
         try {
             let success = false;
@@ -80,12 +84,6 @@ export class EditMetamodelActionHandler implements ActionHandler {
             } else if (SaveMetamodelAction.is(action)) {
                 const result = await this.handleSaveMetamodel(action);
                 success = result.success;
-                // For save actions, log the content to console
-                if (success && result.content) {
-                    console.log('=== SAVED METAMODEL CONTENT ===');
-                    console.log(result.content);
-                    console.log('=== END SAVED METAMODEL CONTENT ===');
-                }
             } else if (ChangeClassTypeAction.is(action)) {
                 const result = await this.handleChangeClassType(action);
                 success = result.success;
@@ -99,18 +97,11 @@ export class EditMetamodelActionHandler implements ActionHandler {
 
             // If successful, regenerate the model (except for save actions)
             if (success && !SaveMetamodelAction.is(action)) {
-                console.log('Regenerating model after successful operation...');
                 this.gmodelFactory.createModel();
                 const gmodel = this.modelState.get('gmodel') as GModelRoot;
-                console.log('Generated gmodel:', gmodel ? `type=${gmodel.type}, id=${gmodel.id}, children=${gmodel.children?.length}` : 'null');
                 if (gmodel && gmodel.type && gmodel.id) {
-                    console.log('Returning SetModelAction to update client');
                     return [SetModelAction.create(gmodel)];
-                } else {
-                    console.warn('Generated gmodel is invalid, not returning SetModelAction');
                 }
-            } else {
-                console.log(`Operation not successful or is save action. success=${success}, isSave=${SaveMetamodelAction.is(action)}`);
             }
 
             return [];
@@ -202,8 +193,28 @@ export class EditMetamodelActionHandler implements ActionHandler {
         
         try {
             const result = this.metamodelRegistry.saveMetamodel(action.filename, action.format);
-            if (result.success) {
-                console.log(`Metamodel saved to ${result.filePath}`);
+            if (result.success && result.filePath) {
+                // Add diagram positions to the saved file
+                const fs = require('fs');
+                
+                try {
+                    const fileContent = fs.readFileSync(result.filePath, { encoding: 'utf8' });
+                    const jsonObject = JSON.parse(fileContent);
+                    
+                    const diagramPositions = this.diagramPositionStorage.getAllPositions();
+                    if (diagramPositions.size > 0) {
+                        const positionsObj: any = {};
+                        diagramPositions.forEach((value, key) => {
+                            positionsObj[key] = value;
+                        });
+                        jsonObject.diagramPositions = positionsObj;
+                        
+                        const updatedContent = JSON.stringify(jsonObject, undefined, 2);
+                        fs.writeFileSync(result.filePath, updatedContent, { encoding: 'utf8' });
+                    }
+                } catch (posError) {
+                    // Don't fail the save operation if positions can't be added
+                }
             }
             return result;
         } catch (error) {
@@ -232,9 +243,7 @@ export class EditMetamodelActionHandler implements ActionHandler {
 
     private async handleDeleteClass(action: DeleteClassAction): Promise<{ success: boolean; message: string }> {
         try {
-            console.log(`Attempting to delete class '${action.className}' (force=${action.force})`);
             const deleted = this.metamodelRegistry.deleteClass(action.className, action.force);
-            console.log(`Delete class result: ${deleted}`);
             if (deleted) {
                 return {
                     success: true,
@@ -247,7 +256,6 @@ export class EditMetamodelActionHandler implements ActionHandler {
                 };
             }
         } catch (error) {
-            console.error(`Error deleting class '${action.className}':`, error);
             return {
                 success: false,
                 message: `Failed to delete class: ${error instanceof Error ? error.message : String(error)}`

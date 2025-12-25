@@ -171,29 +171,49 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             const classifiers = this.toArray(classifiersRaw);
             
             classifiers.forEach((classifier: any) => {
+                const className = this.getProp<string>(classifier, 'name');
+                
+                // First check dedicated position storage (preferred)
+                const diagramPositions = this.modelState.get<Map<string, { position?: { x: number; y: number }; size?: { width: number; height: number } }>>('diagramPositions');
+                let savedPosition: { x: number; y: number } | undefined;
+                let savedSize: { width: number; height: number } | undefined;
+                
+                if (diagramPositions && className) {
+                    const stored = diagramPositions.get(className);
+                    if (stored) {
+                        savedPosition = stored.position;
+                        savedSize = stored.size;
+                    }
+                }
+                
+                
+                let node: GNode | null = null;
                 if (isEClass(classifier)) {
-                    const node = this.createNodeForEClass(classifier);
-                    this.setNodePosition(node, x, y, nodeWidth, nodeHeight);
-                    root.children.push(node);
+                    node = this.createNodeForEClass(classifier);
                 } else if (isEDataType(classifier)) {
-                    const node = this.createNodeForEDataType(classifier);
-                    this.setNodePosition(node, x, y, nodeWidth, nodeHeight);
-                    root.children.push(node);
+                    node = this.createNodeForEDataType(classifier);
                 } else if (isEEnum(classifier)) {
-                    const node = this.createNodeForEEnum(classifier);
-                    this.setNodePosition(node, x, y, nodeWidth, nodeHeight);
-                    root.children.push(node);
+                    node = this.createNodeForEEnum(classifier);
                 }
 
-                // Update position for next node
-                nodeCount++;
-                if (nodeCount % maxNodesPerRow === 0) {
-                    // Move to next row
-                    x = 100;
-                    y += nodeHeight + spacing;
-                } else {
-                    // Move to next column
-                    x += nodeWidth + spacing;
+                if (node) {
+                    // Use saved position if available, otherwise use auto-layout
+                    if (savedPosition) {
+                        this.setNodePosition(node, savedPosition.x, savedPosition.y, savedSize?.width || nodeWidth, savedSize?.height || nodeHeight);
+                    } else {
+                        this.setNodePosition(node, x, y, nodeWidth, nodeHeight);
+                        // Update position for next node
+                        nodeCount++;
+                        if (nodeCount % maxNodesPerRow === 0) {
+                            // Move to next row
+                            x = 100;
+                            y += nodeHeight + spacing;
+                        } else {
+                            // Move to next column
+                            x += nodeWidth + spacing;
+                        }
+                    }
+                    root.children.push(node);
                 }
             });
         });
@@ -208,6 +228,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         node.size = { width: finalWidth, height: finalHeight };
     }
+
 
     private createNodeForEClass(eClass: any): GNode {
         const node = new GNode();
@@ -852,13 +873,22 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
                             const childInstance = instanceModel?.instances.get(childId);
                             if (childInstance && !childInstance.hidden) {
                                 const childNode = this.createNodeForInstance(childInstance);
-                                // Position child relative to parent (local coordinates)
-                                const childOffsetX = 20; // Padding from parent edge
-                                const childOffsetY = (index * 80) + 60; // Stack vertically with spacing
-                                childNode.position = {
-                                    x: childOffsetX,
-                                    y: childOffsetY
-                                };
+                                // Use saved position if available, otherwise use default layout
+                                if (childInstance.position) {
+                                    // Use saved position (already in local coordinates)
+                                    childNode.position = {
+                                        x: childInstance.position.x,
+                                        y: childInstance.position.y
+                                    };
+                                } else {
+                                    // Position child relative to parent (local coordinates)
+                                    const childOffsetX = 20; // Padding from parent edge
+                                    const childOffsetY = (index * 80) + 60; // Stack vertically with spacing
+                                    childNode.position = {
+                                        x: childOffsetX,
+                                        y: childOffsetY
+                                    };
+                                }
                                 // Respect the size set by applyShapeMapping (via customSize)
                                 // Only enforce minimum if size is invalid or not set
                                 const customSize = (childNode as any).customSize;

@@ -1,10 +1,10 @@
 {
-  "metamodelKey": "bpmnfmetamodel",
+  "metamodelKey": "finalbpmnmetamodel",
   "instances": [
     {
       "id": "BPMN_1",
       "eClassName": "BPMN",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {
         "pools": [
@@ -25,20 +25,21 @@
     {
       "id": "Pool_2",
       "eClassName": "Pool",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {
         "nodes": [
           "Event_3",
           "Task_4",
-          "Gateaway_5",
-          "Event_6",
-          "Event_7"
+          "Task_5",
+          "Gateaway_6",
+          "Event_7",
+          "Event_8"
         ]
       },
       "position": {
-        "x": 392.3713647777679,
-        "y": 104.06755144432543
+        "x": 50,
+        "y": 50
       },
       "size": {
         "width": 200,
@@ -50,18 +51,18 @@
     {
       "id": "Event_3",
       "eClassName": "Event",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {
         "eventType": "START"
       },
       "references": {},
       "position": {
-        "x": 692.3713647777679,
-        "y": 104.06755144432543
+        "x": 30,
+        "y": 20
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 58.2265625,
+        "height": 33.5
       },
       "hidden": false,
       "isRoot": false
@@ -69,52 +70,33 @@
     {
       "id": "Task_4",
       "eClassName": "Task",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {},
       "position": {
-        "x": 692.3713647777679,
-        "y": 254.06755144432543
+        "x": 130,
+        "y": 10
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 100,
+        "height": 80
       },
       "hidden": false,
       "isRoot": false
     },
     {
-      "id": "Gateaway_5",
+      "id": "Gateaway_6",
       "eClassName": "Gateaway",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {},
       "position": {
-        "x": 692.3713647777679,
-        "y": 404.06755144432543
+        "x": 260,
+        "y": 10
       },
       "size": {
-        "width": 200,
-        "height": 100
-      },
-      "hidden": false,
-      "isRoot": false
-    },
-    {
-      "id": "Event_6",
-      "eClassName": "Event",
-      "metamodelKey": "bpmnfmetamodel",
-      "attributes": {
-        "eventType": "END"
-      },
-      "references": {},
-      "position": {
-        "x": 692.3713647777679,
-        "y": 554.0675514443254
-      },
-      "size": {
-        "width": 200,
-        "height": 100
+        "width": 76,
+        "height": 82
       },
       "hidden": false,
       "isRoot": false
@@ -122,33 +104,52 @@
     {
       "id": "Event_7",
       "eClassName": "Event",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {
         "eventType": "END"
       },
       "references": {},
       "position": {
-        "x": 692.3713647777679,
-        "y": 704.0675514443254
+        "x": 400,
+        "y": 0
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 45.3359375,
+        "height": 33.5
       },
       "hidden": false,
       "isRoot": false
     },
     {
-      "id": "Arc_8",
+      "id": "Event_8",
+      "eClassName": "Event",
+      "metamodelKey": "finalbpmnmetamodel",
+      "attributes": {
+        "eventType": "END"
+      },
+      "references": {},
+      "position": {
+        "x": 340,
+        "y": 30
+      },
+      "size": {
+        "width": 45.3359375,
+        "height": 33.5
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_2",
       "eClassName": "Arc",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {
         "source": "Event_3",
         "target": "Task_4"
       },
       "position": {
-        "x": 576.5,
+        "x": 347.5,
         "y": 429
       },
       "size": {
@@ -159,16 +160,16 @@
       "isRoot": false
     },
     {
-      "id": "Arc_9",
+      "id": "Arc_3",
       "eClassName": "Arc",
-      "metamodelKey": "bpmnfmetamodel",
+      "metamodelKey": "finalbpmnmetamodel",
       "attributes": {},
       "references": {
         "source": "Task_4",
-        "target": "Gateaway_5"
+        "target": "Gateaway_6"
       },
       "position": {
-        "x": 576.5,
+        "x": 347.5,
         "y": 429
       },
       "size": {
@@ -179,40 +180,36 @@
       "isRoot": false
     },
     {
-      "id": "Arc_10",
+      "id": "Arc_4",
       "eClassName": "Arc",
-      "metamodelKey": "bpmnfmetamodel",
-      "attributes": {
-        "label": "yes"
-      },
+      "metamodelKey": "finalbpmnmetamodel",
+      "attributes": {},
       "references": {
-        "source": "Gateaway_5",
-        "target": "Event_6"
-      },
-      "position": {
-        "x": 576.5,
-        "y": 429
-      },
-      "size": {
-        "width": 200,
-        "height": 100
-      },
-      "hidden": false,
-      "isRoot": false
-    },
-    {
-      "id": "Arc_11",
-      "eClassName": "Arc",
-      "metamodelKey": "bpmnfmetamodel",
-      "attributes": {
-        "label": "no"
-      },
-      "references": {
-        "source": "Gateaway_5",
+        "source": "Gateaway_6",
         "target": "Event_7"
       },
       "position": {
-        "x": 576.5,
+        "x": 347.5,
+        "y": 429
+      },
+      "size": {
+        "width": 200,
+        "height": 100
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Arc_5",
+      "eClassName": "Arc",
+      "metamodelKey": "finalbpmnmetamodel",
+      "attributes": {},
+      "references": {
+        "source": "Gateaway_6",
+        "target": "Event_8"
+      },
+      "position": {
+        "x": 347.5,
         "y": 429
       },
       "size": {
@@ -225,9 +222,9 @@
   ],
   "rootInstances": [
     "BPMN_1",
-    "Arc_8",
-    "Arc_9",
-    "Arc_10",
-    "Arc_11"
+    "Arc_2",
+    "Arc_3",
+    "Arc_4",
+    "Arc_5"
   ]
 }

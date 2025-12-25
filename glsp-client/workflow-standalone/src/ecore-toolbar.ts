@@ -264,9 +264,17 @@ export class EcoreToolbar {
                 x = baseX + childOffsetX;
                 y = baseY + childOffsetY;
             } else {
-                // Root instance - use random position
-                x = Math.random() * 400 + 100;
-                y = Math.random() * 300 + 100;
+                // Root instance - use same auto-layout grid as server
+                const gridSpacing = 250; // Space between instances (same as server)
+                const instancesPerRow = 3; // Number of instances per row (same as server)
+                
+                // Count existing root instances from the active diagram
+                const instanceCount = this.countRootInstances();
+                const row = Math.floor(instanceCount / instancesPerRow);
+                const col = instanceCount % instancesPerRow;
+                
+                x = 50 + (col * gridSpacing);
+                y = 50 + (row * gridSpacing);
             }
 
             // Create instance with container info if available
@@ -1262,5 +1270,46 @@ export class EcoreToolbar {
             }));
 
         pending.resolve(instances);
+    }
+
+    /**
+     * Counts existing root instances to calculate position for auto-layout.
+     * This matches the server-side auto-layout logic.
+     */
+    /**
+     * Counts existing root instances from the active Sprotty diagram to calculate position for auto-layout.
+     * This matches the server-side auto-layout logic.
+     */
+    private countRootInstances(): number {
+        // Get the active Sprotty diagram container (baseDiv is 'sprotty')
+        const diagramContainer = document.getElementById('sprotty');
+        if (!diagramContainer) {
+            return 0;
+        }
+        
+        // Query only within the active diagram container
+        const instanceNodes = diagramContainer.querySelectorAll('[data-svg-metadata-type="ecore:instance"]');
+        let rootInstanceCount = 0;
+        
+        instanceNodes.forEach(node => {
+            // Check if this is a root instance (not nested inside another instance)
+            let parent = node.parentElement;
+            let isNested = false;
+            
+            while (parent && parent !== diagramContainer) {
+                if (parent.hasAttribute('data-svg-metadata-type') && 
+                    parent.getAttribute('data-svg-metadata-type') === 'ecore:instance') {
+                    isNested = true;
+                    break;
+                }
+                parent = parent.parentElement;
+            }
+            
+            if (!isNested) {
+                rootInstanceCount++;
+            }
+        });
+        
+        return rootInstanceCount;
     }
 }
