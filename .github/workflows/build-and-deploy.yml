@@ -22,10 +22,12 @@ jobs:
         with:
           node-version: ${{ env.NODE_VERSION }}
 
-      - name: Setup Yarn
-        uses: yarnpkg/setup-yarn@v3
-        with:
-          yarn-version: '1.22.22'
+      - name: Enable Yarn (Corepack)
+        run: |
+          corepack enable
+          corepack prepare yarn@1.22.22 --activate
+          yarn --version
+
 
       - name: Install server dependencies
         working-directory: ./glsp-server
