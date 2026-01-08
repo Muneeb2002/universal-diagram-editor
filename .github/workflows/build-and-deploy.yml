@@ -53,7 +53,7 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H ${{ secrets.EC2_HOST }} >> ~/.ssh/known_hosts
 
-           - name: Deploy to EC2 and start server
+      - name: Deploy to EC2 and start server
         run: |
           DEPLOY_PATH="${{ secrets.EC2_DEPLOY_PATH || '/opt/glsp-server' }}"
           EC2_USER="${{ secrets.EC2_USER || 'ec2-user' }}"
