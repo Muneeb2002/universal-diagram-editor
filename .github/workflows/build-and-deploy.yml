@@ -69,9 +69,9 @@ jobs:
           cd workflow-server-bundled
           if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
             if command -v yarn &> /dev/null; then
-              yarn install --production || npm install --production
+              yarn install || npm install
             else
-              npm install --production
+              npm install
             fi
           fi
           if command -v pm2 &> /dev/null; then
