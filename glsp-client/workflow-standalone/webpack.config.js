@@ -20,6 +20,23 @@ const buildRoot = path.resolve(__dirname, 'lib');
 const appRoot = path.resolve(__dirname, 'app');
 var CircularDependencyPlugin = require('circular-dependency-plugin');
 
+// Determine public path for GitHub Pages
+// GitHub Pages serves from /repository-name/, so we need to set the publicPath
+// This can be overridden with PUBLIC_PATH environment variable
+// For local development, use empty string or '/'
+const getPublicPath = () => {
+    if (process.env.PUBLIC_PATH !== undefined) {
+        return process.env.PUBLIC_PATH;
+    }
+    // Auto-detect from GITHUB_REPOSITORY (set by GitHub Actions)
+    if (process.env.GITHUB_REPOSITORY) {
+        const repoName = process.env.GITHUB_REPOSITORY.split('/')[1];
+        return `/${repoName}/`;
+    }
+    // Default to empty string for local development
+    return '';
+};
+
 /**
  * @type {import('webpack').Configuration}
  */
@@ -27,7 +44,8 @@ module.exports = {
     entry: [path.resolve(buildRoot, 'app')],
     output: {
         filename: 'bundle.js',
-        path: appRoot
+        path: appRoot,
+        publicPath: getPublicPath()
     },
     mode: 'development',
     devtool: 'source-map',
