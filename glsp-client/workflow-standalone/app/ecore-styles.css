@@ -1,0 +1,280 @@
+/* Ecore Class styling - Regular (concrete) classes */
+.ecore-class .sprotty-node {
+    fill: #e8f4fd !important;
+    stroke: #4a90e2 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Abstract Class styling */
+.ecore-class.abstract .sprotty-node {
+    fill: #fff2cc !important;
+    stroke: #ffc60cd0 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for abstract classes */
+.ecore-class.abstract text {
+    font-style: italic !important;
+}
+
+/* Ecore Interface styling */
+.ecore-class.interface .sprotty-node {
+    fill: #d5e8d4 !important;
+    stroke: #82b366 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for interfaces */
+.ecore-class.interface text {
+    font-style: italic !important;
+}
+
+/* Ecore Abstract Interface styling (both abstract and interface) - Purple */
+.ecore-class.abstract.interface .sprotty-node {
+    fill: #e6e6fa !important;
+    stroke: #9370db !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Make text italic for abstract interfaces */
+.ecore-class.abstract.interface text {
+    font-style: italic !important;
+}
+
+/* Ecore DataType styling */
+.ecore-datatype .sprotty-node {
+    fill: #fff2cc !important;
+    stroke: #d6b656 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Enum styling */
+.ecore-enum .sprotty-node {
+    fill: #e1d5e7 !important;
+    stroke: #9673a6 !important;
+    stroke-width: 2px !important;
+}
+
+/* Ecore Instance styling - default blue theme */
+.ecore-instance .sprotty-node {
+    stroke-width: 2px !important;
+    stroke-dasharray: 5, 5 !important;
+}
+
+/* Visual configuration color overrides */
+.ecore-instance.color-blue .sprotty-node {
+    fill: #E3F2FD !important;
+    stroke: #1976D2 !important;
+}
+
+.ecore-instance.color-green .sprotty-node {
+    fill: #E8F5E8 !important;
+    stroke: #388E3C !important;
+}
+
+.ecore-instance.color-red .sprotty-node {
+    fill: #FFEBEE !important;
+    stroke: #D32F2F !important;
+}
+
+.ecore-instance.color-orange .sprotty-node {
+    fill: #FFF3E0 !important;
+    stroke: #F57C00 !important;
+}
+
+.ecore-instance.color-purple .sprotty-node {
+    fill: #F3E5F5 !important;
+    stroke: #7B1FA2 !important;
+}
+
+.ecore-instance.color-pink .sprotty-node {
+    fill: #FCE4EC !important;
+    stroke: #C2185B !important;
+}
+
+.ecore-instance.color-yellow .sprotty-node {
+    fill: #FFFDE7 !important;
+    stroke: #FBC02D !important;
+}
+
+.ecore-instance.color-gray .sprotty-node {
+    fill: #F5F5F5 !important;
+    stroke: #616161 !important;
+}
+
+.ecore-instance.color-brown .sprotty-node {
+    fill: #EFEBE9 !important;
+    stroke: #5D4037 !important;
+}
+
+.ecore-instance.color-cyan .sprotty-node {
+    fill: #E0F2F1 !important;
+    stroke: #00796B !important;
+}
+
+/* Ensure proper spacing and prevent overlaps */
+.sprotty-node {
+    margin: 10px !important;
+}
+
+/* Fix text positioning in compartments */
+.sprotty-comp {
+    padding: 5px !important;
+    fill: none !important;
+    stroke: none !important;
+}
+
+/* Ensure all compartment types have transparent backgrounds */
+.sprotty-comp[data-type="comp:header"] {
+    fill: none !important;
+    stroke: none !important;
+}
+
+.sprotty-comp[data-type="comp:attributes"] {
+    fill: none !important;
+    stroke: none !important;
+}
+
+.sprotty-comp[data-type="comp:references"] {
+    fill: none !important;
+    stroke: none !important;
+}
+
+.sprotty-label {
+    font-size: 12px !important;
+    font-family: Arial, sans-serif !important;
+}
+
+/* Compartment separator lines - UML style */
+.compartment-separator {
+    stroke: rgba(0, 0, 0, 0.4) !important;
+    stroke-width: 1px !important;
+    fill: none !important;
+}
+
+/* Default edge styling - ensure all edges are visible */
+.sprotty-edge {
+    stroke: #333 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge>path {
+    stroke: #333333 !important;
+    stroke-width: 2px !important;
+}
+
+/* ========================================
+   EDGE STYLES - Different relationship types
+   ======================================== */
+
+/* Reference edges (regular associations) */
+.sprotty-edge.ecore-reference {
+    stroke: #666 !important;
+    stroke-width: 1.5px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-reference>path {
+    stroke: #666 !important;
+}
+
+/* Bidirectional reference edges - double line with arrows at both ends */
+.sprotty-edge.ecore-reference.bidirectional {
+    stroke: #9C27B0 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+    stroke-dasharray: 5,5 !important;
+}
+
+.sprotty-edge.ecore-reference.bidirectional>path {
+    stroke: #9C27B0 !important;
+}
+
+/* More specific selector for bidirectional edges */
+.sprotty-edge.ecore-reference.bidirectional path {
+    stroke: #9C27B0 !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5,5 !important;
+}
+
+/* Inheritance edges (generalization) - brown with hollow triangle arrow */
+.sprotty-edge.ecore-inheritance {
+    stroke: #8B4513 !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-inheritance>path {
+    stroke: #8B4513 !important;
+}
+
+/* Containment edges (composition) - blue with filled diamond arrow */
+.sprotty-edge.ecore-containment {
+    stroke: #0066CC !important;
+    stroke-width: 2px !important;
+    fill: none !important;
+}
+
+.sprotty-edge.ecore-containment>path {
+    stroke: #0066CC !important;
+}
+
+/* Hover effects for edges */
+.sprotty-edge.ecore-reference:hover>path {
+    stroke: #FF6B6B !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-inheritance:hover>path {
+    stroke: #D2691E !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-containment:hover>path {
+    stroke: #1E90FF !important;
+    stroke-width: 3px !important;
+}
+
+.sprotty-edge.ecore-reference.bidirectional:hover>path {
+    stroke: #E91E63 !important;
+    stroke-width: 3px !important;
+}
+
+/* Edge labels styling */
+.sprotty-edge>text {
+    fill: #333 !important;
+    font-size: 11px !important;
+    font-family: Arial, sans-serif !important;
+}
+
+/* Edit button styling */
+.ecore-class .edit-button {
+    opacity: 0;
+    transition: opacity 0.2s ease;
+    cursor: pointer;
+}
+
+.ecore-class .edit-button-visible {
+    opacity: 1 !important;
+}
+
+.ecore-class .edit-button-bg {
+    fill: #007acc !important;
+    stroke: #005a9e !important;
+    stroke-width: 1px !important;
+}
+
+.ecore-class .edit-button-bg:hover {
+    fill: #005a9e !important;
+}
+
+.ecore-class .edit-button-icon {
+    fill: white !important;
+    font-size: 10px !important;
+    font-family: Arial, sans-serif !important;
+    pointer-events: none;
+}

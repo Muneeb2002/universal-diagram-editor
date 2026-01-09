@@ -6,7 +6,9 @@ node_modules/
 lib/
 artifacts/
 
-workflow-standalone/app
+workflow-standalone/app/bundle.js
+workflow-standalone/app/bundle.js.map
+workflow-standalone/app/*.ttf
 
 *.ttf
 *.log

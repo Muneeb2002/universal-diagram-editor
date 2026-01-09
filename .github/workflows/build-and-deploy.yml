@@ -59,43 +59,13 @@ jobs:
           EC2_USER="${{ secrets.EC2_USER || 'ec2-user' }}"
           EC2_HOST="${{ secrets.EC2_HOST }}"
 
-          cat > deploy-script.sh << 'DEPLOY_SCRIPT_EOF'
-          #!/bin/bash
-          set -e
-          DEPLOY_PATH="$1"
-          cd "$DEPLOY_PATH"
-          tar -xzf workflow-server-bundled.tar.gz
-          rm workflow-server-bundled.tar.gz
-          cd workflow-server-bundled
-          if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
-            if command -v yarn &> /dev/null; then
-              yarn install || npm install
-            else
-              npm install
-            fi
-          fi
-          if command -v pm2 &> /dev/null; then
-            pm2 stop glsp-server || true
-            pm2 delete glsp-server || true
-          else
-            pkill -f "wf-glsp-server-node.js.*-w" || true
-            sleep 2
-          fi
-          if command -v yarn &> /dev/null; then
-            nohup yarn run start:websocket > server.log 2>&1 &
-          else
-            nohup node --enable-source-maps ./wf-glsp-server-node.js -w --port 8081 > server.log 2>&1 &
-          fi
-          echo "Server deployment completed. PID: $!"
-          DEPLOY_SCRIPT_EOF
-
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ./glsp-server/workflow-server-bundled.tar.gz \
             ${EC2_USER}@${EC2_HOST}:/tmp/workflow-server-bundled.tar.gz
 
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            deploy-script.sh \
-            ${EC2_USER}@${EC2_HOST}:/tmp/deploy-script.sh
+            ./scripts/deploy-server.sh \
+            ${EC2_USER}@${EC2_HOST}:/tmp/deploy-server.sh
 
           ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ${EC2_USER}@${EC2_HOST} \
@@ -104,11 +74,9 @@ jobs:
              sudo chown '${EC2_USER}:${EC2_USER}' '${DEPLOY_PATH}'
              sudo mv /tmp/workflow-server-bundled.tar.gz '${DEPLOY_PATH}/workflow-server-bundled.tar.gz'
              sudo chown '${EC2_USER}:${EC2_USER}' '${DEPLOY_PATH}/workflow-server-bundled.tar.gz'
-             chmod +x /tmp/deploy-script.sh
-             /tmp/deploy-script.sh '${DEPLOY_PATH}'
-             rm /tmp/deploy-script.sh"
-
-          rm deploy-script.sh
+             chmod +x /tmp/deploy-server.sh
+             /tmp/deploy-server.sh '${DEPLOY_PATH}'
+             rm /tmp/deploy-server.sh"
 
 
       
@@ -146,8 +114,8 @@ jobs:
       - name: Build client standalone
         working-directory: ./glsp-client/workflow-standalone
         env:
-          # Set public path for GitHub Pages (repository name from GITHUB_REPOSITORY)
-          PUBLIC_PATH: /${{ github.event.repository.name }}/
+          GITHUB_REPOSITORY: ${{ github.repository }}
+          GLSP_SERVER_HOST: '13.48.195.62'
         run: yarn build
 
       - name: Setup Pages
