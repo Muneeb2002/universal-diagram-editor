@@ -115,7 +115,7 @@ jobs:
         working-directory: ./glsp-client/workflow-standalone
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
-          GLSP_SERVER_HOST: '13.48.195.62'
+          GLSP_SERVER_HOST: 'universaldiagrameditor.me'
         run: yarn build
 
       - name: Setup Pages
