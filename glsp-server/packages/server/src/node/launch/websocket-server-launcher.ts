@@ -91,8 +91,17 @@ export class WebSocketServerLauncher extends JsonRpcGLSPServerLauncher<WebSocket
 
     protected createHttpServer(port: number, host?: string): http.Server {
         const server = http.createServer((req, res) => {
-            const body = http.STATUS_CODES[STATUS_UPGRADE_REQUIRED];
+            // Health check endpoint for ALB and other load balancers
+            if (req.url === '/health' || req.url === '/healthz') {
+                res.writeHead(200, {
+                    'Content-Type': 'application/json'
+                });
+                res.end(JSON.stringify({ status: 'healthy', timestamp: new Date().toISOString() }));
+                return;
+            }
 
+            // For all other requests, return 426 Upgrade Required (WebSocket upgrade needed)
+            const body = http.STATUS_CODES[STATUS_UPGRADE_REQUIRED];
             res.writeHead(426, {
                 'Content-Length': body?.length,
                 'Content-Type': 'text/plain'
