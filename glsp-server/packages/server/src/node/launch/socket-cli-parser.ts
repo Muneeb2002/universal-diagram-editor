@@ -24,7 +24,7 @@ export interface SocketLaunchOptions extends LaunchOptions {
 export const defaultSocketLaunchOptions: Required<SocketLaunchOptions> = {
     ...defaultLaunchOptions,
     port: 0,
-    host: '127.0.0.1'
+    host: '0.0.0.0'
 };
 
 export function createSocketCliParser<O extends SocketLaunchOptions = SocketLaunchOptions>(
