@@ -18,6 +18,7 @@ import 'reflect-metadata';
 // Build-time globals provided by webpack DefinePlugin
 declare const GLSP_SERVER_HOST: string;
 declare const GLSP_SERVER_PORT: string;
+declare const GLSP_SERVER_PROTOCOL: string;
 
 import {
     BaseJsonrpcGLSPClient,
@@ -70,7 +71,10 @@ const diagramType = 'ecore-diagram';
 
 const clientId = 'sprotty';
 
-const webSocketUrl = `ws://${host}:${port}/${id}`;
+// Determine WebSocket protocol: use WSS for HTTPS pages, WS for HTTP
+// Can be overridden via GLSP_SERVER_PROTOCOL environment variable
+const protocol = GLSP_SERVER_PROTOCOL || (window.location.protocol === 'https:' ? 'wss' : 'ws');
+const webSocketUrl = `${protocol}://${host}:${port}/${id}`;
 
 let glspClient: GLSPClient;
 let container: Container;
