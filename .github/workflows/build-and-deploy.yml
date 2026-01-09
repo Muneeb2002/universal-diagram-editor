@@ -116,6 +116,7 @@ jobs:
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GLSP_SERVER_HOST: 'server.universaldiagrameditor.me'
+          GLSP_SERVER_PORT: '443'
         run: yarn build
 
       - name: Setup Pages
