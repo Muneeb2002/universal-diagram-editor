@@ -682,6 +682,15 @@ function setupCustomActionHandling(): void {
                 if (currentMode === 'instance' && instanceManagementPanel && instanceManagementPanel.isVisible()) {
                     instanceManagementPanel.refreshInstances();
                 }
+                
+                // In metamodel mode, request class properties to refresh toolbar with updated classes
+                // This ensures that newly created classes are included in the toolbar's class list
+                if (currentMode === 'metamodel' && metamodelAvailable && actionDispatcher) {
+                    // Request class properties which will update the toolbar via ClassPropertiesResponseHandler
+                    actionDispatcher.dispatch(createOpenClassPropertiesAction()).catch(() => {
+                        // Ignore errors
+                    });
+                }
             }, () => {
                 scheduleBoundsUpdate();
             });
@@ -765,6 +774,7 @@ function showEClassCreationDialog(): void {
 
         // Create the EClass
         if (actionDispatcher) {
+            console.log('[CreateEClass] Creating new class:', className);
             const action = createCreateEClassAction(className);
             actionDispatcher.dispatch(action);
         }

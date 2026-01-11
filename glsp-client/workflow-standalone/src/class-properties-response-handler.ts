@@ -1,6 +1,6 @@
 import { Action, IActionHandler, GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { injectable } from 'inversify';
-import { ClassPropertiesResponse } from './ecore-client-actions';
+import { ClassPropertiesResponse, ClassInfo } from './ecore-client-actions';
 import { ClassPropertiesPanel } from './class-properties-panel';
 
 declare global {
@@ -24,8 +24,34 @@ export class ClassPropertiesResponseHandler implements IActionHandler {
 				this.panel!.show(a);
 				// Update toolbar with enum information
 				const toolbar = (window as any).globalToolbar;
-				if (toolbar && a.enums && typeof toolbar.updateEnums === 'function') {
-					toolbar.updateEnums(a.enums);
+				if (toolbar) {
+					if (a.enums && typeof toolbar.updateEnums === 'function') {
+						toolbar.updateEnums(a.enums);
+					}
+					// Update toolbar with class information from ClassPropertiesResponse
+					// Convert to ClassInfo format, preserving references from existing classes
+					if (a.classes && Array.isArray(a.classes) && a.classes.length > 0 && typeof toolbar.updateClassInfo === 'function') {
+						const existingClasses: ClassInfo[] = toolbar.allClasses || [];
+						const existingClassesMap = new Map<string, ClassInfo>(existingClasses.map((c: ClassInfo) => [c.className, c]));
+						
+						const updatedClassInfo = a.classes.map(cls => ({
+							className: cls.className,
+							isAbstract: cls.isAbstract || false,
+							isInterface: cls.isInterface || false,
+							eSuperTypes: cls.eSuperTypes || undefined,
+							attributes: cls.attributes.map(attr => ({
+								name: attr.name,
+								type: attr.type,
+								lowerBound: attr.lowerBound,
+								upperBound: attr.upperBound,
+								unique: true,
+								ordered: false
+							})),
+							references: existingClassesMap.get(cls.className)?.references || []
+						}));
+						
+						toolbar.updateClassInfo(updatedClassInfo);
+					}
 				}
 			}
 		}
