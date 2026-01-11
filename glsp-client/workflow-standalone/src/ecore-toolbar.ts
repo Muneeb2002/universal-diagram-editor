@@ -337,48 +337,43 @@ export class EcoreToolbar {
     }
 
     private findInstancesOfClassByName(className: string): string[] {
-        const instanceIds: string[] = [];
+        const instanceIdsSet = new Set<string>();
         const normalizedClass = this.normalizeClassName(className);
         if (!normalizedClass) {
-            return instanceIds;
+            return [];
         }
 
         if (!this.editorContextService) {
-            return instanceIds;
+            return [];
         }
 
         try {
             const modelRoot = this.editorContextService.modelRoot;
 
             if (!modelRoot) {
-                return instanceIds;
+                return [];
             }
 
             const instances = this.findInstancesOfClass(modelRoot, normalizedClass);
 
             instances.forEach(instance => {
-                if (instance.id && instance.id.startsWith(normalizedClass + '_')) {
-                    instanceIds.push(instance.id);
+                if (instance.id && instance.id.startsWith(normalizedClass + '_') && !instance.id.includes('Class')) {
+                    instanceIdsSet.add(instance.id);
                 }
             });
 
-            if (instanceIds.length === 0) {
-                // No matching instances found yet; continue with full traversal
+            if (instanceIdsSet.size === 0) {
+                const allElements = this.findAllElements(modelRoot);
+                allElements.forEach(element => {
+                    if (element.id && element.id.startsWith(normalizedClass + '_') && !element.id.includes('Class')) {
+                        instanceIdsSet.add(element.id);
+                    }
+                });
             }
 
-            const allElements = this.findAllElements(modelRoot);
-
-            allElements.forEach(element => {
-                if (element.id && element.id.startsWith(normalizedClass + '_')) {
-                    if (!instanceIds.includes(element.id)) {
-                        instanceIds.push(element.id);
-                    }
-                }
-            });
-
-            return instanceIds;
+            return Array.from(instanceIdsSet);
         } catch (error) {
-            return instanceIds;
+            return Array.from(instanceIdsSet);
         }
     }
 
@@ -698,7 +693,12 @@ export class EcoreToolbar {
             for (const allowed of allowedClassNames) {
                 const domIds = this.findDomInstancesByPrefix(allowed + '_');
                 if (domIds.length > 0) {
-                    domIds.forEach(id => collected.set(id, { id, className: allowed }));
+                    domIds.forEach(id => {
+                        // Filter out IDs that contain "Class" in their name
+                        if (!id.includes('Class')) {
+                            collected.set(id, { id, className: allowed });
+                        }
+                    });
                 }
             }
         }
@@ -708,7 +708,8 @@ export class EcoreToolbar {
                 const remoteInstances = await this.requestInstancesOverview(Array.from(allowedClassNames));
                 remoteInstances.forEach(instance => {
                     const normalizedClass = this.normalizeClassName(instance.className) || instance.className;
-                    if (instance.id) {
+                    // Filter out IDs that contain "Class" in their name
+                    if (instance.id && !instance.id.includes('Class')) {
                         collected.set(instance.id, { id: instance.id, className: normalizedClass });
                     }
                 });
@@ -717,15 +718,23 @@ export class EcoreToolbar {
             }
         }
 
-        // Final deduplication by ID to ensure each instance appears only once
-        const uniqueInstances = new Map<string, { id: string; className: string }>();
-        Array.from(collected.values()).forEach(instance => {
-            if (!uniqueInstances.has(instance.id)) {
-                uniqueInstances.set(instance.id, instance);
-            }
-        });
+        return Array.from(collected.values());
+    }
 
-        return Array.from(uniqueInstances.values());
+    /**
+     * Formats an instance ID for display in dropdowns by extracting a shorter, more readable identifier.
+     */
+    private formatInstanceIdForDisplay(instanceId: string): string {
+        // Extract the part before the first colon (if present) as it's usually the base identifier
+        const colonIndex = instanceId.indexOf(':');
+        if (colonIndex > 0) {
+            return instanceId.substring(0, colonIndex).trim();
+        }
+        // If no colon, truncate to a reasonable length (max 50 characters)
+        if (instanceId.length > 50) {
+            return instanceId.substring(0, 47) + '...';
+        }
+        return instanceId;
     }
 
     /**
@@ -873,30 +882,24 @@ export class EcoreToolbar {
                 </div>
             `;
 
-            // Populate source dropdown - ensure no duplicates by ID
+            // Populate source dropdown
             const sourceSelect = dialog.querySelector('#sourceSelect') as HTMLSelectElement;
-            const seenSourceIds = new Set<string>();
             sourceInstances.forEach(instance => {
-                if (!seenSourceIds.has(instance.id)) {
-                    seenSourceIds.add(instance.id);
-                    const option = document.createElement('option');
-                    option.value = instance.id;
-                    option.textContent = `${instance.className} (${instance.id})`;
-                    sourceSelect.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = instance.id;
+                const shortId = this.formatInstanceIdForDisplay(instance.id);
+                option.textContent = `${instance.className} (${shortId})`;
+                sourceSelect.appendChild(option);
             });
 
-            // Populate target dropdown - ensure no duplicates by ID
+            // Populate target dropdown
             const targetSelect = dialog.querySelector('#targetSelect') as HTMLSelectElement;
-            const seenTargetIds = new Set<string>();
             targetInstances.forEach(instance => {
-                if (!seenTargetIds.has(instance.id)) {
-                    seenTargetIds.add(instance.id);
-                    const option = document.createElement('option');
-                    option.value = instance.id;
-                    option.textContent = `${instance.className} (${instance.id})`;
-                    targetSelect.appendChild(option);
-                }
+                const option = document.createElement('option');
+                option.value = instance.id;
+                const shortId = this.formatInstanceIdForDisplay(instance.id);
+                option.textContent = `${instance.className} (${shortId})`;
+                targetSelect.appendChild(option);
             });
 
             // Add event listeners
@@ -1211,7 +1214,9 @@ export class EcoreToolbar {
         for (const allowed of allowedClassNames) {
             const ids = this.findInstancesOfClassByName(allowed);
             ids.forEach(id => {
-                if (!results.has(id)) {
+                // Filter out IDs that contain "Class" in their name
+                if (!id.includes('Class')) {
+                    // Use set to overwrite if duplicate - ensures uniqueness
                     results.set(id, { id, className: allowed });
                 }
             });
