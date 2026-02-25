@@ -1,0 +1,128 @@
+{
+  "version": "1.0",
+  "mappings": [
+    {
+      "className": "Transition",
+      "shapeId": "element_1",
+      "shapeName": "Transition",
+      "shapeConfig": {
+        "name": "Transition",
+        "type": "rectangle",
+        "width": 100,
+        "height": 1,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "filled": false,
+        "lineThickness": 1,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Place",
+      "shapeId": "element_2",
+      "shapeName": "Place",
+      "shapeConfig": {
+        "name": "Place",
+        "type": "circle",
+        "width": 100,
+        "height": 80,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Place",
+      "shapeId": "element_12",
+      "shapeName": "Final",
+      "shapeConfig": {
+        "name": "Final",
+        "type": "custom-svg",
+        "width": 100,
+        "height": 100,
+        "color": "#333333",
+        "fillColor": "#E3F2FD",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "svgContent": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 24 24\" fill=\"none\">\n<path d=\"M8 12H16M21 12C21 16.9706 16.9706 21 12 21C7.02944 21 3 16.9706 3 12C3 7.02944 7.02944 3 12 3C16.9706 3 21 7.02944 21 12Z\" stroke=\"#000000\" stroke-width=\"2\" stroke-linecap=\"round\" stroke-linejoin=\"round\"/>\n</svg>"
+      },
+      "enumAttribute": "type",
+      "enumValue": "Start",
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Place",
+      "shapeId": "element_10",
+      "shapeName": "FinalPlace",
+      "shapeConfig": {
+        "name": "FinalPlace",
+        "type": "custom-svg",
+        "width": 100,
+        "height": 80,
+        "color": "#333333",
+        "fillColor": "transparent",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "svgContent": "<svg viewBox=\"0 0 100 80\" xmlns=\"http://www.w3.org/2000/svg\"><circle cx=\"49\" cy=\"40\" r=\"29\" fill=\"none\" stroke=\"#333333\" stroke-width=\"2\" stroke-dasharray=\"none\"/><circle cx=\"50\" cy=\"40\" r=\"39\" fill=\"none\" stroke=\"#333333\" stroke-width=\"2\" stroke-dasharray=\"none\"/></svg>"
+      },
+      "enumAttribute": "type",
+      "enumValue": "Final",
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Token",
+      "shapeId": "element_3",
+      "shapeName": "Token",
+      "shapeConfig": {
+        "name": "Token",
+        "type": "circle",
+        "width": 100,
+        "height": 20,
+        "color": "#333333",
+        "fillColor": "#050505",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Arc",
+      "shapeId": "element_4",
+      "shapeName": "Arc",
+      "shapeConfig": {
+        "name": "Arc",
+        "type": "arrow",
+        "width": 50,
+        "height": 20,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "filled": false,
+        "lineThickness": 1,
+        "lineStyle": "solid",
+        "arrowType": "filled-triangle"
+      },
+      "sourceReferenceName": "source",
+      "targetReferenceName": "target",
+      "sourceClass": "Node",
+      "targetClass": "Node",
+      "sourceTargetPairs": [
+        {
+          "sourceClass": "Transition",
+          "targetClass": "Place"
+        },
+        {
+          "sourceClass": "Place",
+          "targetClass": "Transition"
+        }
+      ]
+    }
+  ],
+  "savedAt": "2026-02-14T17:56:15.586Z"
+}

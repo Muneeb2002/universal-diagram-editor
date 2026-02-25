@@ -38,13 +38,13 @@ jobs:
         run: yarn build
 
       - name: Build server bundle
-        working-directory: ./glsp-server/workflow-server
+        working-directory: ./glsp-server/universal-editor-server
         run: yarn build
 
       - name: Create deployment package
         working-directory: ./glsp-server
         run: |
-          tar -czf workflow-server-bundled.tar.gz workflow-server-bundled/
+          tar -czf universal-editor-server-bundled.tar.gz universal-editor-server-bundled/
 
       - name: Setup SSH key
         run: |
@@ -60,8 +60,8 @@ jobs:
           EC2_HOST="${{ secrets.EC2_HOST }}"
 
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
-            ./glsp-server/workflow-server-bundled.tar.gz \
-            ${EC2_USER}@${EC2_HOST}:/tmp/workflow-server-bundled.tar.gz
+            ./glsp-server/universal-editor-server-bundled.tar.gz \
+            ${EC2_USER}@${EC2_HOST}:/tmp/universal-editor-server-bundled.tar.gz
 
           scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
             ./scripts/deploy-server.sh \
@@ -72,8 +72,8 @@ jobs:
             "set -e
              sudo mkdir -p '${DEPLOY_PATH}'
              sudo chown '${EC2_USER}:${EC2_USER}' '${DEPLOY_PATH}'
-             sudo mv /tmp/workflow-server-bundled.tar.gz '${DEPLOY_PATH}/workflow-server-bundled.tar.gz'
-             sudo chown '${EC2_USER}:${EC2_USER}' '${DEPLOY_PATH}/workflow-server-bundled.tar.gz'
+             sudo mv /tmp/universal-editor-server-bundled.tar.gz '${DEPLOY_PATH}/universal-editor-server-bundled.tar.gz'
+             sudo chown '${EC2_USER}:${EC2_USER}' '${DEPLOY_PATH}/universal-editor-server-bundled.tar.gz'
              chmod +x /tmp/deploy-server.sh
              /tmp/deploy-server.sh '${DEPLOY_PATH}'
              rm /tmp/deploy-server.sh"
@@ -112,7 +112,7 @@ jobs:
         run: yarn build
 
       - name: Build client standalone
-        working-directory: ./glsp-client/workflow-standalone
+        working-directory: ./glsp-client/universal-editor-standalone
         env:
           GITHUB_REPOSITORY: ${{ github.repository }}
           GLSP_SERVER_HOST: 'server.universaldiagrameditor.me'
@@ -125,7 +125,7 @@ jobs:
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: './glsp-client/workflow-standalone/app'
+          path: './glsp-client/universal-editor-standalone/app'
 
       - name: Deploy to GitHub Pages
         id: deployment

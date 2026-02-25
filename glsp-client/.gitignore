@@ -6,9 +6,9 @@ node_modules/
 lib/
 artifacts/
 
-workflow-standalone/app/bundle.js
-workflow-standalone/app/bundle.js.map
-workflow-standalone/app/*.ttf
+universal-editor-standalone/app/bundle.js
+universal-editor-standalone/app/bundle.js.map
+universal-editor-standalone/app/*.ttf
 
 *.ttf
 *.log
@@ -20,4 +20,4 @@ tsconfig.tsbuildinfo
 eslint.xml
 report.xml
 **/ctrf
-workflow-standalone/server
+universal-editor-standalone/server

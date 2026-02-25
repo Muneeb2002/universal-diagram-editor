@@ -36,10 +36,5 @@
 }
 
 .toast-container {
-    display: inline-block;
-    min-width: 256px;
-    max-width: 516px;
-    background-color: #ccc;
-    color: #000;
-    padding: 0.5rem;
+    display: none;
 }

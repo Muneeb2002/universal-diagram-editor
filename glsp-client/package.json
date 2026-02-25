@@ -4,7 +4,7 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "workflow-standalone"
+    "universal-editor-standalone"
   ],
   "scripts": {
     "build": "yarn compile",

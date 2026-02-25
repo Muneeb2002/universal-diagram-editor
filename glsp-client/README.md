@@ -1,6 +1,6 @@
 # GLSP Client Framework
 
-This repository contains the Eclipse GLSP (Graphical Language Server Platform) client framework and a standalone workflow application.
+This repository contains the Eclipse GLSP (Graphical Language Server Platform) client framework and a standalone universal editor application.
 
 ## 📁 Project Structure
 
@@ -10,7 +10,7 @@ glsp-client/
 │   ├── client/                 # Main client framework
 │   ├── glsp-sprotty/          # Sprotty integration layer
 │   └── protocol/              # Communication protocol
-├── workflow-standalone/        # Standalone workflow application
+├── universal-editor-standalone/        # Standalone universal editor application
 ├── package.json               # Root package configuration
 └── tsconfig.json             # TypeScript configuration
 ```
@@ -22,7 +22,7 @@ glsp-client/
 - **`@eclipse-glsp/sprotty`** - Enhanced Sprotty integration for GLSP
 - **`@eclipse-glsp/protocol`** - Client-server communication protocol
 
-### Application (`workflow-standalone/`)
+### Application (`universal-editor-standalone/`)
 - **Standalone web application** that uses the GLSP framework
 - **Ecore diagram editor** with file picker and toolbar
 - **Complete browser application** with HTML, CSS, and webpack bundling
@@ -62,7 +62,7 @@ yarn test
 #### 2. Application Development
 ```bash
 # Navigate to standalone app
-cd workflow-standalone
+cd universal-editor-standalone
 
 # Install dependencies
 yarn install
@@ -114,7 +114,7 @@ yarn watch
 
 **Build**: `yarn build` (compiles TypeScript to JavaScript)
 
-### `workflow-standalone`
+### `universal-editor-standalone`
 **Purpose**: Complete standalone web application
 
 **Key Features**:
@@ -139,7 +139,7 @@ yarn test           # Run tests
 yarn watch          # Watch mode for TypeScript compilation
 ```
 
-### Application Commands (workflow-standalone/)
+### Application Commands (universal-editor-standalone/)
 ```bash
 yarn build              # Build application (compile + bundle)
 yarn compile            # Compile TypeScript
@@ -154,13 +154,13 @@ yarn clean              # Clean build artifacts
 ### 1. Start the GLSP Server
 ```bash
 # In another terminal, start the GLSP server
-cd ../glsp-server-node/workflow-server-bundled
+cd ../glsp-server-node/universal-editor-server-bundled
 yarn start:websocket
 ```
 
 ### 2. Start the Client Application
 ```bash
-# In glsp-client/workflow-standalone
+# In glsp-client/universal-editor-standalone
 yarn start:exampleServer
 ```
 
@@ -173,7 +173,7 @@ Navigate to `http://localhost:3000` (or the port shown in the console)
 1. **Create feature module** in `packages/client/src/features/`
 2. **Export from index** - run `yarn generate:index`
 3. **Build packages** - `yarn build`
-4. **Use in application** - import and configure in `workflow-standalone`
+4. **Use in application** - import and configure in `universal-editor-standalone`
 
 ### Custom Diagram Types
 1. **Define model elements** in your application

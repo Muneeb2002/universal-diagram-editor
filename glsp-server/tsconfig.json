@@ -16,7 +16,7 @@
       "path": "./packages/server"
     },
     {
-      "path": "./workflow-server"
+      "path": "./universal-editor-server"
     }
   ]
 }

@@ -4,8 +4,8 @@
   "private": true,
   "workspaces": [
     "packages/*",
-    "workflow-server",
-    "workflow-server-bundled"
+    "universal-editor-server",
+    "universal-editor-server-bundled"
   ],
   "scripts": {
     "build": "yarn compile",

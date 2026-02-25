@@ -11,9 +11,9 @@ if [ -z "$DEPLOY_PATH" ]; then
 fi
 
 cd "$DEPLOY_PATH"
-tar -xzf workflow-server-bundled.tar.gz
-rm workflow-server-bundled.tar.gz
-cd workflow-server-bundled
+tar -xzf universal-editor-bundled.tar.gz
+rm universal-editor-bundled.tar.gz
+cd universal-editor-bundled
 
 if [ -f "package.json" ] && [ ! -d "node_modules" ]; then
   if command -v yarn &> /dev/null; then

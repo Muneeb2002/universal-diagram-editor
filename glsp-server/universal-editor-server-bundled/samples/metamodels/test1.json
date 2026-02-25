@@ -1,0 +1,261 @@
+{
+  "ePackages": [
+    {
+      "name": "petri",
+      "nsURI": "https://www.example.org/petri",
+      "nsPrefix": "petri",
+      "eClassifiers": [
+        {
+          "name": "PetriNet",
+          "abstract": false,
+          "interface": false,
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "objects",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Object"
+              },
+              "containment": true
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Object",
+          "abstract": true,
+          "interface": false,
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Node",
+          "abstract": true,
+          "interface": false,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Object"
+            }
+          ]
+        },
+        {
+          "name": "Arc",
+          "abstract": false,
+          "interface": false,
+          "eAttributes": [],
+          "eReferences": [
+            {
+              "name": "source",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false
+            },
+            {
+              "name": "target",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Node"
+              },
+              "containment": false
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Object"
+            }
+          ]
+        },
+        {
+          "name": "Transition",
+          "abstract": false,
+          "interface": false,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Place",
+          "abstract": false,
+          "interface": false,
+          "eAttributes": [
+            {
+              "name": "placeType",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "PlaceType"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "tokens",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "Token"
+              },
+              "containment": true
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Node"
+            }
+          ]
+        },
+        {
+          "name": "Token",
+          "abstract": false,
+          "interface": false,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "eClass": "ecore:EEnum",
+          "name": "PlaceType",
+          "eLiterals": [
+            {
+              "name": "Start",
+              "value": 0,
+              "literal": "Start"
+            },
+            {
+              "name": "End",
+              "value": 1,
+              "literal": "End"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagramPositions": {
+    "PetriNet": {
+      "position": {
+        "x": 80,
+        "y": 100
+      },
+      "size": {
+        "width": 136.0625,
+        "height": 71
+      }
+    },
+    "Object": {
+      "position": {
+        "x": 80,
+        "y": 240
+      },
+      "size": {
+        "width": 139.25390625,
+        "height": 71
+      }
+    },
+    "Node": {
+      "position": {
+        "x": 80,
+        "y": 380
+      },
+      "size": {
+        "width": 132.75,
+        "height": 40
+      }
+    },
+    "Arc": {
+      "position": {
+        "x": 360,
+        "y": 370
+      },
+      "size": {
+        "width": 48.017578125,
+        "height": 40
+      }
+    },
+    "Token": {
+      "position": {
+        "x": 240,
+        "y": 600
+      },
+      "size": {
+        "width": 62.03125,
+        "height": 40
+      }
+    },
+    "Transition": {
+      "position": {
+        "x": 30,
+        "y": 460
+      },
+      "size": {
+        "width": 82.25,
+        "height": 40
+      }
+    },
+    "Place": {
+      "position": {
+        "x": 190,
+        "y": 460
+      },
+      "size": {
+        "width": 177.421875,
+        "height": 71
+      }
+    },
+    "PlaceType": {
+      "position": {
+        "x": 450,
+        "y": 420
+      },
+      "size": {
+        "width": 174.109375,
+        "height": 74
+      }
+    }
+  }
+}
