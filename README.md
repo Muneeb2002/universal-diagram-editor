@@ -50,12 +50,15 @@ yarn build
 cd ../../glsp-server
 yarn install
 yarn build
+
+cd universal-editor-server
+yarn build
 ```
 
 ### 2. Start the server
 
 ```bash
-cd glsp-server/universal-editor-server-bundled
+# Changed: the build steps above leave the terminal in glsp-server/universal-editor-server.
 yarn start:websocket
 ```
 
@@ -68,9 +71,10 @@ After building the client, open the app in a browser:
 - **Option A:** Open **`glsp-client/universal-editor-standalone/app/index.html`** in your browser (double‑click or File → Open).
 - **Option B:** Serve the app over HTTP, then open the URL (e.g. for CORS or local dev):
   ```bash
-  npx serve glsp-client/universal-editor-standalone/app -p 3000
+  # Changed: serve the standalone root so both the app bundle and sibling css directory are available.
+  npx serve glsp-client/universal-editor-standalone -p 3000
   ```
-  Then open **http://localhost:3000** in a browser.
+  Then open **http://localhost:3000/app/** in a browser.
 
 ## Development
 
