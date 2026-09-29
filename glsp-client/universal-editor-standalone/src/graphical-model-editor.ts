@@ -1167,18 +1167,26 @@ export class GraphicalModelEditor {
     }
 
     /**
-     * Applies the current graphical model to the client session without saving to disk.
-     * This updates the cached shapes used by the mapping dialog and notifies the sidebar
-     * that a graphical model is available, but does not send any save action to the server.
+     * Applies the current graphical model without saving its file to disk. Existing
+     * mappings are refreshed and sent to the server so the active instance view redraws.
      */
-    private applyGraphicalModel(): void {
+    private async applyGraphicalModel(): Promise<void> {
         this.updateCachedShapesFromElements();
         this.setActiveGraphicalModel();
         const sidebar = (window as any).globalLeftSidebar;
         if (sidebar && sidebar.markGraphicalModelLoaded) {
             sidebar.markGraphicalModelLoaded();
         }
-        alert('Graphical model applied to the client session.');
+
+        const mappingDialog = (window as any).globalShapeMappingDialog;
+        const refreshedMappings = mappingDialog?.refreshShapeConfigs
+            ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes())
+            : 0;
+
+        const mappingMessage = refreshedMappings > 0
+            ? ` Updated ${refreshedMappings} mapped shape(s) in the instance diagram.`
+            : '';
+        alert(`Graphical model applied to the client session.${mappingMessage}`);
     }
 
     private async saveGraphicalModel(): Promise<void> {
@@ -1211,8 +1219,18 @@ export class GraphicalModelEditor {
 
         try {
             await this.actionDispatcher.dispatch(createSaveGraphicalModelAction(filename, json));
-            
-            alert(`Saved ${elementsArray.length} graphical shape configuration(s) to server folder 'visual-configurations/${filename}'.`);
+            this.updateCachedShapesFromElements();
+            this.setActiveGraphicalModel();
+
+            const mappingDialog = (window as any).globalShapeMappingDialog;
+            const refreshedMappings = mappingDialog?.refreshShapeConfigs
+                ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes())
+                : 0;
+            const mappingMessage = refreshedMappings > 0
+                ? ` Updated ${refreshedMappings} mapped shape(s) in the instance diagram.`
+                : '';
+
+            alert(`Saved ${elementsArray.length} graphical shape configuration(s) to server folder 'visual-configurations/${filename}'.${mappingMessage}`);
         } catch (error) {
             console.error('Error saving graphical model to server:', error);
             alert('Error saving graphical model to server: ' + error);

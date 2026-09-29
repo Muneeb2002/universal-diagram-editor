@@ -1071,6 +1071,35 @@ export class ShapeMappingDialog {
         return this.mappings;
     }
 
+    /**
+     * Refresh mapped shape snapshots after the graphical model is edited and apply
+     * them to the running server. Mappings keep a shapeConfig snapshot because the
+     * server does not load the graphical-model file directly.
+     */
+    public async refreshShapeConfigs(savedShapes: Map<string, GraphicalElement>): Promise<number> {
+        this.savedShapes = new Map(savedShapes);
+        let refreshed = 0;
+
+        this.mappings.forEach((mapping, key) => {
+            const shape = this.savedShapes.get(mapping.shapeId);
+            if (!shape) {
+                return;
+            }
+
+            this.mappings.set(key, {
+                ...mapping,
+                shapeName: shape.name,
+                shapeConfig: this.createShapeConfig(shape)
+            });
+            refreshed++;
+        });
+
+        if (refreshed > 0) {
+            await this.syncMappingsWithServer();
+        }
+        return refreshed;
+    }
+
     private serializeMappings(): string {
         // Re-normalize all mappings before serializing to ensure arrowType is up-to-date
         const editor = (window as any).globalGraphicalModelEditor;
@@ -1142,10 +1171,13 @@ export class ShapeMappingDialog {
             }];
         }
 
+        const currentShape = mapping.shapeId ? this.savedShapes.get(mapping.shapeId) : undefined;
         const normalized: ShapeMapping = {
             ...mapping,
-            shapeName: mapping.shapeName || `Shape ${index + 1}`,
-            shapeConfig: this.normalizeShapeConfig(mapping.shapeConfig, mapping.shapeId),
+            shapeName: currentShape?.name || mapping.shapeName || `Shape ${index + 1}`,
+            shapeConfig: currentShape
+                ? this.createShapeConfig(currentShape)
+                : this.normalizeShapeConfig(mapping.shapeConfig, mapping.shapeId),
             sourceReferenceName: mapping.sourceReferenceName,
             targetReferenceName: mapping.targetReferenceName,
             sourceClass: mapping.sourceClass,
@@ -1154,6 +1186,24 @@ export class ShapeMappingDialog {
         };
 
         return normalized;
+    }
+
+    private createShapeConfig(shape: GraphicalElement): ShapeMapping['shapeConfig'] {
+        return {
+            name: shape.name,
+            type: shape.type,
+            width: shape.width,
+            height: shape.height,
+            color: shape.color,
+            fillColor: shape.fillColor,
+            filled: shape.filled,
+            lineThickness: shape.lineThickness,
+            lineStyle: shape.lineStyle,
+            arrowType: shape.type === 'arrow'
+                ? (shape.arrowType ?? 'filled-triangle')
+                : undefined,
+            svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined
+        };
     }
 
     private normalizeShapeConfig(config: ShapeMapping['shapeConfig'], shapeId?: string): ShapeMapping['shapeConfig'] {
