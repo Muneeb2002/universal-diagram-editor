@@ -16,6 +16,8 @@ export interface EcoreInstance {
     
     size?: { width: number; height: number };
 
+    componentBounds?: Record<string, { x: number; y: number; width: number; height: number }>;
+
     hidden?: boolean;
 
     isRoot?: boolean;

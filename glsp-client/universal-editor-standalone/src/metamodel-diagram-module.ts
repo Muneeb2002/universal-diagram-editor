@@ -3,6 +3,7 @@
  */
 import {
     configureActionHandler,
+    configureCommand,
     configureDefaultModelElements,
     configureModelElement,
     configureView,
@@ -37,6 +38,7 @@ import { InstancesOverviewResponseHandler } from './handlers/instances-overview-
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 import { ClassPropertiesResponseHandler } from './handlers/class-properties-response-handler';
 import { ZoomIndependentResizeHandleView } from './zoom-independent-resize-handle-view';
+import { SetCompositeComponentCommand } from './composite-component-actions';
 
 export class EcoreClassNode extends GNode {
     static readonly TYPE = 'ecore:class';
@@ -124,6 +126,7 @@ export const metamodelDiagramModule = new FeatureModule(
 
         configureActionHandler(context, 'classPropertiesResponse', ClassPropertiesResponseHandler);
         configureActionHandler(context, 'instancesOverviewResponse', InstancesOverviewResponseHandler);
+        configureCommand(context, SetCompositeComponentCommand);
     },
     { featureId: Symbol('metamodelDiagram') }
 );

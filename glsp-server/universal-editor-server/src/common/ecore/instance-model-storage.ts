@@ -746,6 +746,7 @@ export class InstanceModelStorage {
                     references: {},
                     position: instance.position,
                     size: instance.size,
+                    componentBounds: instance.componentBounds,
                     hidden: instance.hidden,
                     isRoot: instance.isRoot
                 };
@@ -831,6 +832,7 @@ export class InstanceModelStorage {
                     references: new Map(),
                     position: instanceObj.position,
                     size: instanceObj.size,
+                    componentBounds: instanceObj.componentBounds,
                     hidden: instanceObj.hidden ?? false,
                     isRoot: instanceObj.isRoot ?? false
                 };

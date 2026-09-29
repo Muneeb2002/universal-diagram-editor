@@ -29,6 +29,11 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
     }
 
     override async createCommand(operation: ChangeBoundsOperation): Promise<Command | undefined> {
+        if (operation.newBounds.some(bound => bound.elementId.includes('::component::'))) {
+            this.updateInstanceModelDirectly(operation);
+            return undefined;
+        }
+
         const root = this.modelState.root;
         const hasValidRoot = root && root.children !== undefined;
         
@@ -142,6 +147,23 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
                     }
                     if (element.newSize) {
                         instance.size = { width: element.newSize.width, height: element.newSize.height };
+                    }
+                } else {
+                    const componentMarker = '::component::';
+                    const markerIndex = element.elementId.lastIndexOf(componentMarker);
+                    if (markerIndex > 0) {
+                        const instanceId = element.elementId.substring(0, markerIndex);
+                        const componentIndex = element.elementId.substring(markerIndex + componentMarker.length);
+                        const parentInstance = this.instanceStorage.getInstance(instanceId);
+                        if (parentInstance && element.newPosition && element.newSize) {
+                            parentInstance.componentBounds ??= {};
+                            parentInstance.componentBounds[componentIndex] = {
+                                x: element.newPosition.x,
+                                y: element.newPosition.y,
+                                width: element.newSize.width,
+                                height: element.newSize.height
+                            };
+                        }
                     }
                 }
             }

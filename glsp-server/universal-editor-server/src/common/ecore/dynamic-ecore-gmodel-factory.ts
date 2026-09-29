@@ -668,7 +668,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         if (shapeMapping) {
             node.cssClasses = node.cssClasses.filter(cls => cls !== 'fill-none');
-            this.applyShapeMapping(node, shapeMapping);
+            this.applyShapeMapping(node, shapeMapping, instance.componentBounds);
             const appliedShapeConfig = (node as any).shapeConfig;
             if (appliedShapeConfig && appliedShapeConfig.filled !== false) {
                 node.cssClasses = node.cssClasses.filter(cls => cls !== 'fill-none');
@@ -786,7 +786,11 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         return node;
     }
 
-    private applyShapeMapping(node: GNode, mapping: ShapeMapping): void {
+    private applyShapeMapping(
+        node: GNode,
+        mapping: ShapeMapping,
+        componentBounds?: Record<string, { x: number; y: number; width: number; height: number }>
+    ): void {
         const config = mapping.shapeConfig;
         if (!config) {
             return;
@@ -822,7 +826,11 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             filled: config.filled,
             lineThickness: config.lineThickness,
             lineStyle: config.lineStyle,
-            svgContent: config.svgContent
+            svgContent: config.svgContent,
+            components: config.components?.map((component, index) => ({
+                ...component,
+                ...(componentBounds?.[String(index)] ?? {})
+            }))
         };
 
         Object.defineProperty(node, 'shapeConfig', {

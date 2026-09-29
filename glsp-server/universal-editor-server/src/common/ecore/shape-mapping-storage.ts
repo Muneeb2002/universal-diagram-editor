@@ -16,6 +16,15 @@ export interface ShapeConfig {
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none';
     svgContent?: string;
+    components?: ShapeComponent[];
+}
+
+export interface ShapeComponent extends ShapeConfig {
+    id?: string;
+    name?: string;
+    x: number;
+    y: number;
+    rotation?: number;
 }
 
 export interface ShapeMapping {

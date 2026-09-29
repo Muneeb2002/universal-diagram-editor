@@ -1190,7 +1190,8 @@ export class ShapeMappingDialog {
             arrowType: shape.type === 'arrow'
                 ? (shape.arrowType ?? 'filled-triangle')
                 : undefined,
-            svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined
+            svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined,
+            components: shape.type === 'composite' ? shape.components : undefined
         };
     }
 
@@ -1217,7 +1218,8 @@ export class ShapeMappingDialog {
             resizeHorizontal: config.resizeHorizontal !== false,
             resizeVertical: config.resizeVertical !== false,
             // Preserve svgContent if it exists (for custom-svg shapes)
-            svgContent: config.svgContent
+            svgContent: config.svgContent,
+            components: config.components
         } as ShapeMapping['shapeConfig'];
         if (normalized.type === 'arrow') {
             // If arrowType is missing, try to get it from the current shape definition

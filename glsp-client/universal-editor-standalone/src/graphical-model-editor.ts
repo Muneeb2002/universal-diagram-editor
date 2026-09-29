@@ -4,7 +4,7 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { createSaveGraphicalModelAction } from './ecore-client-actions';
 
-export const SUPPORTED_SHAPE_TYPES = ['rectangle', 'circle', 'line', 'arrow', 'custom-svg'] as const;
+export const SUPPORTED_SHAPE_TYPES = ['rectangle', 'circle', 'line', 'arrow', 'custom-svg', 'composite'] as const;
 export type SupportedShapeType = typeof SUPPORTED_SHAPE_TYPES[number];
 
 export interface GraphicalElement {
@@ -24,6 +24,7 @@ export interface GraphicalElement {
     lineStyle: 'solid' | 'dashed' | 'dotted';
     arrowType?: 'filled-triangle' | 'open-triangle' | 'open-arrow' | 'diamond' | 'none'; // For arrow shapes
     svgContent?: string;
+    components?: GraphicalElement[];
     rotation?: number;
     selected?: boolean;
 }
@@ -585,6 +586,10 @@ export class GraphicalModelEditor {
     }
 
     private drawShape(container: HTMLElement, element: GraphicalElement): void {
+        if (element.type === 'composite' && element.components) {
+            this.drawCompositeShape(container, element.components);
+            return;
+        }
         if (element.type === 'custom-svg' && element.svgContent) {
             this.drawCustomSvg(container, element);
             return;
@@ -638,6 +643,25 @@ export class GraphicalModelEditor {
 
         svg.appendChild(shape);
         container.appendChild(svg);
+    }
+
+    private drawCompositeShape(container: HTMLElement, components: GraphicalElement[]): void {
+        components.forEach(component => {
+            const child = document.createElement('div');
+            child.style.cssText = `
+                position: absolute;
+                left: ${component.x}px;
+                top: ${component.y}px;
+                width: ${component.width}px;
+                height: ${component.height}px;
+                transform-origin: 50% 50%;
+                transform: rotate(${component.rotation ?? 0}deg);
+                pointer-events: none;
+                overflow: visible;
+            `;
+            this.drawShape(child, component);
+            container.appendChild(child);
+        });
     }
 
     private drawLineShape(svg: SVGSVGElement, element: GraphicalElement): void {
@@ -858,7 +882,7 @@ export class GraphicalModelEditor {
             if (count >= 2) {
                 combineSelectedBtn.style.display = 'block';
                 combineSelectedBtn.textContent = `Combine Selected (${count})`;
-                selectionInfo.textContent = `${count} shapes selected. Click "Combine Selected" to merge them.`;
+                selectionInfo.textContent = `${count} shapes selected. Click "Combine Selected" to group them as editable subcomponents.`;
             } else {
                 combineSelectedBtn.style.display = 'none';
                 selectionInfo.textContent = count === 1 
@@ -911,10 +935,11 @@ export class GraphicalModelEditor {
             const element = this.elements.get(id);
             if (element) {
                 elementsToCombine.push(element);
-                minX = Math.min(minX, element.x);
-                minY = Math.min(minY, element.y);
-                maxX = Math.max(maxX, element.x + element.width);
-                maxY = Math.max(maxY, element.y + element.height);
+                const bounds = this.getComponentVisualBounds(element);
+                minX = Math.min(minX, bounds.left);
+                minY = Math.min(minY, bounds.top);
+                maxX = Math.max(maxX, bounds.right);
+                maxY = Math.max(maxY, bounds.bottom);
             }
         });
 
@@ -925,91 +950,26 @@ export class GraphicalModelEditor {
 
         const combinedWidth = maxX - minX;
         const combinedHeight = maxY - minY;
-        const svgParts: string[] = [];
-
-        elementsToCombine.forEach(element => {
-            const relativeX = element.x - minX;
-            const relativeY = element.y - minY;
-            const rot = element.rotation ?? 0;
-            const cx = element.width / 2;
-            const cy = element.height / 2;
-            const wrap = (inner: string) => rot !== 0
-                ? `<g transform="translate(${relativeX},${relativeY}) rotate(${rot},${cx},${cy})">${inner}</g>`
-                : `<g transform="translate(${relativeX},${relativeY})">${inner}</g>`;
-
-            // Generate SVG for each element type (in local 0,0 coordinates so rotation works)
-            if (element.type === 'rectangle') {
-                const fill = element.filled !== false ? element.fillColor : 'none';
-                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
-                svgParts.push(wrap(`<rect x="0" y="0" width="${element.width}" height="${element.height}" fill="${fill}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`));
-            } else if (element.type === 'circle') {
-                const r = Math.min(element.width, element.height) / 2 - element.lineThickness / 2;
-                const fill = element.filled !== false ? element.fillColor : 'none';
-                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
-                svgParts.push(wrap(`<circle cx="${cx}" cy="${cy}" r="${r}" fill="${fill}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`));
-            } else if (element.type === 'line') {
-                const margin = Math.max(element.lineThickness, 4);
-                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
-                svgParts.push(wrap(`<line x1="${margin}" y1="${cy}" x2="${element.width - margin}" y2="${cy}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`));
-            } else if (element.type === 'arrow') {
-                const width = element.width;
-                const height = element.height;
-                const lineY = height / 2;
-                const margin = Math.max(element.lineThickness, 6);
-                const arrowHeadLength = Math.max(10, width * 0.3);
-                const arrowHeadWidth = Math.max(3, height * 0.2);
-                const arrowType = element.arrowType || 'filled-triangle';
-                const strokeColor = element.color;
-                const fillColor = element.filled !== false ? element.fillColor : 'none';
-                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
-                let arrowInner: string;
-                if (arrowType === 'filled-triangle') {
-                    const path = `M ${margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY} L ${width - margin - arrowHeadLength} ${lineY - arrowHeadWidth/2} L ${width - margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY + arrowHeadWidth/2} Z`;
-                    arrowInner = `<path d="${path}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`;
-                } else if (arrowType === 'open-triangle') {
-                    const linePath = `M ${margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY}`;
-                    const arrowPath = `M ${width - margin - arrowHeadLength} ${lineY - arrowHeadWidth/2} L ${width - margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY + arrowHeadWidth/2}`;
-                    arrowInner = `<path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>` +
-                        `<path d="${arrowPath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`;
-                } else if (arrowType === 'open-arrow') {
-                    const linePath = `M ${margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY}`;
-                    const arrowPath = `M ${width - margin - arrowHeadLength} ${lineY - arrowHeadWidth/2} L ${width - margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY + arrowHeadWidth/2} L ${width - margin - arrowHeadLength} ${lineY - arrowHeadWidth/2}`;
-                    arrowInner = `<path d="${linePath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>` +
-                        `<path d="${arrowPath}" fill="none" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`;
-                } else {
-                    const path = `M ${margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY} L ${width - margin - arrowHeadLength} ${lineY - arrowHeadWidth/2} L ${width - margin} ${lineY} L ${width - margin - arrowHeadLength} ${lineY + arrowHeadWidth/2} Z`;
-                    arrowInner = `<path d="${path}" fill="${fillColor}" stroke="${strokeColor}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`;
-                }
-                svgParts.push(wrap(arrowInner));
-            } else if (element.type === 'custom-svg' && element.svgContent) {
-                const parser = new DOMParser();
-                const svgDoc = parser.parseFromString(element.svgContent, 'image/svg+xml');
-                const sourceSvg = svgDoc.querySelector('svg');
-                if (sourceSvg) {
-                    const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-                    g.setAttribute('transform', rot !== 0
-                        ? `translate(${relativeX},${relativeY}) rotate(${rot},${cx},${cy})`
-                        : `translate(${relativeX},${relativeY})`);
-                    Array.from(sourceSvg.children).forEach(child => {
-                        g.appendChild(child.cloneNode(true));
-                    });
-                    const serializer = new XMLSerializer();
-                    svgParts.push(serializer.serializeToString(g));
-                }
-            } else {
-                const fill = element.filled !== false ? element.fillColor : 'none';
-                const dashArray = element.lineStyle === 'dashed' ? '5,5' : element.lineStyle === 'dotted' ? '2,2' : 'none';
-                svgParts.push(wrap(`<rect x="0" y="0" width="${element.width}" height="${element.height}" fill="${fill}" stroke="${element.color}" stroke-width="${element.lineThickness}" stroke-dasharray="${dashArray}"/>`));
-            }
+        const components = elementsToCombine.map(element => {
+            const isDefaultLineResize = element.type === 'line'
+                && element.resizeHorizontal !== false
+                && element.resizeVertical !== false;
+            return {
+                ...element,
+                x: element.x - minX,
+                y: element.y - minY,
+                resizeHorizontal: isDefaultLineResize ? !this.isQuarterTurn(element.rotation) : element.resizeHorizontal,
+                resizeVertical: isDefaultLineResize ? this.isQuarterTurn(element.rotation) : element.resizeVertical,
+                selected: false,
+                components: element.components?.map(component => ({ ...component }))
+            };
         });
-
-        const combinedSvg = `<svg viewBox="0 0 ${combinedWidth} ${combinedHeight}" xmlns="http://www.w3.org/2000/svg">${svgParts.join('')}</svg>`;
 
         // Create new combined element
         const combinedElement: GraphicalElement = {
             id: `element_${this.nextElementId++}`,
             name: `Combined Shape`,
-            type: 'custom-svg',
+            type: 'composite',
             x: minX,
             y: minY,
             width: combinedWidth,
@@ -1021,7 +981,7 @@ export class GraphicalModelEditor {
             filled: false,
             lineThickness: 2,
             lineStyle: 'solid',
-            svgContent: combinedSvg,
+            components,
             rotation: 0
         };
 
@@ -1083,7 +1043,7 @@ export class GraphicalModelEditor {
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Rotation (degrees):</label>
                     <input type="number" id="propRotation" value="${element.rotation ?? 0}" min="0" max="360" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
                 </div>
-                ${element.type !== 'custom-svg' ? `
+                ${element.type !== 'custom-svg' && element.type !== 'composite' ? `
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Border Color:</label>
                     <input type="color" id="propColor" value="${element.color}" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; height: 40px;">
@@ -1112,7 +1072,7 @@ export class GraphicalModelEditor {
                 </div>
                 ` : `
                 <div style="padding: 10px; background: #f0f7ff; border-radius: 4px; color: #0066cc; font-size: 12px;">
-                    Custom SVG: Original colors are preserved. Only size can be adjusted.
+                    ${element.type === 'composite' ? 'Composite styling is controlled by its individual subcomponents.' : 'Custom SVG: Original colors are preserved. Only size can be adjusted.'}
                 </div>
                 `}
                 ${element.type === 'arrow' ? `
@@ -1127,6 +1087,7 @@ export class GraphicalModelEditor {
                     </select>
                 </div>
                 ` : ''}
+                ${element.type === 'composite' ? this.renderCompositeProperties(element) : ''}
                 <div>
                     <button id="deleteElement" style="
                         width: 100%;
@@ -1216,6 +1177,8 @@ export class GraphicalModelEditor {
             arrowTypeSelect.addEventListener('change', updateElement);
         }
 
+        this.setupCompositePropertyListeners(element, widthInput, heightInput);
+
         deleteBtn.addEventListener('click', () => {
             if (this.selectedElement && this.canvas) {
                 const elementId = this.selectedElement.id;
@@ -1242,6 +1205,117 @@ export class GraphicalModelEditor {
                 this.elements.delete(elementId);
             }
         });
+    }
+
+    private renderCompositeProperties(element: GraphicalElement): string {
+        const components = element.components ?? [];
+        return `
+            <div style="border-top: 1px solid #ddd; padding-top: 12px;">
+                <div style="font-weight: 600; color: #444; margin-bottom: 9px;">Subcomponents (${components.length})</div>
+                <div style="display: flex; flex-direction: column; gap: 10px;">
+                    ${components.map((component, index) => {
+                        const visualSize = this.getComponentVisualSize(component);
+                        return `
+                        <div style="padding: 10px; border: 1px solid #d7d7d7; border-radius: 5px; background: white;">
+                            <div style="font-weight: 600; color: #333; margin-bottom: 8px;">${component.name || `Component ${index + 1}`} <span style="font-weight: 400; color: #777;">(${component.type})</span></div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px;">
+                                ${this.renderComponentNumberInput(index, 'x', 'X', component.x, 0)}
+                                ${this.renderComponentNumberInput(index, 'y', 'Y', component.y, 0)}
+                                ${this.renderComponentNumberInput(index, 'width', 'Width', visualSize.width, 1)}
+                                ${this.renderComponentNumberInput(index, 'height', 'Height', visualSize.height, 1)}
+                            </div>
+                            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 7px; margin-top: 8px;">
+                                ${this.renderComponentResizeButton(index, 'horizontal', component.resizeHorizontal !== false)}
+                                ${this.renderComponentResizeButton(index, 'vertical', component.resizeVertical !== false)}
+                            </div>
+                        </div>
+                    `;}).join('')}
+                </div>
+            </div>
+        `;
+    }
+
+    private renderComponentNumberInput(index: number, property: string, label: string, value: number, min: number): string {
+        return `<label style="font-size: 11px; color: #666;">${label}
+            <input type="number" data-component-index="${index}" data-component-property="${property}" value="${value}" min="${min}" style="box-sizing: border-box; width: 100%; margin-top: 3px; padding: 5px; border: 1px solid #ccc; border-radius: 3px;">
+        </label>`;
+    }
+
+    private renderComponentResizeButton(index: number, direction: 'horizontal' | 'vertical', enabled: boolean): string {
+        const icon = direction === 'horizontal' ? '↔' : '↕';
+        const label = direction === 'horizontal' ? 'Horizontal' : 'Vertical';
+        return `<button type="button" data-component-resize="${direction}" data-component-index="${index}" aria-pressed="${enabled}" style="padding: 6px 4px; border: 1px solid ${enabled ? '#007acc' : '#bbb'}; border-radius: 3px; cursor: pointer; background: ${enabled ? '#007acc' : '#f5f5f5'}; color: ${enabled ? 'white' : '#444'}; font-size: 11px;">${icon} ${label}</button>`;
+    }
+
+    private isQuarterTurn(rotation = 0): boolean {
+        return Math.abs(Math.round(rotation / 90)) % 2 === 1;
+    }
+
+    private getComponentVisualSize(component: GraphicalElement): { width: number; height: number } {
+        return this.isQuarterTurn(component.rotation)
+            ? { width: component.height, height: component.width }
+            : { width: component.width, height: component.height };
+    }
+
+    private getComponentVisualBounds(component: GraphicalElement): { left: number; top: number; right: number; bottom: number } {
+        const size = this.getComponentVisualSize(component);
+        const centerX = component.x + component.width / 2;
+        const centerY = component.y + component.height / 2;
+        return {
+            left: centerX - size.width / 2,
+            top: centerY - size.height / 2,
+            right: centerX + size.width / 2,
+            bottom: centerY + size.height / 2
+        };
+    }
+
+    private setupCompositePropertyListeners(element: GraphicalElement, widthInput: HTMLInputElement, heightInput: HTMLInputElement): void {
+        if (element.type !== 'composite' || !element.components || !this.propertiesPanel) return;
+
+        const resizeCompositeBounds = (): void => {
+            const bounds = element.components!.map(component => this.getComponentVisualBounds(component));
+            element.width = Math.max(20, ...bounds.map(bound => bound.right));
+            element.height = Math.max(20, ...bounds.map(bound => bound.bottom));
+            widthInput.value = String(element.width);
+            heightInput.value = String(element.height);
+            this.renderElement(element);
+        };
+
+        this.propertiesPanel.querySelectorAll<HTMLInputElement>('input[data-component-property]').forEach(input => {
+            input.addEventListener('input', () => {
+                const index = Number(input.dataset.componentIndex);
+                const property = input.dataset.componentProperty as 'x' | 'y' | 'width' | 'height';
+                const component = element.components?.[index];
+                if (!component || !property) return;
+                const minimum = property === 'width' || property === 'height' ? 1 : 0;
+                const value = Math.max(minimum, Number(input.value) || minimum);
+                if (this.isQuarterTurn(component.rotation) && (property === 'width' || property === 'height')) {
+                    component[property === 'width' ? 'height' : 'width'] = value;
+                } else {
+                    component[property] = value;
+                }
+                resizeCompositeBounds();
+            });
+        });
+
+        this.propertiesPanel.querySelectorAll<HTMLButtonElement>('button[data-component-resize]').forEach(button => {
+            button.addEventListener('click', () => {
+                const index = Number(button.dataset.componentIndex);
+                const component = element.components?.[index];
+                const direction = button.dataset.componentResize;
+                if (!component) return;
+                const property = direction === 'horizontal' ? 'resizeHorizontal' : 'resizeVertical';
+                component[property] = component[property] === false;
+                updateToggleButton(button, component[property] !== false);
+            });
+        });
+
+        const updateToggleButton = (button: HTMLButtonElement, enabled: boolean): void => {
+            button.setAttribute('aria-pressed', String(enabled));
+            button.style.background = enabled ? '#007acc' : '#f5f5f5';
+            button.style.color = enabled ? 'white' : '#444';
+            button.style.borderColor = enabled ? '#007acc' : '#bbb';
+        };
     }
 
     private setupEventListeners(): void {
@@ -1657,6 +1731,9 @@ export class GraphicalModelEditor {
             lineStyle: raw?.lineStyle === 'dashed' || raw?.lineStyle === 'dotted' ? raw.lineStyle : 'solid',
             arrowType,
             svgContent: typeof raw?.svgContent === 'string' ? raw.svgContent : undefined,
+            components: Array.isArray(raw?.components)
+                ? raw.components.map((component: any, componentIndex: number) => this.normalizeElement(component, componentIndex))
+                : undefined,
             rotation: Number.isFinite(raw?.rotation) ? Math.min(360, Math.max(0, raw.rotation)) : 0,
             selected: false
         };

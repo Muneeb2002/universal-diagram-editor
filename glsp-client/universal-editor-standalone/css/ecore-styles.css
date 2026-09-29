@@ -80,6 +80,21 @@
     stroke-width: 2px;
 }
 
+.composite-component-selection {
+    stroke: #ff8c00;
+    stroke-width: 2px;
+    stroke-dasharray: 4 3;
+    vector-effect: non-scaling-stroke;
+}
+
+.composite-component-resize-handle {
+    fill: #fff;
+    stroke: #ff8c00;
+    stroke-width: 2px;
+    vector-effect: non-scaling-stroke;
+    cursor: nwse-resize;
+}
+
 /* Instance nodes with mapping - SVG fill attribute will override this CSS */
 /* CSS variables are scoped to each node's group, so nested nodes use their own variables */
 /* Note: SVG fill attribute has higher priority than CSS, so this is just a fallback */
