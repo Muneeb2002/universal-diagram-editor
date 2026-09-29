@@ -33,6 +33,7 @@ export class GraphicalModelEditor {
     private backdrop: HTMLElement | null = null;
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private canvas: HTMLDivElement | null = null;
+    private canvasContainer: HTMLDivElement | null = null;
     private palette: HTMLDivElement | null = null;
     private propertiesPanel: HTMLDivElement | null = null;
     private elements: Map<string, GraphicalElement> = new Map();
@@ -43,6 +44,11 @@ export class GraphicalModelEditor {
     private isDragging = false;
     private dragOffset = { x: 0, y: 0 };
     private draggedElement: GraphicalElement | null = null;
+    private zoom = 1;
+    private isFullscreen = false;
+    private dialogStyleBeforeFullscreen: Partial<CSSStyleDeclaration> | null = null;
+    private static readonly MIN_ZOOM = 0.25;
+    private static readonly MAX_ZOOM = 4;
     private cachedSavedShapes: Map<string, GraphicalElement> = new Map();
     private static readonly ACTIVE_GRAPHICAL_MODEL_STORAGE_KEY = 'activeGraphicalShapes';
 
@@ -144,6 +150,9 @@ export class GraphicalModelEditor {
     }
 
     private createDialog(): void {
+        this.zoom = 1;
+        this.isFullscreen = false;
+        this.dialogStyleBeforeFullscreen = null;
         this.backdrop = document.createElement('div');
         this.backdrop.style.cssText = `
             position: fixed;
@@ -175,20 +184,30 @@ export class GraphicalModelEditor {
         `;
 
         this.dialog.innerHTML = `
-            <div style="padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center;">
+            <div id="graphicalEditorTitleBar" style="padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; cursor: move; user-select: none;">
                 <h2 style="margin: 0; color: #333; font-size: 24px;">Graphical Model Editor</h2>
-                <button id="closeGraphicalEditor" style="background: none; border: none; font-size: 24px; cursor: pointer; color: #666;">&times;</button>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button id="fullscreenGraphicalEditor" type="button" title="Enter fullscreen" aria-label="Enter fullscreen" style="background: none; border: none; width: 34px; height: 34px; font-size: 22px; line-height: 1; cursor: pointer; color: #666;">⛶</button>
+                    <button id="closeGraphicalEditor" type="button" title="Close" aria-label="Close" style="background: none; border: none; width: 34px; height: 34px; font-size: 24px; line-height: 1; cursor: pointer; color: #666;">&times;</button>
+                </div>
             </div>
             <div style="flex: 1; display: flex; overflow: hidden;">
                 <div id="paletteContainer" style="width: 200px; border-right: 1px solid #eee; padding: 15px; overflow-y: auto; background: #f8f9fa;">
                     <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #333;">Shape Palette</h3>
                     <div id="shapePalette" style="display: flex; flex-direction: column; gap: 10px;"></div>
                 </div>
-                <div id="canvasContainer" style="flex: 1; position: relative; overflow: auto; background: #fafafa; background-image: 
-                    linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px),
-                    linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px);
-                    background-size: 20px 20px;">
-                    <div id="graphicalCanvas" style="position: relative; min-height: 100%;"></div>
+                <div style="flex: 1; position: relative; overflow: hidden;">
+                    <div id="canvasContainer" style="width: 100%; height: 100%; position: relative; overflow: auto; background: #fafafa; background-image:
+                        linear-gradient(rgba(0,0,0,.05) 1px, transparent 1px),
+                        linear-gradient(90deg, rgba(0,0,0,.05) 1px, transparent 1px);
+                        background-size: 20px 20px;">
+                        <div id="graphicalCanvas" style="position: relative; width: 100%; height: 100%; transform-origin: 0 0;"></div>
+                    </div>
+                    <div style="position: absolute; right: 14px; top: 14px; z-index: 20; display: flex; align-items: center; background: white; border: 1px solid #ccc; border-radius: 6px; box-shadow: 0 2px 7px rgba(0,0,0,.18); overflow: hidden;">
+                        <button id="graphicalZoomOut" type="button" title="Zoom out" style="width: 36px; height: 34px; border: none; background: white; cursor: pointer; font-size: 20px;">−</button>
+                        <button id="graphicalZoomReset" type="button" title="Reset zoom" style="min-width: 58px; height: 34px; padding: 0 8px; border: none; border-left: 1px solid #ddd; border-right: 1px solid #ddd; background: white; cursor: pointer; font-size: 12px;">100%</button>
+                        <button id="graphicalZoomIn" type="button" title="Zoom in" style="width: 36px; height: 34px; border: none; background: white; cursor: pointer; font-size: 20px;">+</button>
+                    </div>
                 </div>
                 <div id="propertiesContainer" style="width: 300px; border-left: 1px solid #eee; padding: 15px; overflow-y: auto; background: #f8f9fa;">
                     <h3 style="margin: 0 0 15px 0; font-size: 16px; color: #333;">Properties</h3>
@@ -279,9 +298,20 @@ export class GraphicalModelEditor {
                     ">Clear Canvas</button>
                 </div>
             </div>
+            <div id="graphicalEditorResizeHandle" title="Drag to resize the editor" style="
+                position: absolute;
+                right: 2px;
+                bottom: 2px;
+                width: 18px;
+                height: 18px;
+                cursor: nwse-resize;
+                z-index: 50;
+                background: linear-gradient(135deg, transparent 0 45%, #9aa0a6 46% 54%, transparent 55% 65%, #9aa0a6 66% 74%, transparent 75%);
+            "></div>
         `;
 
         this.palette = this.dialog.querySelector('#shapePalette') as HTMLDivElement;
+        this.canvasContainer = this.dialog.querySelector('#canvasContainer') as HTMLDivElement;
         this.canvas = this.dialog.querySelector('#graphicalCanvas') as HTMLDivElement;
         this.propertiesPanel = this.dialog.querySelector('#propertiesPanel') as HTMLDivElement;
 
@@ -369,7 +399,21 @@ export class GraphicalModelEditor {
     }
 
     private setupCanvas(): void {
-        if (!this.canvas) return;
+        if (!this.canvas || !this.canvasContainer || !this.dialog) return;
+
+        const zoomIn = this.dialog.querySelector('#graphicalZoomIn') as HTMLButtonElement;
+        const zoomOut = this.dialog.querySelector('#graphicalZoomOut') as HTMLButtonElement;
+        const zoomReset = this.dialog.querySelector('#graphicalZoomReset') as HTMLButtonElement;
+        zoomIn.addEventListener('click', () => this.setZoom(this.zoom * 1.2));
+        zoomOut.addEventListener('click', () => this.setZoom(this.zoom / 1.2));
+        zoomReset.addEventListener('click', () => this.setZoom(1));
+
+        this.canvasContainer.addEventListener('wheel', event => {
+            if (!event.ctrlKey) return;
+            event.preventDefault();
+            const factor = event.deltaY < 0 ? 1.15 : 1 / 1.15;
+            this.setZoom(this.zoom * factor, { x: event.clientX, y: event.clientY });
+        }, { passive: false });
 
         this.canvas.addEventListener('dragover', (e) => {
             e.preventDefault();
@@ -381,8 +425,8 @@ export class GraphicalModelEditor {
             const shapeType = e.dataTransfer!.getData('shapeType');
             if (shapeType) {
                 const rect = this.canvas!.getBoundingClientRect();
-                const x = e.clientX - rect.left;
-                const y = e.clientY - rect.top;
+                const x = (e.clientX - rect.left) / this.zoom;
+                const y = (e.clientY - rect.top) / this.zoom;
                 this.createElement(shapeType, x, y);
             }
         });
@@ -392,6 +436,33 @@ export class GraphicalModelEditor {
                 this.deselectElement();
             }
         });
+    }
+
+    private setZoom(requestedZoom: number, anchor?: { x: number; y: number }): void {
+        if (!this.canvas || !this.canvasContainer || !this.dialog) return;
+
+        const nextZoom = Math.min(GraphicalModelEditor.MAX_ZOOM, Math.max(GraphicalModelEditor.MIN_ZOOM, requestedZoom));
+        if (Math.abs(nextZoom - this.zoom) < 0.001) return;
+
+        const containerRect = this.canvasContainer.getBoundingClientRect();
+        const screenX = anchor ? anchor.x - containerRect.left : this.canvasContainer.clientWidth / 2;
+        const screenY = anchor ? anchor.y - containerRect.top : this.canvasContainer.clientHeight / 2;
+        const logicalX = (this.canvasContainer.scrollLeft + screenX) / this.zoom;
+        const logicalY = (this.canvasContainer.scrollTop + screenY) / this.zoom;
+
+        this.zoom = nextZoom;
+        this.canvas.style.transform = `scale(${this.zoom})`;
+        this.canvas.style.width = `${100 / this.zoom}%`;
+        this.canvas.style.height = `${100 / this.zoom}%`;
+        this.canvasContainer.style.backgroundSize = `${20 * this.zoom}px ${20 * this.zoom}px`;
+
+        this.canvasContainer.scrollLeft = logicalX * this.zoom - screenX;
+        this.canvasContainer.scrollTop = logicalY * this.zoom - screenY;
+
+        const zoomReset = this.dialog.querySelector('#graphicalZoomReset') as HTMLButtonElement | null;
+        if (zoomReset) {
+            zoomReset.textContent = `${Math.round(this.zoom * 100)}%`;
+        }
     }
 
     private createElement(type: string, x: number, y: number, svgContent?: string, width?: number, height?: number): void {
@@ -692,15 +763,15 @@ export class GraphicalModelEditor {
         this.draggedElement = element;
         const rect = this.canvas!.getBoundingClientRect();
         this.dragOffset = {
-            x: e.clientX - rect.left - element.x,
-            y: e.clientY - rect.top - element.y
+            x: (e.clientX - rect.left) / this.zoom - element.x,
+            y: (e.clientY - rect.top) / this.zoom - element.y
         };
 
         const onMouseMove = (moveEvent: MouseEvent) => {
             if (this.isDragging && this.draggedElement) {
                 const canvasRect = this.canvas!.getBoundingClientRect();
-                const newX = moveEvent.clientX - canvasRect.left - this.dragOffset.x;
-                const newY = moveEvent.clientY - canvasRect.top - this.dragOffset.y;
+                const newX = (moveEvent.clientX - canvasRect.left) / this.zoom - this.dragOffset.x;
+                const newY = (moveEvent.clientY - canvasRect.top) / this.zoom - this.dragOffset.y;
                 this.draggedElement.x = Math.max(0, newX);
                 this.draggedElement.y = Math.max(0, newY);
                 this.renderElement(this.draggedElement);
@@ -1175,17 +1246,28 @@ export class GraphicalModelEditor {
 
     private setupEventListeners(): void {
         const closeBtn = this.dialog!.querySelector('#closeGraphicalEditor');
+        const fullscreenBtn = this.dialog!.querySelector('#fullscreenGraphicalEditor');
+        const titleBar = this.dialog!.querySelector('#graphicalEditorTitleBar') as HTMLDivElement;
         const applyBtn = this.dialog!.querySelector('#applyGraphicalModel');
         const saveBtn = this.dialog!.querySelector('#saveGraphicalModel');
         const loadBtn = this.dialog!.querySelector('#loadGraphicalModel');
         const clearBtn = this.dialog!.querySelector('#clearCanvas');
+        const resizeHandle = this.dialog!.querySelector('#graphicalEditorResizeHandle') as HTMLDivElement;
 
         closeBtn?.addEventListener('click', () => this.hide());
+        fullscreenBtn?.addEventListener('click', () => this.toggleFullscreen());
+        titleBar.addEventListener('mousedown', event => this.startDialogMove(event));
+        titleBar.addEventListener('dblclick', event => {
+            if (!(event.target as HTMLElement).closest('button')) {
+                this.toggleFullscreen();
+            }
+        });
 
         applyBtn?.addEventListener('click', () => this.applyGraphicalModel());
         saveBtn?.addEventListener('click', () => this.saveGraphicalModel());
         loadBtn?.addEventListener('click', () => this.loadGraphicalModel());
         clearBtn?.addEventListener('click', () => this.clearCanvas());
+        resizeHandle.addEventListener('mousedown', event => this.startDialogResize(event));
         
         const enterCombineBtn = this.dialog?.querySelector('#enterCombineMode') as HTMLButtonElement;
         const exitCombineBtn = this.dialog?.querySelector('#exitCombineMode') as HTMLButtonElement;
@@ -1197,6 +1279,130 @@ export class GraphicalModelEditor {
             this.combineSelectedElements();
             this.exitCombineMode();
         });
+    }
+
+    private startDialogResize(event: MouseEvent): void {
+        if (!this.dialog || this.isFullscreen) return;
+        event.preventDefault();
+        event.stopPropagation();
+
+        const dialog = this.dialog;
+        const initialRect = dialog.getBoundingClientRect();
+        const startX = event.clientX;
+        const startY = event.clientY;
+
+        // Replace the centering transform with fixed pixel coordinates so the top-left
+        // corner stays anchored while the lower-right resize handle is dragged.
+        dialog.style.left = `${initialRect.left}px`;
+        dialog.style.top = `${initialRect.top}px`;
+        dialog.style.transform = 'none';
+        dialog.style.width = `${initialRect.width}px`;
+        dialog.style.height = `${initialRect.height}px`;
+        dialog.style.maxWidth = 'none';
+
+        const onMouseMove = (moveEvent: MouseEvent): void => {
+            const minWidth = Math.min(900, window.innerWidth - 24);
+            const minHeight = Math.min(480, window.innerHeight - 24);
+            const availableWidth = Math.max(minWidth, window.innerWidth - initialRect.left - 12);
+            const availableHeight = Math.max(minHeight, window.innerHeight - initialRect.top - 12);
+            const width = Math.min(availableWidth, Math.max(minWidth, initialRect.width + moveEvent.clientX - startX));
+            const height = Math.min(availableHeight, Math.max(minHeight, initialRect.height + moveEvent.clientY - startY));
+            dialog.style.width = `${width}px`;
+            dialog.style.height = `${height}px`;
+        };
+
+        const onMouseUp = (): void => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.userSelect = '';
+        };
+
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    private startDialogMove(event: MouseEvent): void {
+        if (!this.dialog || this.isFullscreen || (event.target as HTMLElement).closest('button')) return;
+        event.preventDefault();
+
+        const dialog = this.dialog;
+        const initialRect = dialog.getBoundingClientRect();
+        const offsetX = event.clientX - initialRect.left;
+        const offsetY = event.clientY - initialRect.top;
+
+        dialog.style.left = `${initialRect.left}px`;
+        dialog.style.top = `${initialRect.top}px`;
+        dialog.style.transform = 'none';
+        dialog.style.width = `${initialRect.width}px`;
+        dialog.style.height = `${initialRect.height}px`;
+
+        const onMouseMove = (moveEvent: MouseEvent): void => {
+            const maxLeft = Math.max(0, window.innerWidth - dialog.offsetWidth);
+            const maxTop = Math.max(0, window.innerHeight - dialog.offsetHeight);
+            const left = Math.min(maxLeft, Math.max(0, moveEvent.clientX - offsetX));
+            const top = Math.min(maxTop, Math.max(0, moveEvent.clientY - offsetY));
+            dialog.style.left = `${left}px`;
+            dialog.style.top = `${top}px`;
+        };
+
+        const onMouseUp = (): void => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+            document.body.style.userSelect = '';
+        };
+
+        document.body.style.userSelect = 'none';
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+    }
+
+    private toggleFullscreen(): void {
+        if (!this.dialog) return;
+
+        const fullscreenBtn = this.dialog.querySelector('#fullscreenGraphicalEditor') as HTMLButtonElement;
+        const resizeHandle = this.dialog.querySelector('#graphicalEditorResizeHandle') as HTMLDivElement;
+
+        if (!this.isFullscreen) {
+            this.dialogStyleBeforeFullscreen = {
+                left: this.dialog.style.left,
+                top: this.dialog.style.top,
+                width: this.dialog.style.width,
+                height: this.dialog.style.height,
+                transform: this.dialog.style.transform,
+                maxWidth: this.dialog.style.maxWidth,
+                borderRadius: this.dialog.style.borderRadius
+            };
+            this.dialog.style.left = '0';
+            this.dialog.style.top = '0';
+            this.dialog.style.width = '100vw';
+            this.dialog.style.height = '100vh';
+            this.dialog.style.maxWidth = 'none';
+            this.dialog.style.transform = 'none';
+            this.dialog.style.borderRadius = '0';
+            resizeHandle.style.display = 'none';
+            fullscreenBtn.textContent = '🗗';
+            fullscreenBtn.title = 'Exit fullscreen';
+            fullscreenBtn.setAttribute('aria-label', 'Exit fullscreen');
+            this.isFullscreen = true;
+            return;
+        }
+
+        const previous = this.dialogStyleBeforeFullscreen;
+        if (previous) {
+            this.dialog.style.left = previous.left ?? '';
+            this.dialog.style.top = previous.top ?? '';
+            this.dialog.style.width = previous.width ?? '';
+            this.dialog.style.height = previous.height ?? '';
+            this.dialog.style.transform = previous.transform ?? '';
+            this.dialog.style.maxWidth = previous.maxWidth ?? '';
+            this.dialog.style.borderRadius = previous.borderRadius ?? '';
+        }
+        resizeHandle.style.display = '';
+        fullscreenBtn.textContent = '⛶';
+        fullscreenBtn.title = 'Enter fullscreen';
+        fullscreenBtn.setAttribute('aria-label', 'Enter fullscreen');
+        this.isFullscreen = false;
     }
 
     /**
@@ -1376,6 +1582,7 @@ export class GraphicalModelEditor {
         this.backdrop = null;
         this.dialog = null;
         this.canvas = null;
+        this.canvasContainer = null;
         this.palette = null;
         this.propertiesPanel = null;
         this.selectedElement = null;
@@ -1465,9 +1672,9 @@ export class GraphicalModelEditor {
             const file = (event.target as HTMLInputElement).files?.[0];
             if (!file) return;
 
-            const canvasRect = this.canvas!.getBoundingClientRect();
-            const x = Math.max(0, (canvasRect.width / 2) - 50);
-            const y = Math.max(0, (canvasRect.height / 2) - 40);
+            const canvasContainer = this.canvasContainer!;
+            const x = Math.max(0, (canvasContainer.scrollLeft + canvasContainer.clientWidth / 2) / this.zoom - 50);
+            const y = Math.max(0, (canvasContainer.scrollTop + canvasContainer.clientHeight / 2) / this.zoom - 40);
             
             await this.processSvgFile(file, x, y);
         });
