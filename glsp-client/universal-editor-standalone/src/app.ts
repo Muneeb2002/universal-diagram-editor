@@ -409,6 +409,7 @@ function setupCustomActionHandling(): void {
                                 buttonToUse.textContent?.trim();
 
                             buttonToUse.addEventListener('click', (e) => {
+                                e.stopImmediatePropagation();
                                 e.stopPropagation();
                                 e.preventDefault();
                                 forceEditableMode();
@@ -426,6 +427,7 @@ function setupCustomActionHandling(): void {
                                     buttonText.includes('edge') ||
                                     buttonText.includes('inheritance') ||
                                     buttonText.includes('reference') ||
+                                    buttonText.includes('bidirectional') ||
                                     buttonText.includes('containment')
                                 );
 
@@ -434,19 +436,17 @@ function setupCustomActionHandling(): void {
                                         buttonToUse.getAttribute('data-element-type-id') ||
                                         'edge:ecore-reference';
 
-                                    if (buttonText.includes('inheritance') || buttonText.includes('generalization')) {
+                                    if (buttonText.includes('bidirectional')) {
+                                        edgeType = 'edge:ecore-bidirectional';
+                                    } else if (buttonText.includes('inheritance') || buttonText.includes('generalization')) {
                                         edgeType = 'edge:ecore-inheritance';
                                     } else if (buttonText.includes('containment') || buttonText.includes('composition')) {
                                         edgeType = 'edge:ecore-containment';
                                     } else if (buttonText.includes('reference') || buttonText.includes('association')) {
                                         edgeType = 'edge:ecore-reference';
-                                    } else if (buttonText.includes('bidirectional')) {
-                                        edgeType = 'edge:ecore-bidirectional';
                                     }
 
                                     actionDispatcher.dispatch(TriggerEdgeCreationAction.create(edgeType));
-
-                                    actionDispatcher.dispatch(EnableDefaultToolsAction.create());
 
                                     return;
                                 }

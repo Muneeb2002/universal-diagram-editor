@@ -106,7 +106,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return parent && (parent as any).hidden; // Parent exists but is hidden
         });
 
-        const instancesToRender = [...rootInstances, ...instancesWithHiddenParents];
+        // SVG uses paint order for hit testing. Render larger nodes first so small nodes remain
+        // visible and clickable when their bounds overlap a larger node.
+        const instancesToRender = [...rootInstances, ...instancesWithHiddenParents]
+            .sort((left, right) => this.getInstanceRenderArea(right) - this.getInstanceRenderArea(left));
 
         instancesToRender.forEach(instance => {
             const node = this.createNodeForInstance(instance);
@@ -121,6 +124,13 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         });
 
         this.modelState.set('gmodel', root);
+    }
+
+    private getInstanceRenderArea(instance: EcoreInstance): number {
+        const config = this.shapeMappingStorage.getMapping(instance.eClassName)?.shapeConfig;
+        const width = instance.size?.width ?? config?.width ?? 120;
+        const height = instance.size?.height ?? config?.height ?? 60;
+        return Math.max(1, width) * Math.max(1, height);
     }
 
     private createDefaultModel(): void {

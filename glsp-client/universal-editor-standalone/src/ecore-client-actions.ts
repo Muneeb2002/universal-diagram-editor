@@ -61,6 +61,8 @@ export interface CreateInstanceAction {
     position?: { x: number; y: number };
     containerInstanceId?: string;
     containmentReferenceName?: string;
+    placementReferenceName?: string;
+    placementTargetId?: string;
 }
 
 export interface SetInstanceAttributeAction {
@@ -217,14 +219,18 @@ export function createCreateInstanceAction(
     eClassName: string,
     position?: { x: number; y: number },
     containerInstanceId?: string,
-    containmentReferenceName?: string
+    containmentReferenceName?: string,
+    placementReferenceName?: string,
+    placementTargetId?: string
 ): CreateInstanceAction {
     return {
         kind: 'createInstance',
         eClassName,
         position,
         containerInstanceId,
-        containmentReferenceName
+        containmentReferenceName,
+        placementReferenceName,
+        placementTargetId
     };
 }
 

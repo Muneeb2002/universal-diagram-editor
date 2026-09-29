@@ -317,12 +317,11 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
     }
 
     private renderCircle(node: Readonly<GNode & Hoverable & Selectable>, width: number, height: number, style: ShapeRenderStyle): VNode {
-        const minSize = 20;
-        const safeWidth = Math.max(minSize, width);
-        const safeHeight = Math.max(minSize, height);
+        const safeWidth = Math.max(1, width);
+        const safeHeight = Math.max(1, height);
         const smallerDim = Math.min(safeWidth, safeHeight);
-        const padding = smallerDim < 30 ? 2 : 10; // Less padding for very small circles
-        const radius = Math.max(5, smallerDim / 2 - padding);
+        const padding = smallerDim < 30 ? 0 : 10;
+        const radius = Math.max(0.5, smallerDim / 2 - padding);
         const centerX = safeWidth / 2;
         const centerY = safeHeight / 2;
 
@@ -430,13 +429,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
     ): VNode {
         const components = shapeConfig?.components ?? [];
         const componentNode = { ...node, selected: false, hoverFeedback: false } as Readonly<GNode & Hoverable & Selectable>;
-        const background = <rect x="0" y="0" width={width} height={height} fill="transparent" stroke="none" />;
-        on(background, 'mousedown', event => {
-            if (!node.selected) return;
-            event.preventDefault();
-            event.stopPropagation();
-            this.actionDispatcher.dispatch(SetCompositeComponentAction.create(node.id, -1));
-        });
+        const background = <rect x="0" y="0" width={width} height={height} fill="none" stroke="none" pointer-events="none" />;
 
         return (
             <g>
@@ -512,7 +505,11 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         if (!node.selected) return;
         event.preventDefault();
         event.stopPropagation();
-        this.actionDispatcher.dispatch(SetCompositeComponentAction.create(node.id, componentIndex));
+        const selectedIndex = (node as any).selectedComponentIndex;
+        this.actionDispatcher.dispatch(SetCompositeComponentAction.create(
+            node.id,
+            selectedIndex === componentIndex ? -1 : componentIndex
+        ));
     }
 
     private renderComponentResizeHandle(

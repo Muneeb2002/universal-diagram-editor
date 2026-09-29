@@ -5,6 +5,7 @@ import { injectable, inject } from 'inversify';
 import { EcoreInstance, InstanceModel, InstanceFactory } from './instance-model-types';
 import { MetamodelRegistry } from './metamodel-registry';
 import { isEAttribute, isEReference } from './ecore-types';
+import { ShapeMappingStorage } from './shape-mapping-storage';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -18,6 +19,9 @@ export class InstanceModelStorage {
 
     @inject(MetamodelRegistry)
     protected metamodelRegistry: MetamodelRegistry;
+
+    @inject(ShapeMappingStorage)
+    protected shapeMappingStorage: ShapeMappingStorage;
 
 
     createInstanceModel(metamodelKey: string): InstanceModel {
@@ -133,7 +137,12 @@ export class InstanceModelStorage {
     createInstance(
         eClassName: string,
         position?: { x: number; y: number },
-        opts?: { containerInstanceId?: string; containmentReferenceName?: string }
+        opts?: {
+            containerInstanceId?: string;
+            containmentReferenceName?: string;
+            placementReferenceName?: string;
+            placementTargetId?: string;
+        }
     ): EcoreInstance {
         const activeKey = this.metamodelRegistry.getActiveMetamodelKey();
         if (!activeKey) {
@@ -155,6 +164,28 @@ export class InstanceModelStorage {
         let containmentReferenceName = opts?.containmentReferenceName;
         const incomingContainments = this.findIncomingContainmentRequirements(eClassName);
         const mustBeContained = incomingContainments.some(r => (r.lowerBound ?? 0) > 0);
+        const allFeatures = this.collectAllStructuralFeatures(eClass);
+        const requiredPlacementRefs = allFeatures.filter(isEReference).filter((ref: any) => {
+            const containment = ref.containment ?? ref.get?.('containment') ?? false;
+            const lower = ref.lowerBound ?? ref.get?.('lowerBound') ?? 0;
+            const upper = ref.upperBound ?? ref.get?.('upperBound') ?? 1;
+            return !containment && lower > 0 && upper === 1;
+        });
+        const hasPlacement = !!opts?.placementReferenceName && !!opts?.placementTargetId;
+        if (!!opts?.placementReferenceName !== !!opts?.placementTargetId) {
+            throw new Error('Both placementReferenceName and placementTargetId are required for placement.');
+        }
+        if (requiredPlacementRefs.length === 1 && !hasPlacement) {
+            const requiredName = requiredPlacementRefs[0].name || requiredPlacementRefs[0].get?.('name');
+            throw new Error(`Creating '${eClassName}' requires selecting a target for '${requiredName}'.`);
+        }
+        if (hasPlacement && !containerInstanceId && !containmentReferenceName && incomingContainments.length > 0) {
+            const defaultContainer = this.findDefaultContainer(incomingContainments, instanceModel);
+            if (defaultContainer) {
+                containerInstanceId = defaultContainer.instance.id;
+                containmentReferenceName = defaultContainer.referenceName;
+            }
+        }
         if (mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
             const defaultContainer = this.findDefaultContainer(incomingContainments, instanceModel);
             if (defaultContainer) {
@@ -177,31 +208,52 @@ export class InstanceModelStorage {
 
         instanceModel.instances.set(instance.id, instance);
 
-        if (containerInstanceId && containmentReferenceName) {
-            const containerInstance = this.getInstance(containerInstanceId);
-            if (containerInstance && !containerInstance.hidden && containerInstance.position) {
-                const containmentRef = containerInstance.references.get(containmentReferenceName);
-                let existingChildrenCount = 0;
-                if (containmentRef) {
-                    if (Array.isArray(containmentRef)) {
-                        existingChildrenCount = containmentRef.length;
-                    } else if (containmentRef) {
-                        existingChildrenCount = 1;
+        try {
+            if (containerInstanceId && containmentReferenceName) {
+                const containerInstance = this.getInstance(containerInstanceId);
+                if (containerInstance && !containerInstance.hidden && containerInstance.position) {
+                    const containmentRef = containerInstance.references.get(containmentReferenceName);
+                    let existingChildrenCount = 0;
+                    if (containmentRef) {
+                        if (Array.isArray(containmentRef)) {
+                            existingChildrenCount = containmentRef.length;
+                        } else if (containmentRef) {
+                            existingChildrenCount = 1;
+                        }
                     }
+
+                    const childOffsetX = 300;
+                    const childOffsetY = existingChildrenCount * 150;
+
+                    instance.position = {
+                        x: containerInstance.position.x + childOffsetX,
+                        y: containerInstance.position.y + childOffsetY
+                    };
                 }
-                
-                const childOffsetX = 300;
-                const childOffsetY = existingChildrenCount * 150;
-                
+
+                this.createReference(containerInstanceId, containmentReferenceName, instance.id);
+            } else {
+                instanceModel.rootInstances.add(instance.id);
+            }
+
+            if (hasPlacement) {
+                this.createReference(instance.id, opts!.placementReferenceName!, opts!.placementTargetId!);
+                const target = this.getInstance(opts!.placementTargetId!);
+                if (!target) {
+                    throw new Error(`Placement target '${opts!.placementTargetId}' not found.`);
+                }
+                const sourceConfig = this.shapeMappingStorage.getMapping(eClassName)?.shapeConfig;
+                const targetConfig = this.shapeMappingStorage.getMapping(target.eClassName)?.shapeConfig;
+                const sourceWidth = instance.size?.width ?? sourceConfig?.width ?? 20;
+                const targetWidth = target.size?.width ?? targetConfig?.width ?? 120;
                 instance.position = {
-                    x: containerInstance.position.x + childOffsetX,
-                    y: containerInstance.position.y + childOffsetY
+                    x: (target.position?.x ?? 0) + targetWidth / 2 - sourceWidth / 2,
+                    y: position?.y ?? instance.position?.y ?? (target.position?.y ?? 0)
                 };
             }
-            
-            this.createReference(containerInstanceId, containmentReferenceName, instance.id);
-        } else {
-            instanceModel.rootInstances.add(instance.id);
+        } catch (error) {
+            this.deleteInstance(instance.id);
+            throw error;
         }
 
         console.log(`Created instance ${instance.id} of class ${eClassName}`);
@@ -642,7 +694,20 @@ export class InstanceModelStorage {
         const deleted = instanceModel.instances.delete(instanceId);
         if (deleted) {
             instanceModel.rootInstances.delete(instanceId);
-
+            for (const instance of instanceModel.instances.values()) {
+                for (const [referenceName, value] of instance.references.entries()) {
+                    if (value === instanceId) {
+                        instance.references.delete(referenceName);
+                    } else if (Array.isArray(value)) {
+                        const remaining = value.filter(targetId => targetId !== instanceId);
+                        if (remaining.length === 0) {
+                            instance.references.delete(referenceName);
+                        } else if (remaining.length !== value.length) {
+                            instance.references.set(referenceName, remaining);
+                        }
+                    }
+                }
+            }
         }
 
         return deleted;

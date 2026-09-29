@@ -91,6 +91,21 @@ export function getCreatableChildren(containerClassName: string, allClasses: Cla
     return creatableChildren;
 }
 
+export function getRequiredPlacementReferences(className: string, allClasses: ClassInfo[]): ClassInfo['references'] {
+    const cls = allClasses.find(candidate => candidate.className === className);
+    if (!cls) return [];
+    return cls.references.filter(ref => !ref.containment && ref.lowerBound > 0 && ref.upperBound === 1);
+}
+
+export function getCreatablePlacementChildren(targetClassName: string, allClasses: ClassInfo[]): ClassInfo[] {
+    return allClasses.filter(candidate => {
+        const required = getRequiredPlacementReferences(candidate.className, allClasses);
+        return required.length === 1 && (
+            required[0].type === targetClassName || isSubtypeOf(targetClassName, required[0].type, allClasses)
+        );
+    });
+}
+
 
 export function getContainmentReferenceName(containerClassName: string, childClassName: string, allClasses: ClassInfo[]): string | null {
     const containerClass = allClasses.find(cls => cls.className === containerClassName);

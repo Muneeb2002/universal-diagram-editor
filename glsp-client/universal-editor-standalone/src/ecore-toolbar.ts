@@ -3,7 +3,14 @@
  */
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { createSwitchModeAction, createCreateInstanceAction, createCreateInstanceReferenceAction, createRequestInstancesOverviewAction } from './ecore-client-actions';
-import { getContainmentRequirements, getCreatableChildren, getContainmentReferenceName, isSubtypeOf } from './containment-utils';
+import {
+    getContainmentRequirements,
+    getCreatableChildren,
+    getContainmentReferenceName,
+    getCreatablePlacementChildren,
+    getRequiredPlacementReferences,
+    isSubtypeOf
+} from './containment-utils';
 import { ClassInfo, InstancesOverviewResponse } from './ecore-client-actions';
 import type { ShapeMapping } from './ui/dialogs/shape-mapping-dialog';
 
@@ -129,12 +136,16 @@ export class EcoreToolbar {
 
             if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
                 const children = getCreatableChildren(this.selectedContainerClassName, this.allClasses);
+                const placementChildren = getCreatablePlacementChildren(this.selectedContainerClassName, this.allClasses);
 
-                const creatableChildren = children
+                const containmentChildren = children.filter(child =>
+                    getRequiredPlacementReferences(child.className, this.allClasses).length !== 1
+                );
+                const creatableChildren = [...containmentChildren, ...placementChildren]
                     .filter(c => !c.isAbstract && !c.isInterface)
                     .map(c => c.className);
 
-                paletteClasses.push(...creatableChildren);
+                paletteClasses.push(...new Set(creatableChildren));
             } else {
                 const rootContainers = this.allClasses.filter(cls =>
                     getContainmentRequirements(cls.className, this.allClasses).length === 0
@@ -154,7 +165,10 @@ export class EcoreToolbar {
                     .forEach(cls => creatableFromRoot.set(cls.className, cls));
 
                 creatableFromRoot.forEach((cls) => {
-                    paletteClasses.push(cls.className);
+                    const requiredPlacementRefs = getRequiredPlacementReferences(cls.className, this.allClasses);
+                    if (requiredPlacementRefs.length !== 1) {
+                        paletteClasses.push(cls.className);
+                    }
                 });
             }
 
@@ -193,15 +207,25 @@ export class EcoreToolbar {
 
         let containerInstanceId: string | undefined;
         let containmentReferenceName: string | undefined;
+        let placementReferenceName: string | undefined;
+        let placementTargetId: string | undefined;
 
         if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
             const containmentRefName = getContainmentReferenceName(this.selectedContainerClassName, selectedClass, this.allClasses);
-            if (!containmentRefName) {
-                alert(`Cannot create '${selectedClass}' as a child of '${this.selectedContainerClassName}'. No containment reference found.`);
-                return;
+            if (containmentRefName) {
+                containerInstanceId = this.selectedContainerInstanceId;
+                containmentReferenceName = containmentRefName;
+            } else {
+                const placementRefs = getRequiredPlacementReferences(selectedClass, this.allClasses)
+                    .filter(ref => ref.type === this.selectedContainerClassName
+                        || isSubtypeOf(this.selectedContainerClassName!, ref.type, this.allClasses));
+                if (placementRefs.length !== 1) {
+                    alert(`Cannot place '${selectedClass}' on '${this.selectedContainerClassName}'. No single required placement reference was found.`);
+                    return;
+                }
+                placementReferenceName = placementRefs[0].name;
+                placementTargetId = this.selectedContainerInstanceId;
             }
-            containerInstanceId = this.selectedContainerInstanceId;
-            containmentReferenceName = containmentRefName;
         } else {
             const requirements = getContainmentRequirements(selectedClass, this.allClasses);
             const isRootClass = requirements.length === 0;
@@ -239,7 +263,9 @@ export class EcoreToolbar {
                 selectedClass,
                 { x, y },
                 containerInstanceId,
-                containmentReferenceName
+                containmentReferenceName,
+                placementReferenceName,
+                placementTargetId
             );
             await this.actionDispatcher.dispatch(action);
             this.createdInstances.add(selectedClass);

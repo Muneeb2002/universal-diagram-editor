@@ -49,7 +49,6 @@ export class InstanceFactory {
             attributes: new Map(),
             references: new Map(),
             position,
-            size: { width: 200, height: 100 },
             hidden: options?.hidden ?? false,
             isRoot: options?.isRoot ?? false
         };

@@ -108,6 +108,8 @@ export interface CreateInstanceAction extends Action {
     position?: { x: number; y: number };
     containerInstanceId?: string;
     containmentReferenceName?: string;
+    placementReferenceName?: string;
+    placementTargetId?: string;
 }
 
 export namespace CreateInstanceAction {
@@ -121,14 +123,18 @@ export namespace CreateInstanceAction {
         eClassName: string,
         position?: { x: number; y: number },
         containerInstanceId?: string,
-        containmentReferenceName?: string
+        containmentReferenceName?: string,
+        placementReferenceName?: string,
+        placementTargetId?: string
     ): CreateInstanceAction {
         return {
             kind: KIND,
             eClassName,
             position,
             containerInstanceId,
-            containmentReferenceName
+            containmentReferenceName,
+            placementReferenceName,
+            placementTargetId
         };
     }
 }

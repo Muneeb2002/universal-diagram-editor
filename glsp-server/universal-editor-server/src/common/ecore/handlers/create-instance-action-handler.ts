@@ -32,7 +32,9 @@ export class CreateInstanceActionHandler implements ActionHandler {
                 action.position,
                 {
                     containerInstanceId: action.containerInstanceId,
-                    containmentReferenceName: action.containmentReferenceName
+                    containmentReferenceName: action.containmentReferenceName,
+                    placementReferenceName: action.placementReferenceName,
+                    placementTargetId: action.placementTargetId
                 }
             );
             console.log(`Created instance: ${instance.id}`);
