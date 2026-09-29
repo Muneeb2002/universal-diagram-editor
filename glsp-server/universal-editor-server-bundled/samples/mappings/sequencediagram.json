@@ -1,0 +1,110 @@
+{
+  "version": "1.0",
+  "mappings": [
+    {
+      "className": "Interaction",
+      "shapeId": "element_4",
+      "shapeName": "Interaction",
+      "shapeConfig": {
+        "name": "Interaction",
+        "type": "rectangle",
+        "width": 300,
+        "height": 300,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Lifeline",
+      "shapeId": "element_13",
+      "shapeName": "Lifeline",
+      "shapeConfig": {
+        "name": "Lifeline",
+        "type": "custom-svg",
+        "width": 120,
+        "height": 92,
+        "color": "#333333",
+        "fillColor": "transparent",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "svgContent": "<svg viewBox=\"0 0 120 92\" xmlns=\"http://www.w3.org/2000/svg\"><g transform=\"translate(9,0)\"><rect x=\"0\" y=\"0\" width=\"100\" height=\"30\" fill=\"none\" stroke=\"#333333\" stroke-width=\"2\" stroke-dasharray=\"none\"/></g><g transform=\"translate(0,84) rotate(90,60,4)\"><line x1=\"4\" y1=\"4\" x2=\"116\" y2=\"4\" stroke=\"#333333\" stroke-width=\"2\" stroke-dasharray=\"none\"/></g></svg>"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Message",
+      "shapeId": "element_5",
+      "shapeName": "Message",
+      "shapeConfig": {
+        "name": "Message",
+        "type": "arrow",
+        "width": 100,
+        "height": 20,
+        "color": "#333333",
+        "fillColor": "#000000",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "arrowType": "open-arrow"
+      },
+      "sourceReferenceName": "sendEvent",
+      "targetReferenceName": "receiveEvent",
+      "sourceClass": "MessageEnd",
+      "targetClass": "MessageEnd",
+      "sourceTargetPairs": [
+        {
+          "sourceClass": "OccurrenceSpecification",
+          "targetClass": "OccurrenceSpecification"
+        },
+        {
+          "sourceClass": "Gate",
+          "targetClass": "OccurrenceSpecification"
+        },
+        {
+          "sourceClass": "OccurrenceSpecification",
+          "targetClass": "Gate"
+        }
+      ]
+    },
+    {
+      "className": "Gate",
+      "shapeId": "element_6",
+      "shapeName": "Gate",
+      "shapeConfig": {
+        "name": "Gate",
+        "type": "circle",
+        "width": 20,
+        "height": 20,
+        "color": "#333333",
+        "fillColor": "#e3f2fd",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "OccurrenceSpecification",
+      "shapeId": "element_7",
+      "shapeName": "OccurrenceSpecification",
+      "shapeConfig": {
+        "name": "OccurrenceSpecification",
+        "type": "circle",
+        "width": 20,
+        "height": 20,
+        "color": "#333333",
+        "fillColor": "#000000",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      },
+      "sourceTargetPairs": []
+    }
+  ],
+  "savedAt": "2026-09-29T11:00:42.355Z"
+}

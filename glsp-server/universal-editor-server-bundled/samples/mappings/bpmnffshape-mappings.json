@@ -35,7 +35,15 @@
         "lineStyle": "solid",
         "arrowType": "filled-triangle"
       },
+      "sourceReferenceName": "source",
+      "targetReferenceName": "target",
+      "sourceClass": "Node",
+      "targetClass": "Node",
       "sourceTargetPairs": [
+        {
+          "sourceClass": "Event",
+          "targetClass": "Event"
+        },
         {
           "sourceClass": "Event",
           "targetClass": "Task"

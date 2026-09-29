@@ -1,0 +1,300 @@
+{
+  "ePackages": [
+    {
+      "name": "sequencediagram",
+      "nsURI": "https://www.example.org/sequencediagram",
+      "nsPrefix": "sequencediagram",
+      "eClassifiers": [
+        {
+          "name": "Interaction",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "messages",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Message"
+              },
+              "containment": true,
+              "container": false
+            },
+            {
+              "name": "occurrenceSpecifications",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "OccurrenceSpecification"
+              },
+              "containment": true,
+              "container": false
+            },
+            {
+              "name": "lifelines",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Lifeline"
+              },
+              "containment": true,
+              "container": false
+            },
+            {
+              "name": "gates",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Gate"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Arc",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "MessageEnd",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Lifeline",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "coveredBy",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "OccurrenceSpecification"
+              },
+              "containment": false,
+              "container": false,
+              "eOpposite": {
+                "name": "covered"
+              }
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Message",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "sendEvent",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "MessageEnd"
+              },
+              "containment": false,
+              "container": false
+            },
+            {
+              "name": "receiveEvent",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "MessageEnd"
+              },
+              "containment": false,
+              "container": false
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Arc"
+            }
+          ]
+        },
+        {
+          "name": "OccurrenceSpecification",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "covered",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Lifeline"
+              },
+              "containment": false,
+              "container": false,
+              "eOpposite": {
+                "name": "coveredBy"
+              }
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "MessageEnd"
+            }
+          ]
+        },
+        {
+          "name": "Gate",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "MessageEnd"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "diagramPositions": {
+    "Message": {
+      "position": {
+        "x": 890,
+        "y": -40
+      },
+      "size": {
+        "width": 137,
+        "height": 73
+      }
+    },
+    "Interaction": {
+      "position": {
+        "x": 540,
+        "y": -130
+      },
+      "size": {
+        "width": 137,
+        "height": 73
+      }
+    },
+    "Lifeline": {
+      "position": {
+        "x": 210,
+        "y": -100
+      },
+      "size": {
+        "width": 137,
+        "height": 73
+      }
+    },
+    "OccurrenceSpecification": {
+      "position": {
+        "x": 320,
+        "y": 60
+      },
+      "size": {
+        "width": 163,
+        "height": 73
+      }
+    },
+    "Gate": {
+      "position": {
+        "x": 590,
+        "y": 40
+      },
+      "size": {
+        "width": 137,
+        "height": 73
+      }
+    },
+    "Arc": {
+      "position": {
+        "x": 890,
+        "y": -230
+      },
+      "size": {
+        "width": 123,
+        "height": 41
+      }
+    },
+    "MessageEnd": {
+      "position": {
+        "x": 520,
+        "y": 310
+      },
+      "size": {
+        "width": 177,
+        "height": 41
+      }
+    }
+  }
+}
