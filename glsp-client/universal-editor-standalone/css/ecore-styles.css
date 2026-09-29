@@ -92,7 +92,12 @@
     stroke: #ff8c00;
     stroke-width: 2px;
     vector-effect: non-scaling-stroke;
-    cursor: nwse-resize;
+    cursor: ns-resize;
+}
+
+.composite-component-resize-handle[data-component-resize-handle='left'],
+.composite-component-resize-handle[data-component-resize-handle='right'] {
+    cursor: ew-resize;
 }
 
 /* Instance nodes with mapping - SVG fill attribute will override this CSS */

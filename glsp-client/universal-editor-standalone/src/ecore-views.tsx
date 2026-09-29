@@ -197,10 +197,13 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         const cssShapeClass = cssClasses.find((cls: string) => cls.startsWith('shape-'));
 
         const customSize = (node as any).customSize || (shapeConfig ? { width: shapeConfig.width, height: shapeConfig.height } : undefined);
-        // GLSP updates node.size continuously while a resize handle is dragged. customSize is the
-        // server-provided initial size, so using it first leaves the rendered shape at its old size.
-        const nodeWidth = Math.max(0, node.size.width) || customSize?.width || 0;
-        const nodeHeight = Math.max(0, node.size.height) || customSize?.height || 0;
+        // VBox layout can temporarily replace a new node's bounds with its label bounds. GLSP's
+        // resize feedback and the server both maintain prefWidth/prefHeight, so those values are
+        // the stable source for defaults as well as interactive and persisted resizing.
+        const preferredWidth = Number((node as any).layoutOptions?.prefWidth);
+        const preferredHeight = Number((node as any).layoutOptions?.prefHeight);
+        const nodeWidth = preferredWidth > 0 ? preferredWidth : (Math.max(0, node.size.width) || customSize?.width || 0);
+        const nodeHeight = preferredHeight > 0 ? preferredHeight : (Math.max(0, node.size.height) || customSize?.height || 0);
 
         let shapeType = shapeConfig?.type;
         if (!shapeType && cssShapeClass) {
@@ -426,10 +429,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         shapeConfig?: NodeShapeConfig
     ): VNode {
         const components = shapeConfig?.components ?? [];
-        const baseWidth = Math.max(1, shapeConfig?.width || width);
-        const baseHeight = Math.max(1, shapeConfig?.height || height);
-        const widthDelta = width - baseWidth;
-        const heightDelta = height - baseHeight;
         const componentNode = { ...node, selected: false, hoverFeedback: false } as Readonly<GNode & Hoverable & Selectable>;
         const background = <rect x="0" y="0" width={width} height={height} fill="transparent" stroke="none" />;
         on(background, 'mousedown', event => {
@@ -451,18 +450,13 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
                     const baseCenterY = component.y + component.height / 2;
                     const visualLeft = baseCenterX - baseVisualWidth / 2;
                     const visualTop = baseCenterY - baseVisualHeight / 2;
-                    const visualWidth = component.resizeHorizontal !== false
-                        ? Math.max(1, baseVisualWidth + widthDelta)
-                        : baseVisualWidth;
-                    const visualHeight = component.resizeVertical !== false
-                        ? Math.max(1, baseVisualHeight + heightDelta)
-                        : baseVisualHeight;
-                    const centerX = component.resizeHorizontal !== false
-                        ? visualLeft + visualWidth / 2
-                        : baseCenterX / baseWidth * width;
-                    const centerY = component.resizeVertical !== false
-                        ? visualTop + visualHeight / 2
-                        : baseCenterY / baseHeight * height;
+                    // A composite's outer instance bounds may come from an older saved model.
+                    // Keep each component at its own configured or persisted bounds instead of
+                    // subtracting the outer size difference from the component's dimensions.
+                    const visualWidth = baseVisualWidth;
+                    const visualHeight = baseVisualHeight;
+                    const centerX = visualLeft + visualWidth / 2;
+                    const centerY = visualTop + visualHeight / 2;
                     const componentWidth = quarterTurn ? visualHeight : visualWidth;
                     const componentHeight = quarterTurn ? visualWidth : visualHeight;
                     const x = centerX - componentWidth / 2;
@@ -494,7 +488,13 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
                                         pointer-events="none"
                                     />
                                     {component.resizeHorizontal !== false
+                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'left', selectionLeft, centerY)
+                                        : undefined}
+                                    {component.resizeHorizontal !== false
                                         ? this.renderComponentResizeHandle(node, componentIndex, component, 'right', selectionLeft + visualWidth, centerY)
+                                        : undefined}
+                                    {component.resizeVertical !== false
+                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'top', centerX, selectionTop)
                                         : undefined}
                                     {component.resizeVertical !== false
                                         ? this.renderComponentResizeHandle(node, componentIndex, component, 'bottom', centerX, selectionTop + visualHeight)
@@ -519,7 +519,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         node: Readonly<GNode & Hoverable & Selectable>,
         componentIndex: number,
         component: NodeShapeComponent,
-        direction: 'right' | 'bottom',
+        direction: 'left' | 'right' | 'top' | 'bottom',
         x: number,
         y: number
     ): VNode {
@@ -542,7 +542,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         node: Readonly<GNode & Hoverable & Selectable>,
         componentIndex: number,
         component: NodeShapeComponent,
-        direction: 'right' | 'bottom'
+        direction: 'left' | 'right' | 'top' | 'bottom'
     ): void {
         event.preventDefault();
         event.stopPropagation();
@@ -562,14 +562,24 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         const onMouseMove = (moveEvent: MouseEvent): void => {
             const visualWidth = direction === 'right'
                 ? Math.max(1, initialVisualWidth + (moveEvent.clientX - startX) / rootZoom)
-                : initialVisualWidth;
+                : direction === 'left'
+                    ? Math.max(1, initialVisualWidth + (startX - moveEvent.clientX) / rootZoom)
+                    : initialVisualWidth;
             const visualHeight = direction === 'bottom'
                 ? Math.max(1, initialVisualHeight + (moveEvent.clientY - startY) / rootZoom)
-                : initialVisualHeight;
+                : direction === 'top'
+                    ? Math.max(1, initialVisualHeight + (startY - moveEvent.clientY) / rootZoom)
+                    : initialVisualHeight;
+            const nextVisualLeft = direction === 'left'
+                ? visualLeft + initialVisualWidth - visualWidth
+                : visualLeft;
+            const nextVisualTop = direction === 'top'
+                ? visualTop + initialVisualHeight - visualHeight
+                : visualTop;
             const localWidth = quarterTurn ? visualHeight : visualWidth;
             const localHeight = quarterTurn ? visualWidth : visualHeight;
-            const centerX = visualLeft + visualWidth / 2;
-            const centerY = visualTop + visualHeight / 2;
+            const centerX = nextVisualLeft + visualWidth / 2;
+            const centerY = nextVisualTop + visualHeight / 2;
             latest = {
                 x: centerX - localWidth / 2,
                 y: centerY - localHeight / 2,

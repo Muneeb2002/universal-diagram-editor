@@ -714,6 +714,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             node.size = { width: 120, height: 60 };
         }
 
+        // The client-side vbox layouter otherwise recomputes a newly created node from its
+        // labels and can collapse a mapped composite below its graphical-model default size.
+        node.layoutOptions = {
+            ...(node.layoutOptions ?? {}),
+            prefWidth: node.size.width,
+            prefHeight: node.size.height
+        };
+
         // The graphical model dimensions are defaults. A resized instance keeps its own size.
         (node as any).customSize = { width: node.size.width, height: node.size.height };
 
