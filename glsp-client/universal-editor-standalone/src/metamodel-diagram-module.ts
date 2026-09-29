@@ -5,6 +5,7 @@ import {
     configureActionHandler,
     configureDefaultModelElements,
     configureModelElement,
+    configureView,
     ContainerConfiguration,
     debugModule,
     DEFAULT_ALIGNABLE_ELEMENT_FILTER,
@@ -19,6 +20,7 @@ import {
     GLabelView,
     GLSPProjectionView,
     GNode,
+    GResizeHandle,
     gridModule,
     helperLineModule,
     initializeDiagramContainer,
@@ -34,6 +36,7 @@ import { LoadMetamodelResponseHandler } from './handlers/load-metamodel-response
 import { InstancesOverviewResponseHandler } from './handlers/instances-overview-response-handler';
 import { MultiplicityInputAction, BidirectionalMultiplicityInputAction } from './ecore-client-actions';
 import { ClassPropertiesResponseHandler } from './handlers/class-properties-response-handler';
+import { ZoomIndependentResizeHandleView } from './zoom-independent-resize-handle-view';
 
 export class EcoreClassNode extends GNode {
     static readonly TYPE = 'ecore:class';
@@ -96,6 +99,8 @@ export const metamodelDiagramModule = new FeatureModule(
         configureModelElement(context, 'comp:header', GCompartment, EcoreCompartmentView);
         configureModelElement(context, 'comp:attributes', GCompartment, EcoreCompartmentView);
         configureModelElement(context, 'comp:references', GCompartment, EcoreCompartmentView);
+
+        configureView(context, GResizeHandle.TYPE, ZoomIndependentResizeHandleView, true);
 
         overrideModelElement(context, DefaultTypes.EDGE, GEdge, GEdgeView);
         overrideModelElement(context, DefaultTypes.GRAPH, GGraph, GLSPProjectionView);

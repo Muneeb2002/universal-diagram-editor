@@ -63,6 +63,23 @@
     stroke-width: 2px !important;
 }
 
+/* Selected mapped instances use a separate border so every shape, including custom SVGs, highlights consistently. */
+.ecore-instance .instance-selection-border {
+    stroke: #007acc !important;
+    stroke-width: 2px !important;
+    stroke-dasharray: 5 3;
+    vector-effect: non-scaling-stroke;
+    filter: drop-shadow(0 0 2px rgba(0, 122, 204, 0.45));
+}
+
+/* Make the allowed resize directions clearly draggable around the selected instance. */
+.sprotty .sprotty-resize-handle {
+    r: 6px;
+    fill: #ffffff;
+    stroke: #007acc;
+    stroke-width: 2px;
+}
+
 /* Instance nodes with mapping - SVG fill attribute will override this CSS */
 /* CSS variables are scoped to each node's group, so nested nodes use their own variables */
 /* Note: SVG fill attribute has higher priority than CSS, so this is just a fallback */

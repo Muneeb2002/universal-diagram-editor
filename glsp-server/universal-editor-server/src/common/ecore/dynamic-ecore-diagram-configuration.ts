@@ -69,6 +69,14 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
                 resizable: true,
                 reparentable: false,
                 containableElementTypeIds: []
+            },
+            {
+                elementTypeId: 'ecore:instance',
+                repositionable: true,
+                deletable: true,
+                resizable: true,
+                reparentable: false,
+                containableElementTypeIds: []
             }
         ];
     }

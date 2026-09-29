@@ -15,6 +15,8 @@ export interface GraphicalElement {
     y: number;
     width: number;
     height: number;
+    resizeHorizontal?: boolean;
+    resizeVertical?: boolean;
     color: string;
     fillColor: string;
     filled?: boolean;
@@ -403,6 +405,8 @@ export class GraphicalModelEditor {
             y,
             width: width ?? (isLine ? 120 : 100),
             height: height ?? (isLine ? 8 : 80),
+            resizeHorizontal: true,
+            resizeVertical: true,
             color: '#333333',
             fillColor: '#E3F2FD',
             filled: false,
@@ -939,6 +943,8 @@ export class GraphicalModelEditor {
             y: minY,
             width: combinedWidth,
             height: combinedHeight,
+            resizeHorizontal: true,
+            resizeVertical: true,
             color: '#333333',
             fillColor: 'transparent',
             filled: false,
@@ -987,12 +993,20 @@ export class GraphicalModelEditor {
                     <input type="text" value="${element.type === 'custom-svg' ? 'Custom SVG' : element.type}" disabled style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #f5f5f5;">
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Width:</label>
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Default Width:</label>
                     <input type="number" id="propWidth" value="${element.width}" min="20" max="500" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
                 </div>
                 <div>
-                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Height:</label>
+                    <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Default Height:</label>
                     <input type="number" id="propHeight" value="${element.height}" min="20" max="500" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
+                </div>
+                <div>
+                    <label style="display: block; margin-bottom: 7px; font-weight: 500; color: #555;">Resize in Diagram:</label>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px;">
+                        <button type="button" id="propResizeHorizontal" aria-pressed="${element.resizeHorizontal !== false}" style="padding: 8px 6px; border: 1px solid ${element.resizeHorizontal !== false ? '#007acc' : '#bbb'}; border-radius: 4px; cursor: pointer; background: ${element.resizeHorizontal !== false ? '#007acc' : '#f5f5f5'}; color: ${element.resizeHorizontal !== false ? 'white' : '#444'}; font-size: 12px;">↔ Horizontal</button>
+                        <button type="button" id="propResizeVertical" aria-pressed="${element.resizeVertical !== false}" style="padding: 8px 6px; border: 1px solid ${element.resizeVertical !== false ? '#007acc' : '#bbb'}; border-radius: 4px; cursor: pointer; background: ${element.resizeVertical !== false ? '#007acc' : '#f5f5f5'}; color: ${element.resizeVertical !== false ? 'white' : '#444'}; font-size: 12px;">↕ Vertical</button>
+                    </div>
+                    <div style="margin-top: 6px; color: #777; font-size: 11px; line-height: 1.35;">Enabled directions show drag handles when an instance is selected.</div>
                 </div>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Rotation (degrees):</label>
@@ -1062,6 +1076,8 @@ export class GraphicalModelEditor {
         const nameInput = this.propertiesPanel.querySelector('#propName') as HTMLInputElement;
         const widthInput = this.propertiesPanel.querySelector('#propWidth') as HTMLInputElement;
         const heightInput = this.propertiesPanel.querySelector('#propHeight') as HTMLInputElement;
+        const resizeHorizontalButton = this.propertiesPanel.querySelector('#propResizeHorizontal') as HTMLButtonElement;
+        const resizeVerticalButton = this.propertiesPanel.querySelector('#propResizeVertical') as HTMLButtonElement;
         const rotationInput = this.propertiesPanel.querySelector('#propRotation') as HTMLInputElement | null;
         const colorInput = this.propertiesPanel.querySelector('#propColor') as HTMLInputElement | null;
         const filledCheckbox = this.propertiesPanel.querySelector('#propFilled') as HTMLInputElement | null;
@@ -1070,6 +1086,13 @@ export class GraphicalModelEditor {
         const lineStyleSelect = this.propertiesPanel.querySelector('#propLineStyle') as HTMLSelectElement | null;
         const arrowTypeSelect = this.propertiesPanel.querySelector('#propArrowType') as HTMLSelectElement | null;
         const deleteBtn = this.propertiesPanel.querySelector('#deleteElement') as HTMLButtonElement;
+
+        const updateResizeButton = (button: HTMLButtonElement, enabled: boolean): void => {
+            button.setAttribute('aria-pressed', String(enabled));
+            button.style.background = enabled ? '#007acc' : '#f5f5f5';
+            button.style.color = enabled ? 'white' : '#444';
+            button.style.borderColor = enabled ? '#007acc' : '#bbb';
+        };
 
         const updateElement = () => {
             if (!this.selectedElement) return;
@@ -1102,6 +1125,16 @@ export class GraphicalModelEditor {
         nameInput.addEventListener('input', updateElement);
         widthInput.addEventListener('input', updateElement);
         heightInput.addEventListener('input', updateElement);
+        resizeHorizontalButton.addEventListener('click', () => {
+            if (!this.selectedElement) return;
+            this.selectedElement.resizeHorizontal = !(this.selectedElement.resizeHorizontal !== false);
+            updateResizeButton(resizeHorizontalButton, this.selectedElement.resizeHorizontal);
+        });
+        resizeVerticalButton.addEventListener('click', () => {
+            if (!this.selectedElement) return;
+            this.selectedElement.resizeVertical = !(this.selectedElement.resizeVertical !== false);
+            updateResizeButton(resizeVerticalButton, this.selectedElement.resizeVertical);
+        });
         if (rotationInput) rotationInput.addEventListener('input', updateElement);
         if (colorInput) colorInput.addEventListener('input', updateElement);
         if (filledCheckbox) filledCheckbox.addEventListener('change', updateElement);
@@ -1408,6 +1441,8 @@ export class GraphicalModelEditor {
             y: Number.isFinite(raw?.y) ? raw.y : 0,
             width: Number.isFinite(raw?.width) ? raw.width : 100,
             height: Number.isFinite(raw?.height) ? raw.height : 80,
+            resizeHorizontal: typeof raw?.resizeHorizontal === 'boolean' ? raw.resizeHorizontal : true,
+            resizeVertical: typeof raw?.resizeVertical === 'boolean' ? raw.resizeVertical : true,
             color: typeof raw?.color === 'string' ? raw.color : '#333333',
             fillColor: typeof raw?.fillColor === 'string' ? raw.fillColor : '#E3F2FD',
             filled: typeof raw?.filled === 'boolean' ? raw.filled : false,

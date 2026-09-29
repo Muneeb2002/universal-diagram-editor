@@ -22,6 +22,8 @@ interface NodeShapeConfig {
     type: string;
     width: number;
     height: number;
+    resizeHorizontal?: boolean;
+    resizeVertical?: boolean;
     color: string;
     fillColor: string;
     filled?: boolean;
@@ -178,8 +180,10 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         const cssShapeClass = cssClasses.find((cls: string) => cls.startsWith('shape-'));
 
         const customSize = (node as any).customSize || (shapeConfig ? { width: shapeConfig.width, height: shapeConfig.height } : undefined);
-        const nodeWidth = customSize?.width || Math.max(0, node.size.width);
-        const nodeHeight = customSize?.height || Math.max(0, node.size.height);
+        // GLSP updates node.size continuously while a resize handle is dragged. customSize is the
+        // server-provided initial size, so using it first leaves the rendered shape at its old size.
+        const nodeWidth = Math.max(0, node.size.width) || customSize?.width || 0;
+        const nodeHeight = Math.max(0, node.size.height) || customSize?.height || 0;
 
         let shapeType = shapeConfig?.type;
         if (!shapeType && cssShapeClass) {
@@ -232,6 +236,19 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         const vnode = (
             <g {...groupAttrs}>
                 {shapeElement}
+                {node.selected ? (
+                    <rect
+                        class-instance-selection-border={true}
+                        x="-3"
+                        y="-3"
+                        width={nodeWidth + 6}
+                        height={nodeHeight + 6}
+                        rx="6"
+                        ry="6"
+                        fill="none"
+                        pointer-events="none"
+                    />
+                ) : undefined}
                 {context.renderChildren(node)}
             </g>
         );

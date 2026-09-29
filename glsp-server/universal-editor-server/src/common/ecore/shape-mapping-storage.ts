@@ -7,6 +7,8 @@ export interface ShapeConfig {
     type: string;
     width: number;
     height: number;
+    resizeHorizontal?: boolean;
+    resizeVertical?: boolean;
     color: string;
     fillColor: string;
     filled?: boolean;

@@ -10,7 +10,8 @@ import {
     GCompartment,
     GLabel,
     ModelState,
-    ArgsUtil
+    ArgsUtil,
+    GResizeLocation
 } from '@eclipse-glsp/server';
 import { EcoreModel, isEClass, isEDataType, isEEnum, isEAttribute, isEReference } from './ecore-types';
 import { MetamodelRegistry } from './metamodel-registry';
@@ -701,12 +702,20 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         if (instance.size) {
             node.size = {
-                width: Math.max(120, instance.size.width || 120),
-                height: Math.max(60, instance.size.height || 60)
+                width: Math.max(20, instance.size.width || 20),
+                height: Math.max(20, instance.size.height || 20)
+            };
+        } else if (shapeMapping?.shapeConfig) {
+            node.size = {
+                width: shapeMapping.shapeConfig.width || 120,
+                height: shapeMapping.shapeConfig.height || 60
             };
         } else {
             node.size = { width: 120, height: 60 };
         }
+
+        // The graphical model dimensions are defaults. A resized instance keeps its own size.
+        (node as any).customSize = { width: node.size.width, height: node.size.height };
 
         const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
 
@@ -806,6 +815,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             type: config.type,
             width: config.width,
             height: config.height,
+            resizeHorizontal: config.resizeHorizontal !== false,
+            resizeVertical: config.resizeVertical !== false,
             color: config.color,
             fillColor: config.fillColor,
             filled: config.filled,
@@ -821,10 +832,24 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             configurable: true
         });
 
-        const width = config.width || node.size?.width || 150;
-        const height = config.height || node.size?.height || 100;
-        (node as any).customSize = { width, height };
-        node.size = { width, height };
+        const horizontal = config.resizeHorizontal !== false;
+        const vertical = config.resizeVertical !== false;
+        node.resizeLocations = [];
+        if (horizontal) {
+            node.resizeLocations.push(GResizeLocation.Left, GResizeLocation.Right);
+        }
+        if (vertical) {
+            node.resizeLocations.push(GResizeLocation.Top, GResizeLocation.Bottom);
+        }
+        if (horizontal && vertical) {
+            node.resizeLocations.push(
+                GResizeLocation.TopLeft,
+                GResizeLocation.TopRight,
+                GResizeLocation.BottomRight,
+                GResizeLocation.BottomLeft
+            );
+        }
+
     }
 
     private applyShapeMappingToArc(edge: GEdge, mapping: ShapeMapping): void {

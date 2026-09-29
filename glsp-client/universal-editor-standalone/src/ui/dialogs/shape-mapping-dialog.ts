@@ -564,21 +564,7 @@ export class ShapeMappingDialog {
                             className,
                             shapeId: shape.id,
                             shapeName: shape.name,
-                            shapeConfig: {
-                                name: shape.name,
-                                type: shape.type,
-                                width: shape.width,
-                                height: shape.height,
-                                color: shape.color,
-                                fillColor: shape.fillColor,
-                                filled: shape.filled,
-                                lineThickness: shape.lineThickness,
-                                lineStyle: shape.lineStyle,
-                                arrowType: shape.type === 'arrow'
-                                    ? (shape.arrowType ?? 'filled-triangle')
-                                    : undefined,
-                                svgContent: shape.type === 'custom-svg' ? shape.svgContent : undefined
-                            },
+                            shapeConfig: this.createShapeConfig(shape),
                             enumAttribute: enumAttr || undefined,
                             enumValue: enumValue || undefined,
                             sourceReferenceName: existingMapping?.sourceReferenceName,
@@ -1194,6 +1180,8 @@ export class ShapeMappingDialog {
             type: shape.type,
             width: shape.width,
             height: shape.height,
+            resizeHorizontal: shape.resizeHorizontal !== false,
+            resizeVertical: shape.resizeVertical !== false,
             color: shape.color,
             fillColor: shape.fillColor,
             filled: shape.filled,
@@ -1213,6 +1201,8 @@ export class ShapeMappingDialog {
                 type: 'rectangle',
                 width: 100,
                 height: 80,
+                resizeHorizontal: true,
+                resizeVertical: true,
                 color: '#333333',
                 fillColor: '#E3F2FD',
                 filled: false,
@@ -1224,6 +1214,8 @@ export class ShapeMappingDialog {
             ...config,
             // Ensure filled is set (default to false if not specified)
             filled: config.filled !== undefined ? config.filled : false,
+            resizeHorizontal: config.resizeHorizontal !== false,
+            resizeVertical: config.resizeVertical !== false,
             // Preserve svgContent if it exists (for custom-svg shapes)
             svgContent: config.svgContent
         } as ShapeMapping['shapeConfig'];
