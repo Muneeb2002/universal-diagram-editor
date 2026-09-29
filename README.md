@@ -78,31 +78,24 @@ After building the client, open the app in a browser:
 
 ## Development
 
-### Client
+Run the complete development environment from the repository root:
 
-```bash
-cd glsp-client
-yarn build          # Build packages
-yarn watch          # Watch packages
-yarn lint           # Lint
-
-cd universal-editor-standalone
-yarn build          # Build app
-yarn watch          # Watch + bundle
-yarn lint           # Lint app
+```powershell
+.\dev.cmd
 ```
 
-### Server
+The script installs missing dependencies, watches all client and server TypeScript projects, rebuilds the browser bundle, restarts the WebSocket server when its compiled code changes, and serves the client at **http://localhost:3000/app/**. Press **Ctrl+C** in that terminal to stop every process. Refresh the browser after client changes.
 
-```bash
-cd glsp-server
-yarn build          # Build packages and server
-yarn watch          # Watch mode
-yarn lint           # Lint
-yarn test           # Tests
+Optional ports can be supplied directly:
 
-cd universal-editor-server-bundled
-yarn start:websocket   # Run bundled server
+```powershell
+.\dev.cmd -ClientPort 3001 -ServerPort 8082
+```
+
+Dependency installation is skipped automatically when `node_modules` exists. To force the launcher to skip installation checks:
+
+```powershell
+.\dev.cmd -SkipInstall
 ```
 
 ## Ports
