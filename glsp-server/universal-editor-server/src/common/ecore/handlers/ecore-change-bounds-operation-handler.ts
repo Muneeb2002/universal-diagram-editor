@@ -34,6 +34,10 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
             return undefined;
         }
 
+        const constraintsChanged = (this.modelState.get('viewMode') as string) === 'instance'
+            ? this.constrainInstanceBounds(operation)
+            : false;
+
         const root = this.modelState.root;
         const hasValidRoot = root && root.children !== undefined;
         
@@ -82,9 +86,64 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
             }
         }
         
+        if (constraintsChanged) {
+            // A rejected drag can constrain back to the server's existing bounds. In that case
+            // the base handler returns no command, but the client still needs a model submission
+            // to replace its optimistic drag position with the authoritative constrained one.
+            return this.createDirectUpdateCommand(operation);
+        }
+
         this.updateGModelDirectly(operation);
         this.updateInstanceModelDirectly(operation);
         return undefined;
+    }
+
+    private constrainInstanceBounds(operation: ChangeBoundsOperation): boolean {
+        let changed = false;
+        for (const bound of operation.newBounds) {
+            const instance = this.instanceStorage.getInstance(bound.elementId);
+            if (!instance) continue;
+
+            const requestedPosition = bound.newPosition ? { ...bound.newPosition } : undefined;
+            const requestedSize = bound.newSize ? { ...bound.newSize } : undefined;
+            // ChangeBoundsOperation positions use the element's parent coordinate system.
+            // Instance positions use the same convention, including for nested elements.
+            const storedPosition = bound.newPosition ?? instance.position;
+            const constrained = this.instanceStorage.constrainInstanceBounds(
+                bound.elementId,
+                storedPosition,
+                bound.newSize ?? instance.size
+            );
+            if (constrained.position) {
+                bound.newPosition = constrained.position;
+            }
+            if (constrained.size) {
+                bound.newSize = constrained.size;
+            }
+
+            changed ||= !!requestedPosition && !!bound.newPosition && (
+                requestedPosition.x !== bound.newPosition.x || requestedPosition.y !== bound.newPosition.y
+            );
+            changed ||= !!requestedSize && (
+                requestedSize.width !== bound.newSize.width || requestedSize.height !== bound.newSize.height
+            );
+        }
+        return changed;
+    }
+
+    private createDirectUpdateCommand(operation: ChangeBoundsOperation): Command {
+        const execute = (): void => {
+            this.updateGModelDirectly(operation);
+            this.updateInstanceModelDirectly(operation);
+        };
+        return {
+            execute,
+            redo: execute,
+            undo: () => undefined,
+            // This command only synchronizes rejected client feedback with the unchanged
+            // authoritative model, so it should not create an undo-stack entry.
+            canUndo: () => false
+        };
     }
 
     protected override executeChangeBounds(operation: ChangeBoundsOperation): void {
@@ -122,28 +181,11 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
         const viewMode = this.modelState.get('viewMode') as string;
         
         if (viewMode === 'instance') {
-            const index = this.modelState.index;
-            
             for (const element of operation.newBounds) {
                 const instance = this.instanceStorage.getInstance(element.elementId);
                 if (instance) {
-                    // Check if this is a nested instance (has a parent container in the GModel)
-                    let position = element.newPosition;
-                    if (position && index) {
-                        const node = index.findByClass(element.elementId, GNode);
-                        if (node && node.parent && node.parent.id !== 'sprotty') {
-                            const parentNode = node.parent as GNode;
-                            if (parentNode.position) {
-                                position = {
-                                    x: position.x - parentNode.position.x,
-                                    y: position.y - parentNode.position.y
-                                };
-                            }
-                        }
-                    }
-                    
-                    if (position) {
-                        instance.position = { x: position.x, y: position.y };
+                    if (element.newPosition) {
+                        instance.position = { x: element.newPosition.x, y: element.newPosition.y };
                     }
                     if (element.newSize) {
                         instance.size = { width: element.newSize.width, height: element.newSize.height };

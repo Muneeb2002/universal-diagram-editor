@@ -19,6 +19,7 @@ import { makeLoggerMiddleware } from 'inversify-logger-middleware';
 import '../css/diagram.css';
 import '../css/ecore-styles.css';
 import { getParameters } from './url-parameters';
+import { EcoreChangeBoundsManager } from './ecore-change-bounds-manager';
 export default function createContainer(options: IDiagramOptions): Container {
     const parameters = getParameters();
     if (parameters.readonly) {
@@ -34,6 +35,7 @@ export default function createContainer(options: IDiagramOptions): Container {
     );
     bindOrRebind(container, TYPES.ILogger).to(ConsoleLogger).inSingletonScope();
     bindOrRebind(container, TYPES.LogLevel).toConstantValue(LogLevel.warn);
+    bindOrRebind(container, TYPES.IChangeBoundsManager).to(EcoreChangeBoundsManager).inSingletonScope();
     container.bind(TYPES.IMarqueeBehavior).toConstantValue({ entireEdge: true, entireElement: true });
     if (parameters.inversifyLog) {
         configureInversifyLogger(container);

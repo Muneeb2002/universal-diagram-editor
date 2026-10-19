@@ -93,6 +93,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const arcInstances = visibleInstances.filter(instance => this.isArcInstance(instance));
         const nodeInstances = visibleInstances.filter(instance => !this.isArcInstance(instance));
 
+        // Normalize previously saved models as they are loaded. Containers expand when needed,
+        // contained nodes stay within them, and placement-linked nodes snap to their target shape.
+        nodeInstances.forEach(instance => {
+            const constrained = this.instanceStorage.constrainInstanceBounds(instance.id, instance.position, instance.size);
+            instance.position = constrained.position;
+            instance.size = constrained.size;
+        });
+
         const instanceModel = this.instanceStorage.getActiveInstanceModel();
         const rootInstances = nodeInstances.filter(instance => {
             return instanceModel && instanceModel.rootInstances.has(instance.id);
@@ -712,8 +720,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         if (instance.size) {
             node.size = {
-                width: Math.max(20, instance.size.width || 20),
-                height: Math.max(20, instance.size.height || 20)
+                width: Math.max(1, instance.size.width || 1),
+                height: Math.max(1, instance.size.height || 1)
             };
         } else if (shapeMapping?.shapeConfig) {
             node.size = {
@@ -784,8 +792,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
                                     (childNode as any).customSize = { width: 100, height: 50 };
                                 } else {
                                     childNode.size = {
-                                        width: Math.max(20, childNode.size.width),
-                                        height: Math.max(20, childNode.size.height)
+                                        width: Math.max(1, childNode.size.width),
+                                        height: Math.max(1, childNode.size.height)
                                     };
                                 }
                                 node.children.push(childNode);

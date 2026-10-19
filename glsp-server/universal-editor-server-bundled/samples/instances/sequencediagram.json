@@ -6,7 +6,19 @@
       "eClassName": "Interaction",
       "metamodelKey": "sequencediagram",
       "attributes": {},
-      "references": {},
+      "references": {
+        "messages": [
+          "Message_8",
+          "Message_10"
+        ],
+        "lifelines": [
+          "Lifeline_2",
+          "Lifeline_3"
+        ],
+        "gates": [
+          "Gate_11"
+        ]
+      },
       "position": {
         "x": 0,
         "y": 0
@@ -25,14 +37,19 @@
       "attributes": {
         "name": "client"
       },
-      "references": {},
+      "references": {
+        "occurrenceSpecifications": [
+          "OccurrenceSpecification_4",
+          "OccurrenceSpecification_7"
+        ]
+      },
       "position": {
         "x": 50,
         "y": 50
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 100,
+        "height": 146
       },
       "hidden": false,
       "isRoot": false
@@ -44,14 +61,19 @@
       "attributes": {
         "name": "server"
       },
-      "references": {},
+      "references": {
+        "occurrenceSpecifications": [
+          "OccurrenceSpecification_5",
+          "OccurrenceSpecification_6"
+        ]
+      },
       "position": {
         "x": 300,
         "y": 50
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 100,
+        "height": 146
       },
       "hidden": false,
       "isRoot": false
@@ -65,12 +87,12 @@
       },
       "references": {},
       "position": {
-        "x": 100,
-        "y": 80
+        "x": 48.04928804837715,
+        "y": 30
       },
       "size": {
-        "width": 65.55555725097656,
-        "height": 25.555556297302246
+        "width": 5,
+        "height": 5
       },
       "hidden": false,
       "isRoot": false
@@ -80,16 +102,16 @@
       "eClassName": "OccurrenceSpecification",
       "metamodelKey": "sequencediagram",
       "attributes": {
-        "name": "recieveLogin"
+        "name": "receiveLogin"
       },
       "references": {},
       "position": {
-        "x": 350,
-        "y": 90
+        "x": 48.04928804837715,
+        "y": 40
       },
       "size": {
-        "width": 78.8888931274414,
-        "height": 25.555556297302246
+        "width": 5,
+        "height": 5
       },
       "hidden": false,
       "isRoot": false
@@ -103,12 +125,12 @@
       },
       "references": {},
       "position": {
-        "x": 350,
-        "y": 110
+        "x": 48.04928804837715,
+        "y": 60
       },
       "size": {
-        "width": 70.00000381469727,
-        "height": 25.555556297302246
+        "width": 5,
+        "height": 5
       },
       "hidden": false,
       "isRoot": false
@@ -118,16 +140,16 @@
       "eClassName": "OccurrenceSpecification",
       "metamodelKey": "sequencediagram",
       "attributes": {
-        "name": "recieveResult"
+        "name": "receiveResult"
       },
       "references": {},
       "position": {
-        "x": 100,
-        "y": 110
+        "x": 48.04928804837715,
+        "y": 60
       },
       "size": {
-        "width": 83.33333587646484,
-        "height": 25.555556297302246
+        "width": 5,
+        "height": 5
       },
       "hidden": false,
       "isRoot": false
@@ -185,23 +207,14 @@
         "y": 140
       },
       "size": {
-        "width": 200,
-        "height": 100
+        "width": 5,
+        "height": 5
       },
       "hidden": false,
       "isRoot": false
     }
   ],
   "rootInstances": [
-    "Interaction_1",
-    "Lifeline_2",
-    "Lifeline_3",
-    "OccurrenceSpecification_4",
-    "OccurrenceSpecification_5",
-    "OccurrenceSpecification_6",
-    "OccurrenceSpecification_7",
-    "Message_8",
-    "Message_10",
-    "Gate_11"
+    "Interaction_1"
   ]
 }

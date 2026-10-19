@@ -1,0 +1,89 @@
+{
+  "metamodelKey": "sequencediagram",
+  "instances": [
+    {
+      "id": "Interaction_1",
+      "eClassName": "Interaction",
+      "metamodelKey": "sequencediagram",
+      "attributes": {},
+      "references": {
+        "lifelines": [
+          "Lifeline_2",
+          "Lifeline_3"
+        ]
+      },
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "size": {
+        "width": 0,
+        "height": 0
+      },
+      "hidden": true,
+      "isRoot": true
+    },
+    {
+      "id": "Lifeline_2",
+      "eClassName": "Lifeline",
+      "metamodelKey": "sequencediagram",
+      "attributes": {
+        "name": "Browser"
+      },
+      "references": {
+        "occurrenceSpecifications": [
+          "OccurrenceSpecification_4"
+        ]
+      },
+      "position": {
+        "x": 50,
+        "y": 50
+      },
+      "size": {
+        "width": 100,
+        "height": 146
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "Lifeline_3",
+      "eClassName": "Lifeline",
+      "metamodelKey": "sequencediagram",
+      "attributes": {
+        "name": "Server"
+      },
+      "references": {},
+      "position": {
+        "x": 300,
+        "y": 50
+      },
+      "size": {
+        "width": 100,
+        "height": 146
+      },
+      "hidden": false,
+      "isRoot": false
+    },
+    {
+      "id": "OccurrenceSpecification_4",
+      "eClassName": "OccurrenceSpecification",
+      "metamodelKey": "sequencediagram",
+      "attributes": {},
+      "references": {},
+      "position": {
+        "x": 48.04928804837715,
+        "y": 60
+      },
+      "size": {
+        "width": 5,
+        "height": 5
+      },
+      "hidden": false,
+      "isRoot": false
+    }
+  ],
+  "rootInstances": [
+    "Interaction_1"
+  ]
+}

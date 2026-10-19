@@ -163,7 +163,10 @@ export class InstanceModelStorage {
         let containerInstanceId = opts?.containerInstanceId;
         let containmentReferenceName = opts?.containmentReferenceName;
         const incomingContainments = this.findIncomingContainmentRequirements(eClassName);
-        const mustBeContained = incomingContainments.some(r => (r.lowerBound ?? 0) > 0);
+        // A class targeted by a composition belongs to one of those containers even when the
+        // container reference itself is optional (lowerBound 0). The lower bound describes how
+        // many children the container needs; it does not make a contained child a valid root.
+        const mustBeContained = incomingContainments.length > 0;
         const allFeatures = this.collectAllStructuralFeatures(eClass);
         const requiredPlacementRefs = allFeatures.filter(isEReference).filter((ref: any) => {
             const containment = ref.containment ?? ref.get?.('containment') ?? false;
@@ -222,12 +225,9 @@ export class InstanceModelStorage {
                         }
                     }
 
-                    const childOffsetX = 300;
-                    const childOffsetY = existingChildrenCount * 150;
-
                     instance.position = {
-                        x: containerInstance.position.x + childOffsetX,
-                        y: containerInstance.position.y + childOffsetY
+                        x: 10 + (existingChildrenCount % 4) * 120,
+                        y: 10 + Math.floor(existingChildrenCount / 4) * 100
                     };
                 }
 
@@ -251,6 +251,10 @@ export class InstanceModelStorage {
                     y: position?.y ?? instance.position?.y ?? (target.position?.y ?? 0)
                 };
             }
+
+            const constrained = this.constrainInstanceBounds(instance.id, instance.position, instance.size);
+            instance.position = constrained.position;
+            instance.size = constrained.size;
         } catch (error) {
             this.deleteInstance(instance.id);
             throw error;
@@ -258,6 +262,156 @@ export class InstanceModelStorage {
 
         console.log(`Created instance ${instance.id} of class ${eClassName}`);
         return instance;
+    }
+
+    constrainInstanceBounds(
+        instanceId: string,
+        proposedPosition?: { x: number; y: number },
+        proposedSize?: { width: number; height: number }
+    ): { position?: { x: number; y: number }; size?: { width: number; height: number } } {
+        const instance = this.getInstance(instanceId);
+        if (!instance) return { position: proposedPosition, size: proposedSize };
+
+        const defaultSize = this.getMappedSize(instance);
+        const size = {
+            width: Math.max(1, proposedSize?.width ?? instance.size?.width ?? defaultSize.width),
+            height: Math.max(1, proposedSize?.height ?? instance.size?.height ?? defaultSize.height)
+        };
+        let position = proposedPosition
+            ? { ...proposedPosition }
+            : instance.position
+                ? { ...instance.position }
+                : { x: 0, y: 0 };
+
+        const placement = this.getSingleRequiredPlacement(instance);
+        if (placement) {
+            position = this.constrainToPlacementTarget(position, size, placement.target);
+        }
+
+        const container = this.getContainingInstance(instanceId);
+        if (container && !container.hidden) {
+            const containerSize = this.getMappedSize(container);
+            const width = container.size?.width ?? containerSize.width;
+            const height = container.size?.height ?? containerSize.height;
+            size.width = Math.min(size.width, width);
+            size.height = Math.min(size.height, height);
+            // Child coordinates are local to their visible container. For a composite with a
+            // line (for example a lifeline), use that line as the placement path. Other shapes
+            // fall back to their rectangular bounds.
+            position = this.constrainToPlacementTarget(position, size, container, { x: 0, y: 0 });
+        }
+
+        const children = this.getContainedInstances(instanceId);
+        for (const child of children) {
+            const childSize = this.getMappedSize(child);
+            const width = child.size?.width ?? childSize.width;
+            const height = child.size?.height ?? childSize.height;
+            size.width = Math.max(size.width, (child.position?.x ?? 0) + width);
+            size.height = Math.max(size.height, (child.position?.y ?? 0) + height);
+        }
+
+        return { position, size };
+    }
+
+    getContainingInstance(childInstanceId: string): EcoreInstance | undefined {
+        for (const candidate of this.getAllInstances()) {
+            const eClass = this.metamodelRegistry.findEClass(candidate.eClassName);
+            if (!eClass) continue;
+            for (const ref of this.collectAllStructuralFeatures(eClass).filter(isEReference)) {
+                const containment = ref.containment ?? ref.get?.('containment') ?? false;
+                if (!containment) continue;
+                const name = ref.name || ref.get?.('name');
+                const value = candidate.references.get(name);
+                if (value === childInstanceId || (Array.isArray(value) && value.includes(childInstanceId))) {
+                    return candidate;
+                }
+            }
+        }
+        return undefined;
+    }
+
+    private getContainedInstances(containerInstanceId: string): EcoreInstance[] {
+        const container = this.getInstance(containerInstanceId);
+        if (!container) return [];
+        const eClass = this.metamodelRegistry.findEClass(container.eClassName);
+        if (!eClass) return [];
+        const ids = new Set<string>();
+        for (const ref of this.collectAllStructuralFeatures(eClass).filter(isEReference)) {
+            const containment = ref.containment ?? ref.get?.('containment') ?? false;
+            if (!containment) continue;
+            const name = ref.name || ref.get?.('name');
+            const value = container.references.get(name);
+            if (typeof value === 'string') ids.add(value);
+            else if (Array.isArray(value)) value.forEach(id => ids.add(id));
+        }
+        return [...ids].map(id => this.getInstance(id)).filter((child): child is EcoreInstance => !!child && !child.hidden);
+    }
+
+    private getMappedSize(instance: EcoreInstance): { width: number; height: number } {
+        const config = this.shapeMappingStorage.getMapping(instance.eClassName)?.shapeConfig;
+        return {
+            width: Math.max(1, config?.width ?? 120),
+            height: Math.max(1, config?.height ?? 60)
+        };
+    }
+
+    private getSingleRequiredPlacement(instance: EcoreInstance): { target: EcoreInstance } | undefined {
+        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
+        if (!eClass) return undefined;
+        const refs = this.collectAllStructuralFeatures(eClass).filter(isEReference).filter((ref: any) => {
+            const containment = ref.containment ?? ref.get?.('containment') ?? false;
+            const lower = ref.lowerBound ?? ref.get?.('lowerBound') ?? 0;
+            const upper = ref.upperBound ?? ref.get?.('upperBound') ?? 1;
+            return !containment && lower > 0 && upper === 1;
+        });
+        if (refs.length !== 1) return undefined;
+        const name = refs[0].name || refs[0].get?.('name');
+        const targetId = instance.references.get(name);
+        if (typeof targetId !== 'string') return undefined;
+        const target = this.getInstance(targetId);
+        return target ? { target } : undefined;
+    }
+
+    private constrainToPlacementTarget(
+        position: { x: number; y: number },
+        size: { width: number; height: number },
+        target: EcoreInstance,
+        targetOrigin: { x: number; y: number } = target.position ?? { x: 0, y: 0 }
+    ): { x: number; y: number } {
+        const mapping = this.shapeMappingStorage.getMapping(target.eClassName)?.shapeConfig;
+        const components = mapping?.components?.map((component, index) => ({
+            ...component,
+            ...(target.componentBounds?.[String(index)] ?? {})
+        })) ?? [];
+        const lines = components.filter(component => component.type === 'line');
+        if (lines.length > 0) {
+            const line = lines.reduce((longest, candidate) =>
+                Math.max(candidate.width, candidate.height) > Math.max(longest.width, longest.height) ? candidate : longest
+            );
+            const rotation = Math.abs(Math.round((line.rotation ?? 0) / 90)) % 2;
+            const centerX = targetOrigin.x + line.x + line.width / 2;
+            const centerY = targetOrigin.y + line.y + line.height / 2;
+            if (rotation === 1) {
+                const halfLength = line.width / 2;
+                return {
+                    x: centerX - size.width / 2,
+                    y: Math.min(Math.max(position.y + size.height / 2, centerY - halfLength), centerY + halfLength) - size.height / 2
+                };
+            }
+            const halfLength = line.width / 2;
+            return {
+                x: Math.min(Math.max(position.x + size.width / 2, centerX - halfLength), centerX + halfLength) - size.width / 2,
+                y: centerY - size.height / 2
+            };
+        }
+
+        const targetDefaultSize = this.getMappedSize(target);
+        const targetWidth = target.size?.width ?? targetDefaultSize.width;
+        const targetHeight = target.size?.height ?? targetDefaultSize.height;
+        return {
+            x: Math.min(Math.max(position.x, targetOrigin.x), targetOrigin.x + Math.max(0, targetWidth - size.width)),
+            y: Math.min(Math.max(position.y, targetOrigin.y), targetOrigin.y + Math.max(0, targetHeight - size.height))
+        };
     }
 
     private boundToString(ub: number | undefined): string {

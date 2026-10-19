@@ -1,0 +1,197 @@
+{
+  "ePackages": [
+    {
+      "name": "sequencediagram",
+      "nsURI": "https://www.example.org/sequencediagram",
+      "nsPrefix": "sequencediagram",
+      "eClassifiers": [
+        {
+          "name": "Interaction",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "messages",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Message"
+              },
+              "containment": true,
+              "container": false
+            },
+            {
+              "name": "lifelines",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Lifeline"
+              },
+              "containment": true,
+              "container": false
+            },
+            {
+              "name": "gates",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "Gate"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Arc",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "MessageEnd",
+          "abstract": true,
+          "eAttributes": [],
+          "eReferences": [],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Lifeline",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "occurrenceSpecifications",
+              "lowerBound": 0,
+              "upperBound": -1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "OccurrenceSpecification"
+              },
+              "containment": true,
+              "container": false
+            }
+          ],
+          "eSuperTypes": []
+        },
+        {
+          "name": "Message",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [
+            {
+              "name": "sendEvent",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "MessageEnd"
+              },
+              "containment": false,
+              "container": false
+            },
+            {
+              "name": "receiveEvent",
+              "lowerBound": 1,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": true,
+              "eType": {
+                "name": "MessageEnd"
+              },
+              "containment": false,
+              "container": false
+            }
+          ],
+          "eSuperTypes": [
+            {
+              "name": "Arc"
+            }
+          ]
+        },
+        {
+          "name": "OccurrenceSpecification",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "MessageEnd"
+            }
+          ]
+        },
+        {
+          "name": "Gate",
+          "eAttributes": [
+            {
+              "name": "name",
+              "lowerBound": 0,
+              "upperBound": 1,
+              "unique": true,
+              "ordered": false,
+              "eType": {
+                "name": "EString"
+              }
+            }
+          ],
+          "eReferences": [],
+          "eSuperTypes": [
+            {
+              "name": "MessageEnd"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -2069,7 +2069,7 @@ export class MetamodelRegistry {
     /**
      * Serialize metamodel to JSON, handling circular references.
      */
-    private serializeMetamodelToJSON(metamodel: any): string {
+    serializeMetamodelToJSON(metamodel: any): string {
         // Skip the complex serialization and go directly to simplified version
         // since the Ecore objects have a complex structure that's hard to serialize
         return this.serializeSimplifiedMetamodel(metamodel);

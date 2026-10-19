@@ -33,18 +33,6 @@
               "container": false
             },
             {
-              "name": "occurrenceSpecifications",
-              "lowerBound": 0,
-              "upperBound": -1,
-              "unique": true,
-              "ordered": true,
-              "eType": {
-                "name": "OccurrenceSpecification"
-              },
-              "containment": true,
-              "container": false
-            },
-            {
               "name": "lifelines",
               "lowerBound": 0,
               "upperBound": -1,
@@ -101,7 +89,7 @@
           ],
           "eReferences": [
             {
-              "name": "coveredBy",
+              "name": "occurrenceSpecifications",
               "lowerBound": 0,
               "upperBound": -1,
               "unique": true,
@@ -109,11 +97,8 @@
               "eType": {
                 "name": "OccurrenceSpecification"
               },
-              "containment": false,
-              "container": false,
-              "eOpposite": {
-                "name": "covered"
-              }
+              "containment": true,
+              "container": false
             }
           ],
           "eSuperTypes": []
@@ -178,23 +163,7 @@
               }
             }
           ],
-          "eReferences": [
-            {
-              "name": "covered",
-              "lowerBound": 1,
-              "upperBound": 1,
-              "unique": true,
-              "ordered": true,
-              "eType": {
-                "name": "Lifeline"
-              },
-              "containment": false,
-              "container": false,
-              "eOpposite": {
-                "name": "coveredBy"
-              }
-            }
-          ],
+          "eReferences": [],
           "eSuperTypes": [
             {
               "name": "MessageEnd"

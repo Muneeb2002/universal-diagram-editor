@@ -7,6 +7,7 @@ import { ModelState, SOURCE_URI_ARG, SourceModelStorage } from '@eclipse-glsp/se
 import { EcoreParser } from './ecore-parser';
 import { EcoreModel } from './ecore-types';
 import { DiagramPositionStorage } from './diagram-position-storage';
+import { MetamodelRegistry } from './metamodel-registry';
 
 @injectable()
 export class EcoreModelStorage implements SourceModelStorage {
@@ -18,6 +19,9 @@ export class EcoreModelStorage implements SourceModelStorage {
 
     @inject(DiagramPositionStorage)
     protected diagramPositionStorage: DiagramPositionStorage;
+
+    @inject(MetamodelRegistry)
+    protected metamodelRegistry: MetamodelRegistry;
 
     async loadSourceModel(action: RequestModelAction): Promise<void> {
         const sourceUri = this.getSourceUri(action);
@@ -85,7 +89,9 @@ export class EcoreModelStorage implements SourceModelStorage {
             const ecoreModel = this.modelState.get('ecoreModel') as EcoreModel;
             const viewMode = this.modelState.get('viewMode') as string;
 
-            const modelToSave: any = this.convertToPlainJson(ecoreModel);
+            // Ecore objects contain back-references. Use the registry's Ecore-aware serializer
+            // rather than recursively walking the live object graph.
+            const modelToSave: any = JSON.parse(this.metamodelRegistry.serializeMetamodelToJSON(ecoreModel));
             if (viewMode === 'metamodel') {
                 const diagramPositions = this.diagramPositionStorage.getAllPositions();
                 if (diagramPositions.size > 0) {
