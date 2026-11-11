@@ -1182,6 +1182,7 @@ export class ShapeMappingDialog {
             height: shape.height,
             resizeHorizontal: shape.resizeHorizontal !== false,
             resizeVertical: shape.resizeVertical !== false,
+            childBinding: shape.childBinding,
             color: shape.color,
             fillColor: shape.fillColor,
             filled: shape.filled,

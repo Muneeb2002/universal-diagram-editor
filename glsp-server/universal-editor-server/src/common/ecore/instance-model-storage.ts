@@ -5,7 +5,7 @@ import { injectable, inject } from 'inversify';
 import { EcoreInstance, InstanceModel, InstanceFactory } from './instance-model-types';
 import { MetamodelRegistry } from './metamodel-registry';
 import { isEAttribute, isEReference } from './ecore-types';
-import { ShapeMappingStorage } from './shape-mapping-storage';
+import { ShapeConfig, ShapeMappingStorage } from './shape-mapping-storage';
 import * as path from 'path';
 import * as fs from 'fs';
 
@@ -379,39 +379,155 @@ export class InstanceModelStorage {
         targetOrigin: { x: number; y: number } = target.position ?? { x: 0, y: 0 }
     ): { x: number; y: number } {
         const mapping = this.shapeMappingStorage.getMapping(target.eClassName)?.shapeConfig;
-        const components = mapping?.components?.map((component, index) => ({
-            ...component,
-            ...(target.componentBounds?.[String(index)] ?? {})
-        })) ?? [];
-        const lines = components.filter(component => component.type === 'line');
-        if (lines.length > 0) {
-            const line = lines.reduce((longest, candidate) =>
-                Math.max(candidate.width, candidate.height) > Math.max(longest.width, longest.height) ? candidate : longest
-            );
-            const rotation = Math.abs(Math.round((line.rotation ?? 0) / 90)) % 2;
-            const centerX = targetOrigin.x + line.x + line.width / 2;
-            const centerY = targetOrigin.y + line.y + line.height / 2;
-            if (rotation === 1) {
-                const halfLength = line.width / 2;
-                return {
-                    x: centerX - size.width / 2,
-                    y: Math.min(Math.max(position.y + size.height / 2, centerY - halfLength), centerY + halfLength) - size.height / 2
-                };
-            }
-            const halfLength = line.width / 2;
-            return {
-                x: Math.min(Math.max(position.x + size.width / 2, centerX - halfLength), centerX + halfLength) - size.width / 2,
-                y: centerY - size.height / 2
-            };
-        }
-
         const targetDefaultSize = this.getMappedSize(target);
         const targetWidth = target.size?.width ?? targetDefaultSize.width;
         const targetHeight = target.size?.height ?? targetDefaultSize.height;
-        return {
-            x: Math.min(Math.max(position.x, targetOrigin.x), targetOrigin.x + Math.max(0, targetWidth - size.width)),
-            y: Math.min(Math.max(position.y, targetOrigin.y), targetOrigin.y + Math.max(0, targetHeight - size.height))
+        const targets: Array<ShapeConfig & { x: number; y: number; rotation?: number }> = [];
+
+        if (mapping?.type === 'composite') {
+            mapping.components?.forEach((component, index) => {
+                const configured = {
+                    ...component,
+                    ...(target.componentBounds?.[String(index)] ?? {})
+                };
+                if (this.getEffectiveChildBinding(configured, true) !== 'none') {
+                    targets.push(configured);
+                }
+            });
+        } else if (mapping) {
+            if (this.getEffectiveChildBinding(mapping, false) !== 'none') {
+                targets.push({ ...mapping, x: 0, y: 0, width: targetWidth, height: targetHeight, rotation: 0 });
+            }
+        } else {
+            // Unmapped containers retain the historical rectangular containment behavior.
+            targets.push({
+                type: 'rectangle', x: 0, y: 0, width: targetWidth, height: targetHeight,
+                childBinding: 'inside', color: '', fillColor: '', lineThickness: 1, lineStyle: 'solid'
+            });
+        }
+
+        const candidates: Array<{ x: number; y: number }> = [];
+        for (const bindingTarget of targets) {
+            const mode = this.getEffectiveChildBinding(bindingTarget, mapping?.type === 'composite');
+            if (mode === 'inside' || mode === 'both') {
+                candidates.push(this.constrainInsideShape(position, size, bindingTarget, targetOrigin));
+            }
+            if (mode === 'on' || mode === 'both') {
+                candidates.push(this.constrainOnShape(position, size, bindingTarget, targetOrigin));
+            }
+        }
+
+        return candidates.reduce((closest, candidate) =>
+            this.distanceSquared(candidate, position) < this.distanceSquared(closest, position) ? candidate : closest,
+            candidates[0] ?? position
+        );
+    }
+
+    private getEffectiveChildBinding(config: Pick<ShapeConfig, 'type' | 'childBinding'>, isSubcomponent: boolean): 'none' | 'inside' | 'on' | 'both' {
+        if (config.type === 'line') {
+            return config.childBinding === 'none' ? 'none' : 'on';
+        }
+        if (config.childBinding === 'none' || config.childBinding === 'inside' ||
+            config.childBinding === 'on' || config.childBinding === 'both') {
+            return config.childBinding;
+        }
+        return isSubcomponent ? 'none' : 'inside';
+    }
+
+    private constrainInsideShape(
+        position: { x: number; y: number },
+        size: { width: number; height: number },
+        shape: ShapeConfig & { x: number; y: number; rotation?: number },
+        origin: { x: number; y: number }
+    ): { x: number; y: number } {
+        const center = this.shapeCenter(shape, origin);
+        const proposedCenter = { x: position.x + size.width / 2, y: position.y + size.height / 2 };
+        const local = this.rotatePoint(proposedCenter, center, -(shape.rotation ?? 0));
+
+        if (shape.type === 'circle') {
+            const radius = Math.max(0.5, Math.min(shape.width, shape.height) / 2 - (Math.min(shape.width, shape.height) < 30 ? 0 : 10));
+            const allowedRadius = Math.max(0, radius - Math.max(size.width, size.height) / 2);
+            const dx = local.x - center.x;
+            const dy = local.y - center.y;
+            const length = Math.hypot(dx, dy);
+            const bounded = length > allowedRadius && length > 0
+                ? { x: center.x + dx / length * allowedRadius, y: center.y + dy / length * allowedRadius }
+                : local;
+            const world = this.rotatePoint(bounded, center, shape.rotation ?? 0);
+            return { x: world.x - size.width / 2, y: world.y - size.height / 2 };
+        }
+
+        const halfWidth = Math.max(0, shape.width / 2 - size.width / 2);
+        const halfHeight = Math.max(0, shape.height / 2 - size.height / 2);
+        const bounded = {
+            x: Math.min(Math.max(local.x, center.x - halfWidth), center.x + halfWidth),
+            y: Math.min(Math.max(local.y, center.y - halfHeight), center.y + halfHeight)
         };
+        const world = this.rotatePoint(bounded, center, shape.rotation ?? 0);
+        return { x: world.x - size.width / 2, y: world.y - size.height / 2 };
+    }
+
+    private constrainOnShape(
+        position: { x: number; y: number },
+        size: { width: number; height: number },
+        shape: ShapeConfig & { x: number; y: number; rotation?: number },
+        origin: { x: number; y: number }
+    ): { x: number; y: number } {
+        const center = this.shapeCenter(shape, origin);
+        const proposedCenter = { x: position.x + size.width / 2, y: position.y + size.height / 2 };
+        const local = this.rotatePoint(proposedCenter, center, -(shape.rotation ?? 0));
+        let edgePoint: { x: number; y: number };
+
+        if (shape.type === 'line') {
+            edgePoint = {
+                x: Math.min(Math.max(local.x, center.x - shape.width / 2), center.x + shape.width / 2),
+                y: center.y
+            };
+        } else if (shape.type === 'circle') {
+            const radius = Math.max(0.5, Math.min(shape.width, shape.height) / 2 - (Math.min(shape.width, shape.height) < 30 ? 0 : 10));
+            const dx = local.x - center.x;
+            const dy = local.y - center.y;
+            const length = Math.hypot(dx, dy);
+            edgePoint = length > 0
+                ? { x: center.x + dx / length * radius, y: center.y + dy / length * radius }
+                : { x: center.x + radius, y: center.y };
+        } else {
+            const halfWidth = shape.width / 2;
+            const halfHeight = shape.height / 2;
+            const boundedX = Math.min(Math.max(local.x, center.x - halfWidth), center.x + halfWidth);
+            const boundedY = Math.min(Math.max(local.y, center.y - halfHeight), center.y + halfHeight);
+            const distances = [
+                { distance: Math.abs(local.x - (center.x - halfWidth)), point: { x: center.x - halfWidth, y: boundedY } },
+                { distance: Math.abs(local.x - (center.x + halfWidth)), point: { x: center.x + halfWidth, y: boundedY } },
+                { distance: Math.abs(local.y - (center.y - halfHeight)), point: { x: boundedX, y: center.y - halfHeight } },
+                { distance: Math.abs(local.y - (center.y + halfHeight)), point: { x: boundedX, y: center.y + halfHeight } }
+            ];
+            edgePoint = distances.reduce((closest, candidate) => candidate.distance < closest.distance ? candidate : closest).point;
+        }
+
+        const world = this.rotatePoint(edgePoint, center, shape.rotation ?? 0);
+        return { x: world.x - size.width / 2, y: world.y - size.height / 2 };
+    }
+
+    private shapeCenter(
+        shape: { x: number; y: number; width: number; height: number },
+        origin: { x: number; y: number }
+    ): { x: number; y: number } {
+        return { x: origin.x + shape.x + shape.width / 2, y: origin.y + shape.y + shape.height / 2 };
+    }
+
+    private rotatePoint(point: { x: number; y: number }, center: { x: number; y: number }, degrees: number): { x: number; y: number } {
+        if (degrees === 0) return point;
+        const radians = degrees * Math.PI / 180;
+        const cos = Math.cos(radians);
+        const sin = Math.sin(radians);
+        const dx = point.x - center.x;
+        const dy = point.y - center.y;
+        return { x: center.x + dx * cos - dy * sin, y: center.y + dx * sin + dy * cos };
+    }
+
+    private distanceSquared(a: { x: number; y: number }, b: { x: number; y: number }): number {
+        return (a.x - b.x) ** 2 + (a.y - b.y) ** 2;
     }
 
     private boundToString(ub: number | undefined): string {

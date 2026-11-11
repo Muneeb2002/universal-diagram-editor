@@ -29,6 +29,7 @@ interface NodeShapeConfig {
     height: number;
     resizeHorizontal?: boolean;
     resizeVertical?: boolean;
+    childBinding?: 'none' | 'inside' | 'on' | 'both';
     color: string;
     fillColor: string;
     filled?: boolean;

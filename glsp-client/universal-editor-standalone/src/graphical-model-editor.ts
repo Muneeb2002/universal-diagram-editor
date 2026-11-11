@@ -6,6 +6,7 @@ import { createSaveGraphicalModelAction } from './ecore-client-actions';
 
 export const SUPPORTED_SHAPE_TYPES = ['rectangle', 'circle', 'line', 'arrow', 'custom-svg', 'composite'] as const;
 export type SupportedShapeType = typeof SUPPORTED_SHAPE_TYPES[number];
+export type ChildBindingMode = 'none' | 'inside' | 'on' | 'both';
 
 export interface GraphicalElement {
     id: string;
@@ -17,6 +18,7 @@ export interface GraphicalElement {
     height: number;
     resizeHorizontal?: boolean;
     resizeVertical?: boolean;
+    childBinding?: ChildBindingMode;
     color: string;
     fillColor: string;
     filled?: boolean;
@@ -1023,6 +1025,7 @@ export class GraphicalModelEditor {
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Shape Type:</label>
                     <input type="text" value="${element.type === 'custom-svg' ? 'Custom SVG' : element.type}" disabled style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #f5f5f5;">
                 </div>
+                ${element.type !== 'composite' ? this.renderChildBindingSelect(element) : ''}
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Default Width:</label>
                     <input type="number" id="propWidth" value="${element.width}" min="20" max="500" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
@@ -1106,6 +1109,7 @@ export class GraphicalModelEditor {
 
         // Setup property change listeners
         const nameInput = this.propertiesPanel.querySelector('#propName') as HTMLInputElement;
+        const childBindingSelect = this.propertiesPanel.querySelector('#propChildBinding') as HTMLSelectElement | null;
         const widthInput = this.propertiesPanel.querySelector('#propWidth') as HTMLInputElement;
         const heightInput = this.propertiesPanel.querySelector('#propHeight') as HTMLInputElement;
         const resizeHorizontalButton = this.propertiesPanel.querySelector('#propResizeHorizontal') as HTMLButtonElement;
@@ -1176,6 +1180,12 @@ export class GraphicalModelEditor {
         if (arrowTypeSelect) {
             arrowTypeSelect.addEventListener('change', updateElement);
         }
+        if (childBindingSelect) {
+            childBindingSelect.addEventListener('change', () => {
+                if (!this.selectedElement) return;
+                this.selectedElement.childBinding = childBindingSelect.value as ChildBindingMode;
+            });
+        }
 
         this.setupCompositePropertyListeners(element, widthInput, heightInput);
 
@@ -1228,11 +1238,46 @@ export class GraphicalModelEditor {
                                 ${this.renderComponentResizeButton(index, 'horizontal', component.resizeHorizontal !== false)}
                                 ${this.renderComponentResizeButton(index, 'vertical', component.resizeVertical !== false)}
                             </div>
+                            <div style="margin-top: 8px;">
+                                ${this.renderChildBindingSelect(component, index)}
+                            </div>
                         </div>
                     `;}).join('')}
                 </div>
             </div>
         `;
+    }
+
+    private renderChildBindingSelect(element: GraphicalElement, componentIndex?: number): string {
+        const effective = this.getEffectiveChildBinding(element, componentIndex !== undefined);
+        const id = componentIndex === undefined ? 'id="propChildBinding"' : '';
+        const data = componentIndex === undefined ? '' : `data-component-binding data-component-index="${componentIndex}"`;
+        const lineOptions = `
+            <option value="none" ${effective === 'none' ? 'selected' : ''}>Disabled</option>
+            <option value="on" ${effective === 'on' ? 'selected' : ''}>On line</option>
+        `;
+        const shapeOptions = `
+            <option value="none" ${effective === 'none' ? 'selected' : ''}>Disabled</option>
+            <option value="inside" ${effective === 'inside' ? 'selected' : ''}>Inside</option>
+            <option value="on" ${effective === 'on' ? 'selected' : ''}>On edge</option>
+            <option value="both" ${effective === 'both' ? 'selected' : ''}>Inside or on edge</option>
+        `;
+        return `<label style="display: block; font-size: 11px; font-weight: 500; color: #555;">Physically bind children
+            <select ${id} ${data} style="box-sizing: border-box; width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px;">
+                ${element.type === 'line' ? lineOptions : shapeOptions}
+            </select>
+        </label>`;
+    }
+
+    private getEffectiveChildBinding(element: GraphicalElement, isSubcomponent: boolean): ChildBindingMode {
+        if (element.type === 'line') {
+            return element.childBinding === 'none' ? 'none' : 'on';
+        }
+        if (element.childBinding === 'none' || element.childBinding === 'inside' ||
+            element.childBinding === 'on' || element.childBinding === 'both') {
+            return element.childBinding;
+        }
+        return isSubcomponent ? 'none' : 'inside';
     }
 
     private renderComponentNumberInput(index: number, property: string, label: string, value: number, min: number): string {
@@ -1307,6 +1352,15 @@ export class GraphicalModelEditor {
                 const property = direction === 'horizontal' ? 'resizeHorizontal' : 'resizeVertical';
                 component[property] = component[property] === false;
                 updateToggleButton(button, component[property] !== false);
+            });
+        });
+
+        this.propertiesPanel.querySelectorAll<HTMLSelectElement>('select[data-component-binding]').forEach(select => {
+            select.addEventListener('change', () => {
+                const index = Number(select.dataset.componentIndex);
+                const component = element.components?.[index];
+                if (!component) return;
+                component.childBinding = select.value as ChildBindingMode;
             });
         });
 
@@ -1709,6 +1763,11 @@ export class GraphicalModelEditor {
         const arrowType = type === 'arrow' && validArrowTypes.includes(rawArrowType as any)
             ? rawArrowType
             : (type === 'arrow' ? 'filled-triangle' : undefined);
+        const validChildBindings: ChildBindingMode[] = ['none', 'inside', 'on', 'both'];
+        const rawChildBinding = validChildBindings.includes(raw?.childBinding) ? raw.childBinding as ChildBindingMode : undefined;
+        const childBinding = type === 'line' && rawChildBinding && rawChildBinding !== 'none'
+            ? 'on'
+            : rawChildBinding;
 
         const id = typeof raw?.id === 'string' && raw.id.length > 0
             ? raw.id
@@ -1724,6 +1783,7 @@ export class GraphicalModelEditor {
             height: Number.isFinite(raw?.height) ? raw.height : 80,
             resizeHorizontal: typeof raw?.resizeHorizontal === 'boolean' ? raw.resizeHorizontal : true,
             resizeVertical: typeof raw?.resizeVertical === 'boolean' ? raw.resizeVertical : true,
+            childBinding,
             color: typeof raw?.color === 'string' ? raw.color : '#333333',
             fillColor: typeof raw?.fillColor === 'string' ? raw.fillColor : '#E3F2FD',
             filled: typeof raw?.filled === 'boolean' ? raw.filled : false,

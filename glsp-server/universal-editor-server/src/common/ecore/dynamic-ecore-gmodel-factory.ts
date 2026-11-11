@@ -847,6 +847,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             height: config.height,
             resizeHorizontal: config.resizeHorizontal !== false,
             resizeVertical: config.resizeVertical !== false,
+            childBinding: config.childBinding,
             color: config.color,
             fillColor: config.fillColor,
             filled: config.filled,
