@@ -17,7 +17,7 @@ import { EcoreModel, isEClass, isEDataType, isEEnum, isEAttribute, isEReference 
 import { MetamodelRegistry } from './metamodel-registry';
 import { InstanceModelStorage } from './instance-model-storage';
 import { ShapeMappingStorage, ShapeMapping } from './shape-mapping-storage';
-import { EcoreInstance, InstanceModel } from './instance-model-types';
+import { EcoreInstance } from './instance-model-types';
 
 @injectable()
 export class DynamicEcoreGModelFactory implements GModelFactory {
@@ -101,22 +101,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             instance.size = constrained.size;
         });
 
-        const instanceModel = this.instanceStorage.getActiveInstanceModel();
-        const rootInstances = nodeInstances.filter(instance => {
-            return instanceModel && instanceModel.rootInstances.has(instance.id);
-        });
-
-        const instancesWithHiddenParents = nodeInstances.filter(instance => {
-            if (instanceModel && instanceModel.rootInstances.has(instance.id)) {
-                return false;
-            }
-            const parent = this.findParentInstance(instance, instanceModel);
-            return parent && (parent as any).hidden; // Parent exists but is hidden
-        });
-
         // SVG uses paint order for hit testing. Render larger nodes first so small nodes remain
         // visible and clickable when their bounds overlap a larger node.
-        const instancesToRender = [...rootInstances, ...instancesWithHiddenParents]
+        const instancesToRender = nodeInstances.filter(instance => !this.instanceStorage.getDiagramParent(instance.id))
             .sort((left, right) => this.getInstanceRenderArea(right) - this.getInstanceRenderArea(left));
 
         instancesToRender.forEach(instance => {
@@ -716,8 +703,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         // The graphical model dimensions are defaults. A resized instance keeps its own size.
         (node as any).customSize = { width: node.size.width, height: node.size.height };
 
-        const eClass = this.metamodelRegistry.findEClass(instance.eClassName);
-
         const nameValue = instance.attributes.get('name');
         if (nameValue !== undefined && nameValue !== null) {
             const nameLabel = new GLabel();
@@ -728,57 +713,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             node.children.push(nameLabel);
         }
 
-        if (eClass) {
-            const allFeatures = this.getProp(eClass, 'eAllStructuralFeatures');
-            const eReferences = allFeatures
-                ? this.toArray(allFeatures).filter(isEReference)
-                : this.toArray(this.getProp(eClass, 'eReferences'));
-            eReferences.forEach((eRef: any) => {
-                const isContainment = this.getProp<boolean>(eRef, 'containment') === true;
-                if (isContainment) {
-                    const refName = this.getProp<string>(eRef, 'name');
-                    if (refName) {
-                        const childInstanceIds = this.getContainedInstanceIds(instance, refName);
-                        childInstanceIds.forEach((childId, index) => {
-                            const instanceModel = this.instanceStorage.getActiveInstanceModel();
-                            const childInstance = instanceModel?.instances.get(childId);
-                            if (childInstance && !childInstance.hidden && !this.isArcInstance(childInstance)) {
-                                const childNode = this.createNodeForInstance(childInstance);
-                                if (childInstance.position) {
-                                    childNode.position = {
-                                        x: childInstance.position.x,
-                                        y: childInstance.position.y
-                                    };
-                                } else {
-                                    const childOffsetX = 20; // Padding from parent edge
-                                    const childOffsetY = (index * 80) + 60;
-                                    childNode.position = {
-                                        x: childOffsetX,
-                                        y: childOffsetY
-                                    };
-                                }
-                                const customSize = (childNode as any).customSize;
-                                if (customSize && customSize.width > 0 && customSize.height > 0) {
-                                    childNode.size = {
-                                        width: customSize.width,
-                                        height: customSize.height
-                                    };
-                                } else if (!childNode.size || childNode.size.width <= 0 || childNode.size.height <= 0) {
-                                    childNode.size = { width: 100, height: 50 };
-                                    (childNode as any).customSize = { width: 100, height: 50 };
-                                } else {
-                                    childNode.size = {
-                                        width: Math.max(1, childNode.size.width),
-                                        height: Math.max(1, childNode.size.height)
-                                    };
-                                }
-                                node.children.push(childNode);
-                            }
-                        });
-                    }
-                }
-            });
-        }
+        this.instanceStorage.getDiagramChildren(instance.id)
+            .filter(child => !this.isArcInstance(child))
+            .forEach(child => node.children.push(this.createNodeForInstance(child)));
 
         const finalShapeConfig = (node as any).shapeConfig;
         if (finalShapeConfig && finalShapeConfig.filled !== false) {
@@ -994,41 +931,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return value.length > 0 ? value[0] : undefined;
         }
         return value;
-    }
-
-    private getContainedInstanceIds(instance: EcoreInstance, referenceName: string): string[] {
-        const refValue = instance.references.get(referenceName);
-        if (!refValue) {
-            return [];
-        }
-        if (Array.isArray(refValue)) {
-            return refValue;
-        }
-        return [refValue];
-    }
-
-    private findParentInstance(instance: EcoreInstance, instanceModel: InstanceModel | undefined): EcoreInstance | undefined {
-        if (!instanceModel) {
-            return undefined;
-        }
-
-        for (const [, parentInstance] of instanceModel.instances.entries()) {
-            if (!parentInstance.references) {
-                continue;
-            }
-
-            for (const [, refValue] of parentInstance.references.entries()) {
-                if (Array.isArray(refValue)) {
-                    if (refValue.includes(instance.id)) {
-                        return parentInstance;
-                    }
-                } else if (refValue === instance.id) {
-                    return parentInstance;
-                }
-            }
-        }
-
-        return undefined;
     }
 
     private isArcInstance(instance: EcoreInstance): boolean {

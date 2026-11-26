@@ -1,0 +1,181 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<ecore:EPackage xmi:version="2.0" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" name="bpmn_graphics" nsURI="urn:universal-diagram-editor:graphics:bpmn-core" nsPrefix="bpmnGraphics">
+  <eAnnotations source="urn:universal-diagram-editor:graphical-model">
+    <details key="mappableClasses" value="StartEvent Task ExclusiveGateway EndEvent SequenceFlow Participant Lane"/>
+    <details key="creationContainers" value="Definitions/rootElements:Process Definitions/rootElements:Collaboration Definitions/rootElements:Process/laneSets:LaneSet"/>
+  </eAnnotations>
+  <eClassifiers xsi:type="ecore:EClass" name="StartEventShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-start-event"/>
+      <details key="name" value="Start event"/>
+      <details key="type" value="circle"/>
+      <details key="x" value="54"/>
+      <details key="y" value="54"/>
+      <details key="width" value="38"/>
+      <details key="height" value="38"/>
+      <details key="color" value="#232833"/>
+      <details key="fillColor" value="#ffffff"/>
+      <details key="filled" value="true"/>
+      <details key="lineThickness" value="1.5"/>
+      <details key="resizeHorizontal" value="false"/>
+      <details key="resizeVertical" value="false"/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="TaskShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-task"/>
+      <details key="name" value="Task"/>
+      <details key="type" value="rectangle"/>
+      <details key="x" value="148"/>
+      <details key="y" value="42"/>
+      <details key="width" value="132"/>
+      <details key="height" value="62"/>
+      <details key="color" value="#232833"/>
+      <details key="fillColor" value="#ffffff"/>
+      <details key="filled" value="true"/>
+      <details key="lineThickness" value="1.75"/>
+      <details key="resizeHorizontal" value="true"/>
+      <details key="resizeVertical" value="true"/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ExclusiveGatewayShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-exclusive-gateway"/>
+      <details key="name" value="Exclusive gateway"/>
+      <details key="type" value="custom-svg"/>
+      <details key="x" value="329"/>
+      <details key="y" value="44"/>
+      <details key="width" value="58"/>
+      <details key="height" value="58"/>
+      <details key="color" value="#232833"/>
+      <details key="lineThickness" value="1.75"/>
+      <details key="filled" value="true"/>
+      <details key="resizeHorizontal" value="false"/>
+      <details key="resizeVertical" value="false"/>
+      <details key="svgContent" value="&lt;svg xmlns=&quot;http://www.w3.org/2000/svg&quot; viewBox=&quot;0 0 58 58&quot;&gt;&lt;path d=&quot;M29 2 56 29 29 56 2 29Z&quot; fill=&quot;#ffffff&quot; stroke=&quot;#232833&quot; stroke-width=&quot;1.75&quot;/&gt;&lt;path d=&quot;m20 20 18 18m0-18L20 38&quot; fill=&quot;none&quot; stroke=&quot;#232833&quot; stroke-width=&quot;3.5&quot; stroke-linecap=&quot;square&quot;/&gt;&lt;/svg&gt;"/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="EndEventShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-end-event"/>
+      <details key="name" value="End event"/>
+      <details key="type" value="circle"/>
+      <details key="x" value="440"/>
+      <details key="y" value="54"/>
+      <details key="width" value="38"/>
+      <details key="height" value="38"/>
+      <details key="color" value="#232833"/>
+      <details key="fillColor" value="#ffffff"/>
+      <details key="filled" value="true"/>
+      <details key="lineThickness" value="4"/>
+      <details key="resizeHorizontal" value="false"/>
+      <details key="resizeVertical" value="false"/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SequenceFlowShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-sequence-flow"/>
+      <details key="name" value="Sequence flow"/>
+      <details key="type" value="arrow"/>
+      <details key="x" value="527"/>
+      <details key="y" value="62"/>
+      <details key="width" value="124"/>
+      <details key="height" value="22"/>
+      <details key="color" value="#232833"/>
+      <details key="fillColor" value="#232833"/>
+      <details key="filled" value="true"/>
+      <details key="lineThickness" value="1.75"/>
+      <details key="lineStyle" value="solid"/>
+      <details key="arrowType" value="filled-triangle"/>
+      <details key="resizeHorizontal" value="false"/>
+      <details key="resizeVertical" value="false"/>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ParticipantShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-participant"/>
+      <details key="name" value="Participant pool"/>
+      <details key="type" value="composite"/>
+      <details key="x" value="54"/>
+      <details key="y" value="161"/>
+      <details key="width" value="596"/>
+      <details key="height" value="173"/>
+      <details key="color" value="#232833"/>
+      <details key="filled" value="false"/>
+      <details key="resizeHorizontal" value="true"/>
+      <details key="resizeVertical" value="true"/>
+      <eAnnotations source="urn:universal-diagram-editor:component">
+        <details key="id" value="bpmn-participant-frame"/>
+        <details key="name" value="Pool frame"/>
+        <details key="type" value="rectangle"/>
+        <details key="x" value="0"/>
+        <details key="y" value="0"/>
+        <details key="width" value="596"/>
+        <details key="height" value="173"/>
+        <details key="color" value="#232833"/>
+        <details key="fillColor" value="#ffffff"/>
+        <details key="filled" value="false"/>
+        <details key="lineThickness" value="1.75"/>
+      </eAnnotations>
+      <eAnnotations source="urn:universal-diagram-editor:component">
+        <details key="id" value="bpmn-participant-band"/>
+        <details key="name" value="Pool name band"/>
+        <details key="type" value="rectangle"/>
+        <details key="x" value="0"/>
+        <details key="y" value="0"/>
+        <details key="width" value="44"/>
+        <details key="height" value="173"/>
+        <details key="color" value="#232833"/>
+        <details key="fillColor" value="#f4f5f7"/>
+        <details key="filled" value="true"/>
+        <details key="lineThickness" value="1.75"/>
+        <details key="resizeHorizontal" value="false"/>
+        <details key="resizeVertical" value="true"/>
+      </eAnnotations>
+    </eAnnotations>
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="LaneShape">
+    <eAnnotations source="urn:universal-diagram-editor:shape">
+      <details key="id" value="bpmn-lane"/>
+      <details key="name" value="Lane"/>
+      <details key="type" value="composite"/>
+      <details key="x" value="54"/>
+      <details key="y" value="378"/>
+      <details key="width" value="552"/>
+      <details key="height" value="106"/>
+      <details key="color" value="#232833"/>
+      <details key="filled" value="false"/>
+      <details key="resizeHorizontal" value="true"/>
+      <details key="resizeVertical" value="true"/>
+      <eAnnotations source="urn:universal-diagram-editor:component">
+        <details key="id" value="bpmn-lane-frame"/>
+        <details key="name" value="Lane frame"/>
+        <details key="type" value="rectangle"/>
+        <details key="x" value="0"/>
+        <details key="y" value="0"/>
+        <details key="width" value="552"/>
+        <details key="height" value="106"/>
+        <details key="color" value="#232833"/>
+        <details key="fillColor" value="#ffffff"/>
+        <details key="filled" value="false"/>
+        <details key="lineThickness" value="1.25"/>
+      </eAnnotations>
+      <eAnnotations source="urn:universal-diagram-editor:component">
+        <details key="id" value="bpmn-lane-band"/>
+        <details key="name" value="Lane name band"/>
+        <details key="type" value="rectangle"/>
+        <details key="x" value="0"/>
+        <details key="y" value="0"/>
+        <details key="width" value="32"/>
+        <details key="height" value="106"/>
+        <details key="color" value="#232833"/>
+        <details key="fillColor" value="#f4f5f7"/>
+        <details key="filled" value="true"/>
+        <details key="lineThickness" value="1.25"/>
+        <details key="resizeHorizontal" value="false"/>
+        <details key="resizeVertical" value="true"/>
+      </eAnnotations>
+    </eAnnotations>
+  </eClassifiers>
+</ecore:EPackage>

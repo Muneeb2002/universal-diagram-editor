@@ -2,11 +2,21 @@
  * @author Abigail Sotomayor <s205720@dtu.dk>
  */
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createSaveMetamodelAction, createSwitchModeAction, SaveInstanceAction, LoadInstanceAction, LoadMetamodelResponse } from './ecore-client-actions';
+import { createSaveMetamodelAction, createSwitchModeAction, CreationContainerPath, SaveInstanceAction, LoadInstanceAction, LoadMetamodelResponse } from './ecore-client-actions';
 import { RequestAction } from '@eclipse-glsp/protocol';
 import { CreateMetamodelDialog } from './ui/dialogs/create-metamodel-dialog';
+import { EcoreSourceEditor, EcoreSourceFile } from './ecore-source-editor';
+import type { GraphicalElement } from './graphical-model-editor';
+import type { EcoreToolbar } from './ecore-toolbar';
+import { parseGraphicalModel, readCreationContainerPaths } from './graphical-model-format';
 
-type StoredMetamodel = { name: string; content: string; files?: Array<{ filename: string; content: string }> };
+type GraphicalModelFile = { name: string; content: string };
+type SelectedGraphicalModel = GraphicalModelFile & {
+    classNames: string[];
+    shapes: Map<string, GraphicalElement>;
+    creationContainers: CreationContainerPath[];
+};
+type StoredMetamodel = { name: string; content: string; files?: EcoreSourceFile[]; graphicalModel?: GraphicalModelFile };
 type MetamodelUploadResponse = LoadMetamodelResponse & { responseId: string };
 interface MetamodelUploadRequest extends RequestAction<MetamodelUploadResponse> {
     filename: string;
@@ -35,12 +45,22 @@ export class LeftSidebar {
     private saveInstanceButton: HTMLButtonElement | null = null;
     private loadInstanceButton: HTMLButtonElement | null = null;
     private mapShapesBtn: HTMLButtonElement | null = null;
+    private readonly selectGraphicalModelButton = document.createElement('button');
+    private readonly selectedGraphicalModelLabel = document.createElement('div');
     private currentMode: 'metamodel' | 'instance' = 'metamodel';
     private instanceSectionVisible = false;
     private instancesAvailableInSession = false;
     private metamodelLoadedInSession: boolean = false; // Track if metamodel was actively loaded/created in this session
     private graphicalModelLoadedInSession: boolean = false; // Track if graphical model was actively loaded/created in this session
     private createMetamodelDialog: CreateMetamodelDialog;
+    private readonly ecoreSourceEditor = new EcoreSourceEditor(
+        () => { void this.applyEcoreSource(); },
+        () => this.queueEcoreDraftSave()
+    );
+    private ecoreSourceName?: string;
+    private ecoreGraphicalModel?: SelectedGraphicalModel;
+    private ecoreDraftSaveTimer?: number;
+    private metamodelUploadPending = false;
     private static readonly STORAGE_KEY = 'wf_loaded_metamodels';
     private static readonly GRAPHICAL_MODEL_STORAGE_KEY = 'wf_saved_graphical_models';
     private static readonly MAPPING_MODEL_STORAGE_KEY = 'wf_saved_mapping_models';
@@ -215,6 +235,14 @@ export class LeftSidebar {
         this.mappingModelLabel.style.cssText = 'font-weight: 600; font-size: 12px; margin-top: 18px; margin-bottom: 6px; color:#444; display: none;';
         this.sidebar.appendChild(this.mappingModelLabel);
 
+        this.selectGraphicalModelButton.type = 'button';
+        this.selectGraphicalModelButton.textContent = 'Select Graphical Model';
+        this.selectGraphicalModelButton.style.cssText = 'padding: 8px 12px; border: 1px solid #dcdfe4; border-radius: 4px; background: #f8f9fb; cursor: pointer; font-size: 12px;';
+        this.selectGraphicalModelButton.addEventListener('click', () => this.selectEcoreGraphicalModel());
+        this.selectedGraphicalModelLabel.style.cssText = 'font-size: 12px; color: #444; overflow-wrap: anywhere;';
+        this.selectedGraphicalModelLabel.setAttribute('role', 'status');
+        this.sidebar.append(this.selectGraphicalModelButton, this.selectedGraphicalModelLabel);
+
         this.mapShapesBtn = document.createElement('button');
         this.mapShapesBtn.textContent = 'Create Mapping Model';
         this.mapShapesBtn.style.cssText = `
@@ -278,10 +306,16 @@ export class LeftSidebar {
         document.body.appendChild(this.sidebar);
         document.body.style.setProperty('--left-sidebar-width', '220px');
         document.body.style.paddingLeft = '220px';
+        this.ecoreSourceEditor.attach();
+        window.addEventListener('pagehide', () => this.savePendingEcoreDraft());
     }
 
     public setActionDispatcher(dispatcher: GLSPActionDispatcher): void {
         this.actionDispatcher = dispatcher;
+    }
+
+    public get isEcoreWorkspace(): boolean {
+        return this.ecoreSourceName !== undefined;
     }
 
     public setVisualConfigurationAvailable(available: boolean): void {
@@ -290,6 +324,7 @@ export class LeftSidebar {
 
     public setMode(mode: 'metamodel' | 'instance'): void {
         this.currentMode = mode;
+        this.ecoreSourceEditor.setVisible(mode === 'metamodel' && this.ecoreSourceName !== undefined);
         if (mode === 'instance') {
             this.instancesAvailableInSession = true;
         }
@@ -306,6 +341,12 @@ export class LeftSidebar {
 
         try {
             const options = await this.createMetamodelDialog.show();
+            if (this.metamodelUploadPending) {
+                alert('Wait for the current metamodel upload to finish.');
+                return;
+            }
+            this.closeEcoreSource();
+            await this.switchToMetamodelMode();
 
             const action = {
                 kind: 'createCustomMetamodel',
@@ -350,10 +391,6 @@ export class LeftSidebar {
     }
 
     private selectMetamodelFiles(): void {
-        if (!this.actionDispatcher) {
-            console.warn('Action dispatcher not available');
-            return;
-        }
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
         fileInput.accept = '.json,.ecore';
@@ -386,8 +423,52 @@ export class LeftSidebar {
     }
 
     private async loadMetamodel(entry: StoredMetamodel): Promise<void> {
+        if (this.metamodelUploadPending) {
+            throw new Error('Wait for the current metamodel upload to finish.');
+        }
+        if (entry.files?.length || /\.ecore$/i.test(entry.name)) {
+            const files = entry.files?.length ? entry.files : [{ filename: entry.name, content: entry.content }];
+            this.savePendingEcoreDraft();
+            this.ecoreSourceName = entry.name;
+            this.ecoreGraphicalModel = undefined;
+            const graphicalModel = entry.graphicalModel ?? this.getStoredMetamodels()
+                .find(model => model.name === entry.name)?.graphicalModel;
+            if (graphicalModel) {
+                try {
+                    this.ecoreGraphicalModel = this.readEcoreGraphicalModel(graphicalModel);
+                } catch (error) {
+                    console.warn('Could not restore the selected graphical model:', error);
+                }
+            }
+            this.ecoreSourceEditor.loadFiles(files);
+            this.setMode('metamodel');
+            this.metamodelLoadedInSession = false;
+            this.setVisualConfigurationAvailable(false);
+            this.updateCreateMappingModelButtonState();
+            await this.applyEcoreSource();
+            return;
+        }
+
+        this.metamodelUploadPending = true;
+        try {
+            const response = await this.submitMetamodel(entry);
+            this.closeEcoreSource();
+            await this.switchToMetamodelMode();
+            this.addLoadedMetamodel(entry);
+            this.updateMetamodelControls();
+            if (response.warnings?.length) {
+                alert(response.warnings.join('\n'));
+            }
+        } finally {
+            this.metamodelUploadPending = false;
+        }
+    }
+
+    private async submitMetamodel(entry: StoredMetamodel): Promise<MetamodelUploadResponse> {
         const dispatcher = this.actionDispatcher;
-        if (!dispatcher) return;
+        if (!dispatcher) {
+            throw new Error('Connect to the editor server to apply this metamodel.');
+        }
 
         const request: MetamodelUploadRequest = {
             kind: 'loadMetamodel',
@@ -407,13 +488,72 @@ export class LeftSidebar {
             throw new Error(response.message ?? 'The server rejected the metamodel upload.');
         }
         await dispatcher.dispatch({ ...response, responseId: '' } as MetamodelUploadResponse);
-        this.addLoadedMetamodel(entry);
+        return response;
+    }
+
+    private updateMetamodelControls(): void {
         this.metamodelLoadedInSession = true;
         this.updateSaveMetamodelButtonVisibility();
         this.updateCreateMappingModelButtonState();
-        if (response.warnings?.length) {
-            alert(response.warnings.join('\n'));
+    }
+
+    private async applyEcoreSource(): Promise<void> {
+        if (!this.ecoreSourceName || this.metamodelUploadPending) {
+            return;
         }
+        this.metamodelUploadPending = true;
+        const entry = this.createEcoreDraft(this.ecoreSourceName);
+        this.cancelEcoreDraftSave();
+        this.addLoadedMetamodel(entry);
+        this.ecoreSourceEditor.setApplying(true);
+        this.ecoreSourceEditor.setStatus('Applying Ecore files…');
+        try {
+            const response = await this.submitMetamodel(entry);
+            await this.switchToMetamodelMode();
+            this.updateMetamodelControls();
+            this.ecoreSourceEditor.setStatus(['Ecore files applied.', ...(response.warnings ?? [])].join('\n'));
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            this.ecoreSourceEditor.setStatus(`Could not apply Ecore files. ${message}`, true);
+        } finally {
+            this.ecoreSourceEditor.setApplying(false);
+            this.metamodelUploadPending = false;
+        }
+    }
+
+    private queueEcoreDraftSave(): void {
+        this.ecoreSourceEditor.setStatus('Source edited. Apply the Ecore files to update the active metamodel.');
+        this.cancelEcoreDraftSave();
+        this.ecoreDraftSaveTimer = window.setTimeout(() => this.savePendingEcoreDraft(), 300);
+    }
+
+    private cancelEcoreDraftSave(): void {
+        if (this.ecoreDraftSaveTimer !== undefined) {
+            window.clearTimeout(this.ecoreDraftSaveTimer);
+            this.ecoreDraftSaveTimer = undefined;
+        }
+    }
+
+    private savePendingEcoreDraft(): void {
+        if (this.ecoreDraftSaveTimer !== undefined && this.ecoreSourceName) {
+            this.cancelEcoreDraftSave();
+            this.addLoadedMetamodel(this.createEcoreDraft(this.ecoreSourceName));
+        }
+    }
+
+    private createEcoreDraft(name: string): StoredMetamodel {
+        const model = this.ecoreGraphicalModel;
+        const graphicalModel = model ? { name: model.name, content: model.content } : undefined;
+        return { name, content: '', files: this.ecoreSourceEditor.getFiles(), graphicalModel };
+    }
+
+    private closeEcoreSource(): void {
+        this.savePendingEcoreDraft();
+        this.ecoreSourceName = undefined;
+        this.ecoreGraphicalModel = undefined;
+        window.globalShapeMappingDialog?.setGraphicalModelScope();
+        this.ecoreSourceEditor.setVisible(false);
+        this.updateMetamodelViewButtonVisibility(this.currentMode);
     }
 
     private addLoadedMetamodel(entry: StoredMetamodel): void {
@@ -435,7 +575,7 @@ export class LeftSidebar {
             if (!Array.isArray(arr)) return [];
             return arr
                 .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
-                .map(x => ({ name: x.name, content: x.content, files: x.files }));
+                .map(x => ({ name: x.name, content: x.content, files: x.files, graphicalModel: x.graphicalModel }));
         } catch {
             return [];
         }
@@ -473,7 +613,7 @@ export class LeftSidebar {
     }
 
     private async reloadFromStorageName(name: string): Promise<void> {
-        if (!this.actionDispatcher) return;
+        this.savePendingEcoreDraft();
         const items = this.getStoredMetamodels();
         const match = items.find(e => e.name === name);
         if (!match) return;
@@ -497,6 +637,67 @@ export class LeftSidebar {
         }
         this.renderLoadedMetamodels();
         this.updateSaveMetamodelButtonVisibility();
+    }
+
+    private readEcoreGraphicalModel(file: GraphicalModelFile): SelectedGraphicalModel {
+        const data = parseGraphicalModel(file.content);
+        const names: unknown = data?.mappableClasses;
+        if (!Array.isArray(names) || names.length === 0 ||
+            names.some(name => typeof name !== 'string' || name.trim() === '')) {
+            throw new Error('The graphical model must contain a non-empty mappableClasses list of metamodel class names.');
+        }
+        if (!Array.isArray(data.shapes) || data.shapes.length === 0) {
+            throw new Error('The graphical model must contain a non-empty shapes list.');
+        }
+        if (data.shapes.some((shape: unknown) =>
+            !shape || typeof shape !== 'object' || !('id' in shape) || typeof shape.id !== 'string' || !shape.id.trim())) {
+            throw new Error('Every shape in the graphical model must have an ID.');
+        }
+        const editor = window.globalGraphicalModelEditor;
+        if (!editor) {
+            throw new Error('The graphical model editor is not ready.');
+        }
+        const shapes = editor.readGraphicalModelShapes(data.shapes);
+        if (shapes.size !== data.shapes.length) {
+            throw new Error('Every shape in the graphical model must have a unique ID.');
+        }
+        return {
+            ...file,
+            classNames: [...new Set<string>(names.map(name => name.trim()))],
+            shapes,
+            creationContainers: readCreationContainerPaths(data.creationContainers)
+        };
+    }
+
+    private selectEcoreGraphicalModel(): void {
+        const workspace = this.ecoreSourceName;
+        if (!workspace || !this.metamodelLoadedInSession || this.metamodelUploadPending) {
+            return;
+        }
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = '.ecore,.json,application/xml,application/json';
+        input.addEventListener('change', async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+                const content = await file.text();
+                if (this.ecoreSourceName !== workspace || this.metamodelUploadPending) return;
+                const graphicalModel = this.readEcoreGraphicalModel({ name: file.name, content });
+                const concrete = new Set(this.getConcreteMappingClasses());
+                const unavailable = graphicalModel.classNames.filter(name => !concrete.has(name));
+                if (unavailable.length) {
+                    throw new Error(`These classes are missing or cannot be instantiated: ${unavailable.join(', ')}.`);
+                }
+                this.ecoreGraphicalModel = graphicalModel;
+                this.cancelEcoreDraftSave();
+                this.addLoadedMetamodel(this.createEcoreDraft(workspace));
+                this.updateCreateMappingModelButtonState();
+            } catch (error) {
+                alert(`Error selecting graphical model: ${error instanceof Error ? error.message : String(error)}`);
+            }
+        });
+        input.click();
     }
 
 
@@ -658,25 +859,11 @@ export class LeftSidebar {
         const mappingDialog = (window as any).globalShapeMappingDialog;
         if (mappingDialog && mappingDialog.loadFromContent) {
             try {
-                const editor = (window as any).globalGraphicalModelEditor;
-                const savedShapes = editor ? editor.getSavedShapes() : new Map();
-                const toolbar: any = (window as any).globalToolbar;
-                let classNames: string[] = [];
-
-                if (toolbar) {
-                    if (typeof toolbar.getConcreteClasses === 'function') {
-                        classNames = toolbar.getConcreteClasses();
-                    } else if (Array.isArray(toolbar.allClasses)) {
-                        classNames = toolbar.allClasses
-                            .filter((cls: any) => !cls.isAbstract && !cls.isInterface)
-                            .map((cls: any) => cls.className || cls);
-                    } else if (typeof toolbar.getAllClassNames === 'function') {
-                        classNames = toolbar.getAllClassNames();
-                    }
+                const inputs = this.getMappingInputs(true);
+                if (inputs) {
+                    mappingDialog.loadFromContent(match.content, true, inputs.classNames, inputs.shapes);
+                    this.updateEditMappingButtonVisibility();
                 }
-
-                mappingDialog.loadFromContent(match.content, true, classNames, savedShapes);
-                this.updateEditMappingButtonVisibility();
             } catch (e) {
                 console.error('Error reloading mapping model:', e);
                 alert('Error reloading mapping model: ' + e);
@@ -831,6 +1018,9 @@ export class LeftSidebar {
 
 
     private async switchToInstanceMode(): Promise<void> {
+        if (this.metamodelUploadPending) {
+            return;
+        }
         const toolbar: any = (window as any).globalToolbar;
         if (toolbar && typeof toolbar.switchToMode === 'function') {
             try {
@@ -854,6 +1044,9 @@ export class LeftSidebar {
     }
 
     private async switchToMetamodelMode(): Promise<void> {
+        if (this.ecoreSourceName) {
+            this.ecoreSourceEditor.setVisible(true);
+        }
         const toolbar: any = (window as any).globalToolbar;
         if (toolbar && typeof toolbar.switchToMode === 'function') {
             try {
@@ -902,6 +1095,7 @@ export class LeftSidebar {
         if (!this.metamodelViewButton) {
             return;
         }
+        this.metamodelViewButton.textContent = this.ecoreSourceName ? 'Ecore Source' : 'Ecore Model View';
         this.metamodelViewButton.style.display = mode === 'instance' ? '' : 'none';
     }
 
@@ -925,17 +1119,6 @@ export class LeftSidebar {
         container.appendChild(delBtn);
 
         return container;
-    }
-
-    private filterOutRootClasses(classNames: string[], toolbar: any): string[] {
-        if (!Array.isArray(classNames)) {
-            return [];
-        }
-
-        // For mapping dialog, we only filter out classes that explicitly look like root classes by name
-        // We don't use getRootClassNames() because it filters based on containment requirements,
-        // which would incorrectly filter out newly created classes that don't have containment refs yet
-        return classNames.filter(name => !this.looksLikeRootClass(name));
     }
 
     private looksLikeRootClass(name: string): boolean {
@@ -976,7 +1159,7 @@ export class LeftSidebar {
     private updateSaveMetamodelButtonVisibility(): void {
         const saveBtn = (this as any).saveMetamodelBtn as HTMLButtonElement | undefined;
         if (!saveBtn) return;
-        if (this.metamodelLoadedInSession) {
+        if (this.metamodelLoadedInSession && !this.ecoreSourceName) {
             saveBtn.style.display = 'block';
         } else {
             saveBtn.style.display = 'none';
@@ -985,21 +1168,44 @@ export class LeftSidebar {
 
     private updateCreateMappingModelButtonState(): void {
         const shouldShow = this.metamodelLoadedInSession;
+        const ecoreMode = this.isEcoreWorkspace;
+        const model = this.ecoreGraphicalModel;
+        const classNames = this.getScopedMappingClasses();
+        this.getToolbar()?.setGraphicalCreationClasses(
+            ecoreMode ? (shouldShow ? classNames : []) : undefined,
+            shouldShow ? model?.creationContainers : undefined
+        );
+        const mappingReady = shouldShow && (!ecoreMode || classNames.length > 0);
+        this.selectGraphicalModelButton.hidden = !shouldShow || !ecoreMode;
+        this.selectedGraphicalModelLabel.hidden = this.selectGraphicalModelButton.hidden;
+        this.selectedGraphicalModelLabel.textContent = model
+            ? `${model.name} · ${classNames.length} of ${model.classNames.length} classes available`
+            : 'Select a graphical model to choose which classes appear in mappings.';
+        window.globalShapeMappingDialog?.setGraphicalModelScope(
+            shouldShow && this.ecoreSourceName && model
+                ? {
+                    storageKey: `shapeMappings:ecore:${JSON.stringify([this.ecoreSourceName, model.name])}`,
+                    classNames: new Set(classNames),
+                    shapes: model.shapes
+                }
+                : undefined
+        );
         const display = shouldShow ? '' : 'none';
-        const containerDisplay = shouldShow ? 'flex' : 'none';
 
         if (this.mappingModelLabel) {
             this.mappingModelLabel.style.display = display;
         }
         if (this.mapShapesBtn) {
             this.mapShapesBtn.style.display = display;
+            this.mapShapesBtn.disabled = !mappingReady;
         }
         if (this.savedMappingModelsLabel) {
-            this.savedMappingModelsLabel.style.display = display;
+            this.savedMappingModelsLabel.style.display = mappingReady ? '' : 'none';
         }
         if (this.savedMappingModelsContainer) {
-            this.savedMappingModelsContainer.style.display = containerDisplay;
+            this.savedMappingModelsContainer.style.display = mappingReady ? 'flex' : 'none';
         }
+        this.updateEditMappingButtonVisibility();
     }
 
     public markGraphicalModelLoaded(): void {
@@ -1009,46 +1215,52 @@ export class LeftSidebar {
     }
 
     private openShapeMappingDialog(mode: 'create' | 'edit' = 'create'): void {
-        const editor = (window as any).globalGraphicalModelEditor;
-        const mappingDialog = (window as any).globalShapeMappingDialog;
-
+        const mappingDialog = window.globalShapeMappingDialog;
         if (!mappingDialog) {
             alert('Shape Mapping Dialog is not available. Please refresh the page.');
             return;
         }
+        const inputs = this.getMappingInputs();
+        if (inputs) {
+            mappingDialog.show(inputs.classNames, inputs.shapes, mode);
+        }
+    }
 
-        if (!editor) {
+    private getConcreteMappingClasses(): string[] {
+        return this.getToolbar()?.getConcreteClasses() ?? [];
+    }
+
+    private getToolbar(): EcoreToolbar | undefined {
+        return (window as Window & { globalToolbar?: EcoreToolbar }).globalToolbar;
+    }
+
+    private getScopedMappingClasses(): string[] {
+        const concrete = new Set(this.getConcreteMappingClasses());
+        return this.ecoreGraphicalModel?.classNames.filter(name => concrete.has(name)) ?? [];
+    }
+
+    private getMappingInputs(reloading = false): { classNames: string[]; shapes: Map<string, GraphicalElement> } | undefined {
+        if (this.ecoreSourceName) {
+            const model = this.ecoreGraphicalModel;
+            const classNames = this.getScopedMappingClasses();
+            if (!this.metamodelLoadedInSession || !model || classNames.length === 0) {
+                alert('Apply the Ecore files and select a graphical model with matching classes first.');
+                return undefined;
+            }
+            return { classNames, shapes: model.shapes };
+        }
+        const editor = window.globalGraphicalModelEditor;
+        if (!editor && !reloading) {
             alert('Graphical Model Editor is not available. Please refresh the page.');
-            return;
+            return undefined;
         }
-
-        const savedShapes = editor.getSavedShapes();
-
-        if (savedShapes.size === 0) {
+        const shapes = editor?.getSavedShapes() ?? new Map<string, GraphicalElement>();
+        if (!reloading && shapes.size === 0) {
             alert('No graphical shapes found. Please create and save shapes in the Graphical Model Editor first.');
-            return;
+            return undefined;
         }
-
-        const toolbar: any = (window as any).globalToolbar;
-        let classNames: string[] = [];
-
-        if (toolbar && toolbar.getConcreteClasses) {
-            classNames = toolbar.getConcreteClasses();
-        } else if (toolbar && toolbar.allClasses) {
-            const allClassesInfo = Array.isArray(toolbar.allClasses) ? toolbar.allClasses : [];
-            classNames = allClassesInfo
-                .filter((cls: any) => !cls.isAbstract && !cls.isInterface)
-                .map((cls: any) => cls.className || cls);
-        } else if (toolbar && toolbar.getAllClasses) {
-            const allClasses = toolbar.getAllClasses();
-            classNames = allClasses;
-        }
-
-        if (classNames.length > 0) {
-            classNames = this.filterOutRootClasses(classNames, toolbar);
-        }
-
-        mappingDialog.show(classNames, savedShapes, mode);
+        const classNames = this.getConcreteMappingClasses();
+        return { classNames: reloading ? classNames : classNames.filter(name => !this.looksLikeRootClass(name)), shapes };
     }
 
     private updateEditMappingButtonVisibility(): void {
@@ -1063,7 +1275,8 @@ export class LeftSidebar {
             hasMappings = mappings && mappings.size > 0;
         }
 
-        editBtn.style.display = hasMappings ? 'block' : 'none';
+        const mappingReady = !this.ecoreSourceName || (this.metamodelLoadedInSession && this.getScopedMappingClasses().length > 0);
+        editBtn.style.display = hasMappings && mappingReady ? 'block' : 'none';
     }
 
     private async saveInstance(): Promise<void> {

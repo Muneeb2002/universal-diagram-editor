@@ -60,6 +60,25 @@ export function mustBeContained(className: string, allClasses: ClassInfo[]): boo
     return requirements.length > 0;
 }
 
+export function getClassReferences(className: string, allClasses: ClassInfo[]): ClassInfo['references'] {
+    const visited = new Set<string>();
+    const references = new Map<string, ClassInfo['references'][number]>();
+    const visit = (name: string): void => {
+        if (visited.has(name)) return;
+        visited.add(name);
+        const cls = allClasses.find(candidate => candidate.className === name);
+        if (!cls) return;
+        for (const reference of cls.references) {
+            if (!references.has(reference.name)) {
+                references.set(reference.name, reference);
+            }
+        }
+        cls.eSuperTypes?.forEach(visit);
+    };
+    visit(className);
+    return [...references.values()];
+}
+
 
 export function getCreatableChildren(containerClassName: string, allClasses: ClassInfo[]): ClassInfo[] {
     const containerClass = allClasses.find(cls => cls.className === containerClassName);

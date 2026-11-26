@@ -18,7 +18,8 @@ export class SaveGraphicalModelActionHandler implements ActionHandler {
         }
 
         try {
-            const filename = this.ensureJsonExtension(action.filename?.trim() ?? 'graphical-model.json');
+            const requestedFilename = action.filename?.trim() || 'graphical-model.json';
+            const filename = /\.(ecore|json)$/i.test(requestedFilename) ? requestedFilename : `${requestedFilename}.json`;
             const targetPath = this.resolveTargetPath(filename);
             fs.mkdirSync(path.dirname(targetPath), { recursive: true });
             fs.writeFileSync(targetPath, action.content, { encoding: 'utf8' });
@@ -45,11 +46,5 @@ export class SaveGraphicalModelActionHandler implements ActionHandler {
         return path.resolve(baseDir, filename);
     }
 
-    private ensureJsonExtension(filename: string): string {
-        if (!filename.toLowerCase().endsWith('.json')) {
-            return `${filename}.json`;
-        }
-        return filename;
-    }
 }
 

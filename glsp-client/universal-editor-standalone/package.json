@@ -15,7 +15,10 @@
     "watch:bundle": "webpack -w"
   },
   "dependencies": {
+    "@codemirror/lang-xml": "^6.1.0",
+    "@codemirror/state": "^6.7.6",
     "@eclipse-glsp/client": "2.6.0-next",
+    "codemirror": "^6.0.2",
     "inversify-logger-middleware": "^3.1.0"
   },
   "devDependencies": {

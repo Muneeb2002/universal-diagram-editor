@@ -8,11 +8,14 @@ import {
     getCreatableChildren,
     getContainmentReferenceName,
     getCreatablePlacementChildren,
+    getClassReferences,
     getRequiredPlacementReferences,
     isSubtypeOf
 } from './containment-utils';
-import { ClassInfo, InstancesOverviewResponse } from './ecore-client-actions';
+import { ClassInfo, CreationContainerPath, InstancesOverviewResponse, PackageInfo } from './ecore-client-actions';
 import type { ShapeMapping } from './ui/dialogs/shape-mapping-dialog';
+
+const BPMN_COMMON_PACKAGE = 'http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/common';
 
 export class EcoreToolbar {
     private toolbar: HTMLDivElement;
@@ -21,6 +24,9 @@ export class EcoreToolbar {
     private currentMode: 'metamodel' | 'instance' = 'metamodel';
     private actionDispatcher: GLSPActionDispatcher | null = null;
     private allClasses: ClassInfo[] = [];
+    private graphicalCreationClasses?: ReadonlySet<string>;
+    private creationContainers: CreationContainerPath[] = [];
+    private usesBpmnMetamodel = false;
     private allEnumNames: string[] = [];
     private allEnums: Array<{ enumName: string; literals: Array<{ name: string; value?: number }> }> = [];
     private selectedContainerInstanceId: string | null = null;
@@ -60,12 +66,70 @@ export class EcoreToolbar {
         this.actionDispatcher = dispatcher;
     }
 
-    public updateAvailableClasses(classes: string[]): void {
-        this.renderInstancePalette(
-            this.currentMode === 'instance' ? classes.slice().sort((a, b) => a.localeCompare(b)) : [],
-            this.currentMode === 'instance'
-        );
+    public setGraphicalCreationClasses(classNames?: string[], creationContainers: CreationContainerPath[] = []): void {
+        this.graphicalCreationClasses = classNames ? new Set(classNames) : undefined;
+        this.creationContainers = classNames ? creationContainers : [];
+        if (this.selectedContainerClassName && !this.canCreateGraphically(this.selectedContainerClassName)) {
+            this.clearContainer();
+            return;
+        }
+        this.refreshAvailableClasses();
+    }
 
+    public updateMetamodelPackages(packages: PackageInfo[]): void {
+        this.usesBpmnMetamodel = packages.some(pkg => pkg.nsURI === BPMN_COMMON_PACKAGE);
+        this.clearContainer();
+    }
+
+    private isBpmnFlowElement(className: string): boolean {
+        return className === 'SequenceFlow' || isSubtypeOf(className, 'FlowNode', this.allClasses);
+    }
+
+    private usesBpmnPlacement(className: string): boolean {
+        return this.usesBpmnMetamodel &&
+            (className === 'Participant' || className === 'Lane' || this.isBpmnFlowElement(className));
+    }
+
+    private canCreateBpmnClass(className: string): boolean {
+        const container = this.selectedContainerClassName;
+        if (!container) return className === 'Participant';
+        if (container === 'Participant') return this.canCreateGraphically('Lane') ? className === 'Lane' : this.isBpmnFlowElement(className);
+        return container === 'Lane' && this.isBpmnFlowElement(className);
+    }
+
+    private canCreateGraphically(className: string): boolean {
+        return !this.graphicalCreationClasses || this.graphicalCreationClasses.has(className);
+    }
+
+    private getDefaultContainer(className: string): { path: CreationContainerPath; referenceName: string } | undefined {
+        const concrete = (name: string): boolean => this.allClasses.some(
+            cls => cls.className === name && !cls.isAbstract && !cls.isInterface
+        );
+        const accepts = (ref: ClassInfo['references'][number], target: string): boolean =>
+            ref.containment && ref.upperBound !== 0 && isSubtypeOf(target, ref.type, this.allClasses);
+
+        for (const path of this.creationContainers) {
+            let container = path.rootClass;
+            if (!concrete(container) || this.graphicalCreationClasses?.has(container)) continue;
+            const valid = path.steps.every(step => {
+                if (!concrete(step.className) || this.graphicalCreationClasses?.has(step.className) ||
+                    !getClassReferences(container, this.allClasses).some(
+                    ref => ref.name === step.referenceName && accepts(ref, step.className)
+                )) {
+                    return false;
+                }
+                container = step.className;
+                return true;
+            });
+            if (valid) {
+                const ref = getClassReferences(container, this.allClasses).find(reference => accepts(reference, className));
+                if (ref) return { path, referenceName: ref.name };
+            }
+        }
+        return undefined;
+    }
+
+    public updateAvailableClasses(classes: string[]): void {
         if (!classes || classes.length === 0) {
             return;
         }
@@ -132,6 +196,11 @@ export class EcoreToolbar {
 
     private updateAvailableClassesForMode(): void {
         if (this.currentMode === 'instance') {
+            if (this.graphicalCreationClasses || this.usesBpmnMetamodel) {
+                const classes = this.getGraphicalCreationOptions();
+                this.renderInstancePalette([...classes.keys()].sort((a, b) => a.localeCompare(b)), true);
+                return;
+            }
             const paletteClasses: string[] = [];
 
             if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
@@ -178,6 +247,66 @@ export class EcoreToolbar {
         }
     }
 
+    private getGraphicalCreationOptions(): Map<string, { path?: CreationContainerPath; referenceName?: string }> {
+        const options = new Map<string, { path?: CreationContainerPath; referenceName?: string }>();
+        const selectedClass = this.selectedContainerClassName;
+        const concrete = this.getConcreteClasses();
+        const visible = concrete.filter(name => this.canCreateGraphically(name));
+        const visibleSet = new Set(visible);
+        const eligible = (name: string): boolean => visibleSet.has(name) && !this.usesBpmnPlacement(name)
+            && getRequiredPlacementReferences(name, this.allClasses).length !== 1;
+        const queue: Array<{ className: string; path: CreationContainerPath }> = [];
+
+        for (const name of visible) {
+            if (this.usesBpmnPlacement(name) && this.canCreateBpmnClass(name)) options.set(name, {});
+        }
+        if (selectedClass) {
+            queue.push({ className: selectedClass, path: { rootClass: selectedClass, steps: [] } });
+        } else {
+            for (const name of concrete) {
+                if (getContainmentRequirements(name, this.allClasses).length > 0) continue;
+                if (eligible(name)) options.set(name, {});
+                if (!visibleSet.has(name)) queue.push({ className: name, path: { rootClass: name, steps: [] } });
+            }
+            for (const name of visible) {
+                if (!eligible(name) || options.has(name)) continue;
+                const defaultContainer = this.getDefaultContainer(name);
+                if (defaultContainer) options.set(name, defaultContainer);
+            }
+        }
+
+        const visited = new Set<string>();
+        for (const { className, path } of queue) {
+            if (visited.has(className)) continue;
+            visited.add(className);
+            for (const ref of getClassReferences(className, this.allClasses)) {
+                if (!ref.containment || ref.upperBound === 0) continue;
+                for (const childClass of concrete) {
+                    if (!isSubtypeOf(childClass, ref.type, this.allClasses)) continue;
+                    if (eligible(childClass) && !options.has(childClass)) {
+                        options.set(childClass, {
+                            referenceName: ref.name,
+                            path: selectedClass && path.steps.length === 0 ? undefined : path
+                        });
+                    } else if (!visibleSet.has(childClass) && !visited.has(childClass)) {
+                        queue.push({ className: childClass, path: {
+                            rootClass: path.rootClass,
+                            steps: [...path.steps, { referenceName: ref.name, className: childClass }]
+                        } });
+                    }
+                }
+            }
+        }
+        if (selectedClass) {
+            for (const child of getCreatablePlacementChildren(selectedClass, this.allClasses)) {
+                if (visibleSet.has(child.className) && !this.usesBpmnPlacement(child.className) && !options.has(child.className)) {
+                    options.set(child.className, {});
+                }
+            }
+        }
+        return options;
+    }
+
     private async switchMode(mode: 'metamodel' | 'instance'): Promise<void> {
         if (!this.actionDispatcher) {
             return;
@@ -209,8 +338,18 @@ export class EcoreToolbar {
         let containmentReferenceName: string | undefined;
         let placementReferenceName: string | undefined;
         let placementTargetId: string | undefined;
+        let defaultContainerPath: CreationContainerPath | undefined;
 
-        if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
+        const graphicalOption = this.graphicalCreationClasses || this.usesBpmnMetamodel
+            ? this.getGraphicalCreationOptions().get(selectedClass) : undefined;
+        if ((this.graphicalCreationClasses || this.usesBpmnMetamodel) && !graphicalOption) return;
+        if (this.usesBpmnPlacement(selectedClass)) {
+            containerInstanceId = this.selectedContainerInstanceId ?? undefined;
+        } else if (graphicalOption?.referenceName) {
+            containerInstanceId = this.selectedContainerInstanceId ?? undefined;
+            containmentReferenceName = graphicalOption.referenceName;
+            defaultContainerPath = graphicalOption.path;
+        } else if (this.selectedContainerInstanceId && this.selectedContainerClassName) {
             const containmentRefName = getContainmentReferenceName(this.selectedContainerClassName, selectedClass, this.allClasses);
             if (containmentRefName) {
                 containerInstanceId = this.selectedContainerInstanceId;
@@ -227,10 +366,10 @@ export class EcoreToolbar {
                 placementTargetId = this.selectedContainerInstanceId;
             }
         } else {
-            const requirements = getContainmentRequirements(selectedClass, this.allClasses);
-            const isRootClass = requirements.length === 0;
-
-            if (isRootClass) {
+            const container = this.getDefaultContainer(selectedClass);
+            if (container) {
+                defaultContainerPath = container.path;
+                containmentReferenceName = container.referenceName;
             }
         }
 
@@ -265,7 +404,9 @@ export class EcoreToolbar {
                 containerInstanceId,
                 containmentReferenceName,
                 placementReferenceName,
-                placementTargetId
+                placementTargetId,
+                defaultContainerPath,
+                this.graphicalCreationClasses ? [...this.graphicalCreationClasses] : undefined
             );
             await this.actionDispatcher.dispatch(action);
             this.createdInstances.add(selectedClass);
@@ -347,6 +488,9 @@ export class EcoreToolbar {
     }
 
     private renderInstancePalette(classNames: string[], isInstanceMode: boolean): void {
+        if (isInstanceMode && this.currentMode !== 'instance') {
+            return;
+        }
         const paletteBody = document.querySelector('.tool-palette .palette-body') as HTMLElement | null;
 
         if (!paletteBody) {
@@ -369,6 +513,7 @@ export class EcoreToolbar {
             this.paletteOriginalContent = paletteBody.innerHTML;
         }
 
+        classNames = classNames.filter(className => this.canCreateGraphically(className));
         paletteBody.innerHTML = '';
 
         if (!this.instancePaletteContainer) {
@@ -434,7 +579,9 @@ export class EcoreToolbar {
             const empty = document.createElement('div');
             empty.classList.add('tool-button');
             empty.style.opacity = '0.6';
-            empty.textContent = 'No creatable classes available';
+            empty.textContent = this.graphicalCreationClasses?.size === 0
+                ? 'Select a graphical model to add instances'
+                : 'No creatable classes available';
             container.appendChild(empty);
         } else {
             const list = document.createElement('div');
@@ -457,6 +604,9 @@ export class EcoreToolbar {
     }
 
     private async handleInstancePaletteClick(className: string): Promise<void> {
+        if (!this.canCreateGraphically(className)) {
+            return;
+        }
         const mapping = this.getSourceTargetMapping(className);
         if (mapping?.sourceReferenceName && mapping?.targetReferenceName) {
             await this.handleSourceTargetClassClick(className, mapping);

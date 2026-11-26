@@ -4,7 +4,7 @@
 import { injectable, inject } from 'inversify';
 import { ActionDispatcher, ModelState, GModelOperationHandler, Command, MaybePromise, GModelFactory, GModelSerializer } from '@eclipse-glsp/server';
 import { GModelRoot, GModelElement } from '@eclipse-glsp/server';
-import { DeleteElementOperation, Operation, GModelRootSchema, SetModelAction } from '@eclipse-glsp/protocol';
+import { DeleteElementOperation, Operation, GModelRootSchema, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
 import { DeleteEdgeAction } from '../ecore-actions';
 import { InstanceModelStorage } from '../instance-model-storage';
 import { AbstractRecordingCommand } from '@eclipse-glsp/server';
@@ -150,6 +150,12 @@ export class EcoreDeleteOperationHandler extends GModelOperationHandler {
 
         // If we have instances to delete in instance mode
         if (instanceIds.length > 0) {
+            if (instanceIds.some(id => this.instanceStorage.hasBpmnChildren(id))) {
+                this.actionDispatcher.dispatch(MessageAction.create(
+                    'Remove the contents of the BPMN pool or lane before deleting it.', { severity: 'WARNING' }
+                ));
+                return undefined;
+            }
             // Store references for use in the command
             const instancesToDelete = [...instanceIds];
             

@@ -59,6 +59,16 @@ export class InstanceFactory {
         return `${eClassName}_${this.instanceCounter}`;
     }
 
+    reserveId(id: string): void {
+        const suffix = id.match(/_(\d+)$/);
+        if (suffix) {
+            const number = Number(suffix[1]);
+            if (Number.isSafeInteger(number) && number < Number.MAX_SAFE_INTEGER) {
+                this.instanceCounter = Math.max(this.instanceCounter, number);
+            }
+        }
+    }
+
     resetCounter(): void {
         this.instanceCounter = 0;
     }

@@ -25,6 +25,9 @@ export class LoadMetamodelResponseHandler implements IActionHandler {
         if (this.isLoadMetamodelResponse(action)) {
 
             if (globalToolbar) {
+                if (action.success) {
+                    globalToolbar.updateMetamodelPackages(action.packageInfo ?? []);
+                }
                 if (action.enumNames !== undefined) {
                     globalToolbar.updateEnumNames(action.enumNames);
                 }

@@ -91,6 +91,7 @@ let paletteObserver: MutationObserver | undefined;
 
 document.addEventListener('DOMContentLoaded', () => {
     leftSidebar.attach();
+    setupContainerShortcuts();
 });
 
 function getToolPaletteElement(): HTMLElement | null {
@@ -256,6 +257,27 @@ const STRIP_PREFIX = 'sprotty_';
 
 function stripSprottyId(rawId: string): string {
     return rawId.startsWith(STRIP_PREFIX) ? rawId.substring(STRIP_PREFIX.length) : rawId;
+}
+
+function setupContainerShortcuts(): void {
+    const canvas = `#${clientId}`;
+    let clickedInstanceId: string | undefined;
+    document.addEventListener('click', event => {
+        if (!instanceManagementPanel?.isVisible() || !(event.target instanceof Element)) return;
+
+        const node = event.target.closest(`${canvas} [data-svg-metadata-type="ecore:instance"]`);
+        if (event.detail === 1) clickedInstanceId = node?.id;
+        if (clickedInstanceId !== node?.id) clickedInstanceId = undefined;
+        if (event.detail !== 3 || !node?.id || !clickedInstanceId) return;
+
+        const className = node.getAttribute('data-ecore-class-name');
+        if (className) toolbar.setContainer(stripSprottyId(node.id), className);
+    }, { capture: true });
+
+    document.addEventListener('dblclick', event => {
+        if (!instanceManagementPanel?.isVisible() || !(event.target instanceof Element)) return;
+        if (event.target.matches(`${canvas}, ${canvas} svg.sprotty-graph`)) toolbar.clearContainer();
+    }, { capture: true });
 }
 
 function setupContextMenu(): void {

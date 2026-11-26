@@ -3,6 +3,7 @@
  */
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { createSaveGraphicalModelAction } from './ecore-client-actions';
+import { parseGraphicalModel, serializeGraphicalEcore } from './graphical-model-format';
 
 export const SUPPORTED_SHAPE_TYPES = ['rectangle', 'circle', 'line', 'arrow', 'custom-svg', 'composite'] as const;
 export type SupportedShapeType = typeof SUPPORTED_SHAPE_TYPES[number];
@@ -53,6 +54,8 @@ export class GraphicalModelEditor {
     private static readonly MIN_ZOOM = 0.25;
     private static readonly MAX_ZOOM = 4;
     private cachedSavedShapes: Map<string, GraphicalElement> = new Map();
+    private mappableClasses?: string[];
+    private creationContainers?: string;
     private static readonly ACTIVE_GRAPHICAL_MODEL_STORAGE_KEY = 'activeGraphicalShapes';
 
     constructor(actionDispatcher: GLSPActionDispatcher) {
@@ -99,6 +102,8 @@ export class GraphicalModelEditor {
             this.elements.clear();
             this.selectedElement = null;
             this.nextElementId = 1;
+            this.mappableClasses = undefined;
+            this.creationContainers = undefined;
         }
         this.createDialog();
         document.body.appendChild(this.backdrop!);
@@ -113,6 +118,8 @@ export class GraphicalModelEditor {
             const data = JSON.parse(stored);
             const shapesArray = data.shapes || data.elements;
             if (!shapesArray || !Array.isArray(shapesArray)) return [];
+            this.mappableClasses = Array.isArray(data.mappableClasses) ? data.mappableClasses : undefined;
+            this.creationContainers = typeof data.creationContainers === 'string' ? data.creationContainers : undefined;
             const loadedShapes: GraphicalElement[] = [];
             shapesArray.forEach((el: any, index: number) => {
                 loadedShapes.push(this.normalizeElement(el, index));
@@ -142,6 +149,8 @@ export class GraphicalModelEditor {
         const data = {
             version: '1.0',
             type: 'graphical-shapes',
+            mappableClasses: this.mappableClasses,
+            creationContainers: this.creationContainers,
             shapes: elementsArray,
             savedAt: new Date().toISOString()
         };
@@ -1570,14 +1579,14 @@ export class GraphicalModelEditor {
         const data = {
             version: '1.0',
             type: 'graphical-shapes',
+            mappableClasses: this.mappableClasses,
+            creationContainers: this.creationContainers,
             shapes: elementsArray,
             savedAt: new Date().toISOString()
         };
 
-        const json = JSON.stringify(data, null, 2);
-
-        const defaultFilename = 'graphical-model.json';
-        const input = prompt('Enter filename for saving the graphical model:', defaultFilename);
+        const defaultFilename = window.globalLeftSidebar?.isEcoreWorkspace ? 'graphical-model.ecore' : 'graphical-model.json';
+        const input = prompt('Enter a graphical model filename ending in .ecore or .json:', defaultFilename);
         if (input === null) {
             return;
         }
@@ -1585,7 +1594,10 @@ export class GraphicalModelEditor {
         const filename = trimmed.length > 0 ? trimmed : defaultFilename;
 
         try {
-            await this.actionDispatcher.dispatch(createSaveGraphicalModelAction(filename, json));
+            const content = /\.ecore$/i.test(filename)
+                ? serializeGraphicalEcore(elementsArray, this.mappableClasses, filename, this.creationContainers)
+                : JSON.stringify(data, null, 2);
+            await this.actionDispatcher.dispatch(createSaveGraphicalModelAction(filename, content));
             this.updateCachedShapesFromElements();
             this.setActiveGraphicalModel();
 
@@ -1604,19 +1616,27 @@ export class GraphicalModelEditor {
         }
     }
 
+    public readGraphicalModelShapes(shapes: unknown[]): Map<string, GraphicalElement> {
+        return new Map(shapes.map((raw, index) => {
+            const shape = this.normalizeElement(raw, index);
+            return [shape.id, shape];
+        }));
+    }
+
     public loadFromContent(content: string): void {
         try {
-            const data = JSON.parse(content);
+            const data = parseGraphicalModel(content);
             const shapesArray = data.shapes || data.elements;
             if (shapesArray && Array.isArray(shapesArray)) {
+                this.mappableClasses = Array.isArray(data.mappableClasses) ? data.mappableClasses : undefined;
+                this.creationContainers = typeof data.creationContainers === 'string' ? data.creationContainers : undefined;
                 this.elements.clear();
                 if (this.canvas) {
                     this.canvas.innerHTML = '';
                 }
                 this.deselectElement();
                 this.selectedElements.clear();
-                shapesArray.forEach((el: any, index: number) => {
-                    const element = this.normalizeElement(el, index);
+                this.readGraphicalModelShapes(shapesArray).forEach(element => {
                     this.elements.set(element.id, element);
                     this.renderElement(element);
                 });
@@ -1628,6 +1648,8 @@ export class GraphicalModelEditor {
                 if (sidebar && sidebar.markGraphicalModelLoaded) {
                     sidebar.markGraphicalModelLoaded();
                 }
+            } else {
+                throw new Error('The graphical model must contain a shapes list.');
             }
         } catch (error) {
             console.error('Error loading from content:', error);
@@ -1638,7 +1660,7 @@ export class GraphicalModelEditor {
     private loadGraphicalModel(): void {
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.json';
+        fileInput.accept = '.ecore,.json,application/xml,application/json';
         fileInput.style.display = 'none';
 
         fileInput.addEventListener('change', async (event) => {
@@ -1648,35 +1670,8 @@ export class GraphicalModelEditor {
 
             try {
                 const content = await file.text();
-                const data = JSON.parse(content);
-
-                const shapesArray = data.shapes || data.elements;
-                if (shapesArray && Array.isArray(shapesArray)) {
-                    this.elements.clear();
-                    if (this.canvas) {
-                        this.canvas.innerHTML = '';
-                    }
-                    this.deselectElement();
-                    this.selectedElements.clear();
-                    shapesArray.forEach((el: any, index: number) => {
-                        const element = this.normalizeElement(el, index);
-                        this.elements.set(element.id, element);
-                        this.renderElement(element);
-                    });
-                    this.updateCachedShapesFromElements();
-                    this.updateSelectionUI();
-                    this.updateNextElementId();
-                    this.setActiveGraphicalModel();
-                    const sidebar = (window as any).globalLeftSidebar;
-                    if (sidebar && sidebar.addSavedGraphicalModel) {
-                        sidebar.addSavedGraphicalModel(file.name, content);
-                    }
-                    if (sidebar && sidebar.markGraphicalModelLoaded) {
-                        sidebar.markGraphicalModelLoaded();
-                    }
-                } else {
-                    alert('Invalid graphical model file format.');
-                }
+                this.loadFromContent(content);
+                window.globalLeftSidebar?.addSavedGraphicalModel(file.name, content);
             } catch (error) {
                 console.error('Error loading graphical model:', error);
                 alert('Error loading graphical model: ' + error);

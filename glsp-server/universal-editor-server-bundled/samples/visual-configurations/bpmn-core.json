@@ -1,6 +1,15 @@
 {
   "version": "1.0",
   "type": "graphical-shapes",
+  "mappableClasses": [
+    "StartEvent",
+    "EndEvent",
+    "Task",
+    "ExclusiveGateway",
+    "SequenceFlow",
+    "Participant",
+    "Lane"
+  ],
   "shapes": [
     {
       "id": "bpmn-start-event",

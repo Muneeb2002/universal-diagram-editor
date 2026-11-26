@@ -8,6 +8,10 @@ import { createRequestInstancesOverviewAction, InstancesOverviewResponse, create
 export class InstanceManagementPanel {
     private root: HTMLDivElement | null = null;
     private instancesContainer: HTMLDivElement | null = null;
+    private readonly resizeHandle = document.createElement('div');
+    private resizeDrag?: AbortController;
+    private height = 350;
+    private readonly onViewportResize = (): void => this.setHeight(this.height);
     private instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }> = [];
     private requestCounter = 0;
     private pendingRequests: Map<string, {
@@ -27,17 +31,21 @@ export class InstanceManagementPanel {
             document.body.appendChild(this.root);
         }
 
-        document.body.style.setProperty('--bottom-panel-height', '350px');
-        document.body.style.paddingBottom = '350px';
+        document.body.classList.add('instance-panel-open');
+        this.setHeight(this.height);
+        window.addEventListener('resize', this.onViewportResize);
 
         this.refreshInstances();
     }
 
     public hide(): void {
+        this.resizeDrag?.abort();
         if (this.root && document.body.contains(this.root)) {
             document.body.removeChild(this.root);
         }
 
+        window.removeEventListener('resize', this.onViewportResize);
+        document.body.classList.remove('instance-panel-open');
         document.body.style.setProperty('--bottom-panel-height', '0px');
         document.body.style.paddingBottom = '0px';
     }
@@ -114,7 +122,8 @@ export class InstanceManagementPanel {
             bottom: 0;
             left: 240px;
             right: 0;
-            height: 350px;
+            height: var(--bottom-panel-height);
+            box-sizing: border-box;
             background: white;
             border-top: 2px solid #007acc;
             box-shadow: 0 -2px 10px rgba(0,0,0,0.1);
@@ -138,15 +147,76 @@ export class InstanceManagementPanel {
         title.textContent = 'Diagram Elements';
         header.appendChild(title);
 
-        this.root.appendChild(header);
+        this.configureResizeHandle();
+        this.root.append(this.resizeHandle, header);
 
         this.instancesContainer = document.createElement('div');
+        this.instancesContainer.id = 'instance-management-list';
         this.instancesContainer.style.cssText = `
             flex: 1;
             overflow-y: auto;
             padding: 10px;
         `;
         this.root.appendChild(this.instancesContainer);
+    }
+
+    private setHeight(height: number): void {
+        const max = Math.floor(window.innerHeight * 0.8);
+        const min = Math.min(120, max);
+        this.height = Math.min(max, Math.max(min, height));
+        const value = `${this.height}px`;
+        document.body.style.setProperty('--bottom-panel-height', value);
+        document.body.style.paddingBottom = value;
+        this.resizeHandle.setAttribute('aria-valuemin', String(min));
+        this.resizeHandle.setAttribute('aria-valuemax', String(max));
+        this.resizeHandle.setAttribute('aria-valuenow', String(this.height));
+    }
+
+    private configureResizeHandle(): void {
+        const handle = this.resizeHandle;
+        handle.className = 'instance-panel-resize-handle';
+        handle.tabIndex = 0;
+        handle.setAttribute('role', 'separator');
+        handle.setAttribute('aria-label', 'Resize Diagram Elements panel');
+        handle.setAttribute('aria-orientation', 'horizontal');
+        handle.setAttribute('aria-controls', 'instance-management-list');
+
+        handle.addEventListener('pointerdown', event => {
+            if (!event.isPrimary || event.button !== 0) return;
+            event.preventDefault();
+            handle.focus({ preventScroll: true });
+            handle.setPointerCapture(event.pointerId);
+            this.resizeDrag?.abort();
+            const drag = new AbortController();
+            this.resizeDrag = drag;
+            const { pointerId, clientY: startY } = event;
+            const startHeight = this.height;
+            const options = { capture: true, signal: drag.signal };
+            const stopDrag = (pointer: PointerEvent): void => {
+                if (pointer.pointerId === pointerId) drag.abort();
+            };
+            window.addEventListener('pointermove', pointer => {
+                if (pointer.pointerId !== pointerId) return;
+                pointer.stopPropagation();
+                this.setHeight(startHeight + startY - pointer.clientY);
+            }, options);
+            window.addEventListener('pointerup', stopDrag, options);
+            window.addEventListener('pointercancel', stopDrag, options);
+            window.addEventListener('blur', () => drag.abort(), options);
+        });
+        handle.addEventListener('keydown', event => {
+            const heights: Record<string, number> = {
+                ArrowUp: this.height + 24,
+                ArrowDown: this.height - 24,
+                Home: 0,
+                End: window.innerHeight
+            };
+            const nextHeight = heights[event.key];
+            if (typeof nextHeight !== 'number') return;
+            event.preventDefault();
+            event.stopPropagation();
+            this.setHeight(nextHeight);
+        });
     }
 
     private renderInstances(): void {

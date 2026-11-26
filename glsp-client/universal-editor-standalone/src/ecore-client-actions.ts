@@ -66,6 +66,11 @@ export interface SwitchModeAction {
     mode: 'metamodel' | 'instance';
 }
 
+export interface CreationContainerPath {
+    rootClass: string;
+    steps: Array<{ referenceName: string; className: string }>;
+}
+
 export interface CreateInstanceAction {
     kind: 'createInstance';
     eClassName: string;
@@ -74,6 +79,8 @@ export interface CreateInstanceAction {
     containmentReferenceName?: string;
     placementReferenceName?: string;
     placementTargetId?: string;
+    defaultContainerPath?: CreationContainerPath;
+    graphicalClasses?: string[];
 }
 
 export interface SetInstanceAttributeAction {
@@ -232,7 +239,9 @@ export function createCreateInstanceAction(
     containerInstanceId?: string,
     containmentReferenceName?: string,
     placementReferenceName?: string,
-    placementTargetId?: string
+    placementTargetId?: string,
+    defaultContainerPath?: CreationContainerPath,
+    graphicalClasses?: string[]
 ): CreateInstanceAction {
     return {
         kind: 'createInstance',
@@ -241,7 +250,9 @@ export function createCreateInstanceAction(
         containerInstanceId,
         containmentReferenceName,
         placementReferenceName,
-        placementTargetId
+        placementTargetId,
+        defaultContainerPath,
+        graphicalClasses
     };
 }
 

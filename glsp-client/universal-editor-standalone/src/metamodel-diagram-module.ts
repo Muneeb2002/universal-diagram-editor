@@ -70,6 +70,7 @@ export class EcoreBidirectionalEdge extends GEdge {
 
 export class EcoreInstanceNode extends GNode {
     static readonly TYPE = 'ecore:instance';
+    declare readonly eClassName?: string;
 }
 
 export class EcoreInstanceEdge extends GEdge {

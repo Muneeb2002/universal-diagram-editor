@@ -126,6 +126,11 @@ export namespace SwitchModeAction {
     }
 }
 
+export interface CreationContainerPath {
+    rootClass: string;
+    steps: Array<{ referenceName: string; className: string }>;
+}
+
 export interface CreateInstanceAction extends Action {
     kind: typeof CreateInstanceAction.KIND;
     eClassName: string;
@@ -134,6 +139,8 @@ export interface CreateInstanceAction extends Action {
     containmentReferenceName?: string;
     placementReferenceName?: string;
     placementTargetId?: string;
+    defaultContainerPath?: CreationContainerPath;
+    graphicalClasses?: string[];
 }
 
 export namespace CreateInstanceAction {

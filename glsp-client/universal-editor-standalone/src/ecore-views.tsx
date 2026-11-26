@@ -22,6 +22,7 @@ import {
 } from '@eclipse-glsp/sprotty';
 import { ChangeBoundsOperation } from '@eclipse-glsp/client';
 import { SetCompositeComponentAction } from './composite-component-actions';
+import type { EcoreInstanceNode } from './metamodel-diagram-module';
 
 interface NodeShapeConfig {
     type: string;
@@ -185,7 +186,7 @@ export class EcoreEnumNodeView extends RectangularNodeView {
 export class EcoreInstanceNodeView extends RectangularNodeView {
     @inject(TYPES.IActionDispatcher) protected actionDispatcher: IActionDispatcher;
 
-    override render(node: Readonly<GNode & Hoverable & Selectable>, context: RenderingContext): VNode | undefined {
+    override render(node: Readonly<EcoreInstanceNode & Hoverable & Selectable>, context: RenderingContext): VNode | undefined {
         if (!this.isVisible(node, context)) {
             return undefined;
         }
@@ -278,6 +279,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         );
 
         setAttr(vnode, 'data-svg-metadata-type', node.type);
+        if (node.eClassName) setAttr(vnode, 'data-ecore-class-name', node.eClassName);
         setClass(vnode, 'ecore-instance', true);
         return vnode;
     }

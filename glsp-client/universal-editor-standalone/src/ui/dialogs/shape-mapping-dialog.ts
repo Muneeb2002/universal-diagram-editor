@@ -27,6 +27,12 @@ export interface ShapeMapping {
     }>;
 }
 
+export interface ShapeMappingScope {
+    storageKey: string;
+    classNames: ReadonlySet<string>;
+    shapes: Map<string, GraphicalElement>;
+}
+
 export class ShapeMappingDialog {
     private dialog: HTMLElement | null = null;
     private backdrop: HTMLElement | null = null;
@@ -35,6 +41,7 @@ export class ShapeMappingDialog {
     private savedShapes: Map<string, GraphicalElement> = new Map();
     private classNames: string[] = [];
     private mappingsJustLoaded: boolean = false;
+    private scope?: ShapeMappingScope;
 
     constructor(actionDispatcher: GLSPActionDispatcher) {
         this.actionDispatcher = actionDispatcher;
@@ -45,6 +52,43 @@ export class ShapeMappingDialog {
      */
     public getActionDispatcher(): GLSPActionDispatcher | null {
         return this.actionDispatcher;
+    }
+
+    public setGraphicalModelScope(scope?: ShapeMappingScope): void {
+        const changed = this.scope?.storageKey !== scope?.storageKey;
+        this.scope = scope;
+        if (scope) {
+            this.savedShapes = scope.shapes;
+            this.classNames = [...scope.classNames];
+        }
+        if (changed) {
+            this.mappings.clear();
+            this.mappingsJustLoaded = false;
+            this.loadMappings(false);
+        } else if (scope) {
+            for (const [key, mapping] of this.mappings) {
+                if (!this.isMappingInScope(mapping)) {
+                    this.mappings.delete(key);
+                }
+            }
+        }
+    }
+
+    private isMappingInScope(mapping: ShapeMapping): boolean {
+        return !this.scope || (this.scope.classNames.has(mapping.className) && this.scope.shapes.has(mapping.shapeId));
+    }
+
+    private addMappingEntries(mappings: ShapeMapping[]): void {
+        mappings.forEach((mapping, index) => {
+            if (mapping?.className && this.isMappingInScope(mapping)) {
+                const normalized = this.normalizeMapping(mapping, index);
+                this.mappings.set(this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue), normalized);
+            }
+        });
+    }
+
+    private get mappingStorageKey(): string {
+        return this.scope?.storageKey ?? 'shapeMappings';
     }
 
     public show(classNames: string[], savedShapes: Map<string, GraphicalElement>, mode: 'create' | 'edit' = 'create'): void {
@@ -179,7 +223,7 @@ export class ShapeMappingDialog {
 
         const rootClassNames = this.getRootClassNames();
         const mappableClassNames = this.classNames.filter(className => {
-            if (this.canHaveSourceTargetMapping(className, classInfoList)) {
+            if (this.scope || this.canHaveSourceTargetMapping(className, classInfoList)) {
                 return true;
             }
             return !rootClassNames.has(className);
@@ -889,8 +933,10 @@ export class ShapeMappingDialog {
             if (data.mappings && Array.isArray(data.mappings)) {
                 this.mappings.clear();
 
-                // Set classNames if provided, otherwise try to get from toolbar
-                if (classNames) {
+                // An Ecore selection takes precedence over the full metamodel and the global shape library.
+                if (this.scope) {
+                    this.classNames = [...this.scope.classNames];
+                } else if (classNames) {
                     this.classNames = classNames;
                 } else {
                     const toolbar: any = (window as any).globalToolbar;
@@ -898,7 +944,9 @@ export class ShapeMappingDialog {
                 }
 
                 // Set savedShapes if provided, otherwise get from editor
-                if (savedShapes) {
+                if (this.scope) {
+                    this.savedShapes = this.scope.shapes;
+                } else if (savedShapes) {
                     this.savedShapes = new Map(
                         Array.from(savedShapes.entries()).map(([id, shape]) => {
                             const normalized: GraphicalElement = {
@@ -917,14 +965,7 @@ export class ShapeMappingDialog {
                     }
                 }
 
-                data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                    const normalized = this.normalizeMapping(mapping, index);
-                    // Use composite key for submappings, className for base mappings
-                    const mappingKey = normalized.enumAttribute && normalized.enumValue
-                        ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
-                        : this.getMappingKey(normalized.className);
-                    this.mappings.set(mappingKey, normalized);
-                });
+                this.addMappingEntries(data.mappings);
 
                 // Mark that mappings were just loaded to prevent overwriting in show()
                 this.mappingsJustLoaded = true;
@@ -975,17 +1016,10 @@ export class ShapeMappingDialog {
                     this.mappings.clear();
                     // Ensure we have the latest shapes before normalizing mappings
                     const editor = (window as any).globalGraphicalModelEditor;
-                    if (editor && editor.getSavedShapes) {
+                    if (!this.scope && editor && editor.getSavedShapes) {
                         this.savedShapes = editor.getSavedShapes();
                     }
-                    data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                        const normalized = this.normalizeMapping(mapping, index);
-                        // Use composite key for submappings, className for base mappings
-                        const mappingKey = normalized.enumAttribute && normalized.enumValue
-                            ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
-                            : this.getMappingKey(normalized.className);
-                        this.mappings.set(mappingKey, normalized);
-                    });
+                    this.addMappingEntries(data.mappings);
 
                     // Recreate dialog to show updated mappings
                     // Remove both backdrop and dialog if they exist
@@ -1025,27 +1059,22 @@ export class ShapeMappingDialog {
         document.body.removeChild(fileInput);
     }
 
-    private loadMappings(): void {
+    private loadMappings(syncWithServer = true): void {
         try {
-            const stored = localStorage.getItem('shapeMappings');
+            const stored = localStorage.getItem(this.mappingStorageKey);
             if (stored) {
                 const data = JSON.parse(stored);
                 if (data.mappings && Array.isArray(data.mappings)) {
                     this.mappings.clear();
                     // Ensure we have the latest shapes before normalizing mappings
                     const editor = (window as any).globalGraphicalModelEditor;
-                    if (editor && editor.getSavedShapes) {
+                    if (!this.scope && editor && editor.getSavedShapes) {
                         this.savedShapes = editor.getSavedShapes();
                     }
-                    data.mappings.forEach((mapping: ShapeMapping, index: number) => {
-                        const normalized = this.normalizeMapping(mapping, index);
-                        // Use composite key for submappings, className for base mappings
-                        const mappingKey = normalized.enumAttribute && normalized.enumValue
-                            ? this.getMappingKey(normalized.className, normalized.enumAttribute, normalized.enumValue)
-                            : this.getMappingKey(normalized.className);
-                        this.mappings.set(mappingKey, normalized);
-                    });
-                    this.syncMappingsWithServer(JSON.stringify(data)).catch(() => undefined);
+                    this.addMappingEntries(data.mappings);
+                    if (syncWithServer) {
+                        this.syncMappingsWithServer(this.scope ? undefined : JSON.stringify(data)).catch(() => undefined);
+                    }
                 }
             }
         } catch (error) {
@@ -1063,6 +1092,9 @@ export class ShapeMappingDialog {
      * server does not load the graphical-model file directly.
      */
     public async refreshShapeConfigs(savedShapes: Map<string, GraphicalElement>): Promise<number> {
+        if (this.scope) {
+            return 0;
+        }
         this.savedShapes = new Map(savedShapes);
         let refreshed = 0;
 
@@ -1089,7 +1121,7 @@ export class ShapeMappingDialog {
     private serializeMappings(): string {
         // Re-normalize all mappings before serializing to ensure arrowType is up-to-date
         const editor = (window as any).globalGraphicalModelEditor;
-        if (editor && editor.getSavedShapes) {
+        if (!this.scope && editor && editor.getSavedShapes) {
             this.savedShapes = editor.getSavedShapes();
         }
         const mappingsArray = Array.from(this.mappings.values()).map((mapping, index) =>
@@ -1121,7 +1153,7 @@ export class ShapeMappingDialog {
                 mappings: mappingsArray,
                 savedAt: new Date().toISOString()
             };
-            localStorage.setItem('shapeMappings', JSON.stringify(data));
+            localStorage.setItem(this.mappingStorageKey, JSON.stringify(data));
 
             // Update the edit button visibility in the sidebar
             const sidebar = (window as any).globalLeftSidebar;

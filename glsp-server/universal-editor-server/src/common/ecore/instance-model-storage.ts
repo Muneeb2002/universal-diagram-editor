@@ -6,8 +6,11 @@ import { EcoreInstance, InstanceModel, InstanceFactory } from './instance-model-
 import { MetamodelRegistry } from './metamodel-registry';
 import { isEAttribute, isEReference } from './ecore-types';
 import { ShapeConfig, ShapeMappingStorage } from './shape-mapping-storage';
+import type { CreationContainerPath } from './ecore-actions';
 import * as path from 'path';
 import * as fs from 'fs';
+
+const BPMN_COMMON_PACKAGE = 'http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/common';
 
 /**
  * Storage and management for Ecore instance models.
@@ -142,6 +145,8 @@ export class InstanceModelStorage {
             containmentReferenceName?: string;
             placementReferenceName?: string;
             placementTargetId?: string;
+            defaultContainerPath?: CreationContainerPath;
+            graphicalClasses?: string[];
         }
     ): EcoreInstance {
         const activeKey = this.metamodelRegistry.getActiveMetamodelKey();
@@ -162,6 +167,12 @@ export class InstanceModelStorage {
         const instanceModel = this.getOrCreateActiveInstanceModel();
         let containerInstanceId = opts?.containerInstanceId;
         let containmentReferenceName = opts?.containmentReferenceName;
+        const graphicalClasses = opts?.graphicalClasses ? new Set(opts.graphicalClasses) : undefined;
+        if (graphicalClasses && !graphicalClasses.has(eClassName)) {
+            throw new Error(`'${eClassName}' is outside the selected graphical model.`);
+        }
+        const bpmnPlacement = this.getBpmnCreationPlacement(eClassName, containerInstanceId, graphicalClasses);
+        const defaultPath = opts?.defaultContainerPath;
         const incomingContainments = this.findIncomingContainmentRequirements(eClassName);
         // A class targeted by a composition belongs to one of those containers even when the
         // container reference itself is optional (lowerBound 0). The lower bound describes how
@@ -182,21 +193,21 @@ export class InstanceModelStorage {
             const requiredName = requiredPlacementRefs[0].name || requiredPlacementRefs[0].get?.('name');
             throw new Error(`Creating '${eClassName}' requires selecting a target for '${requiredName}'.`);
         }
-        if (hasPlacement && !containerInstanceId && !containmentReferenceName && incomingContainments.length > 0) {
+        if (!bpmnPlacement && !defaultPath && hasPlacement && !containerInstanceId && !containmentReferenceName && incomingContainments.length > 0) {
             const defaultContainer = this.findDefaultContainer(incomingContainments, instanceModel);
             if (defaultContainer) {
                 containerInstanceId = defaultContainer.instance.id;
                 containmentReferenceName = defaultContainer.referenceName;
             }
         }
-        if (mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
+        if (!bpmnPlacement && !defaultPath && mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
             const defaultContainer = this.findDefaultContainer(incomingContainments, instanceModel);
             if (defaultContainer) {
                 containerInstanceId = defaultContainer.instance.id;
                 containmentReferenceName = defaultContainer.referenceName;
             }
         }
-        if (mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
+        if (!bpmnPlacement && !defaultPath && mustBeContained && (!containerInstanceId || !containmentReferenceName)) {
             const refs = incomingContainments
                 .map(r => `${r.containerClassName}.${r.referenceName}[${r.lowerBound}..${this.boundToString(r.upperBound)}]`)
                 .join(', ');
@@ -210,20 +221,34 @@ export class InstanceModelStorage {
         this.initializeAttributes(instance, eClass);
 
         instanceModel.instances.set(instance.id, instance);
+        const createdContainers: string[] = [];
 
         try {
-            if (containerInstanceId && containmentReferenceName) {
-                const containerInstance = this.getInstance(containerInstanceId);
+            if (bpmnPlacement) {
+                this.attachBpmnInstance(instance, bpmnPlacement.parent, instanceModel, createdContainers);
+            } else if (defaultPath) {
+                if (!containmentReferenceName) {
+                    throw new Error('A default container path requires a containment reference.');
+                }
+                const selectedContainer = containerInstanceId ? this.getInstance(containerInstanceId) : undefined;
+                if (containerInstanceId && (!selectedContainer || selectedContainer.hidden)) {
+                    throw new Error('Select a visible container on the diagram.');
+                }
+                const hiddenClasses = [
+                    ...(selectedContainer ? [] : [defaultPath.rootClass]),
+                    ...defaultPath.steps.map(step => step.className)
+                ];
+                if (hiddenClasses.some(name => graphicalClasses?.has(name))) {
+                    throw new Error('Select the graphical container before creating its child.');
+                }
+                containerInstanceId = this.prepareDefaultContainer(
+                    defaultPath, containmentReferenceName, eClassName, instanceModel, createdContainers, selectedContainer
+                ).id;
+            }
+            if (!bpmnPlacement && containerInstanceId && containmentReferenceName) {
+                const containerInstance = this.getInstance(opts?.containerInstanceId ?? containerInstanceId);
                 if (containerInstance && !containerInstance.hidden && containerInstance.position) {
-                    const containmentRef = containerInstance.references.get(containmentReferenceName);
-                    let existingChildrenCount = 0;
-                    if (containmentRef) {
-                        if (Array.isArray(containmentRef)) {
-                            existingChildrenCount = containmentRef.length;
-                        } else if (containmentRef) {
-                            existingChildrenCount = 1;
-                        }
-                    }
+                    const existingChildrenCount = this.getDiagramChildren(containerInstance.id).length;
 
                     instance.position = {
                         x: 10 + (existingChildrenCount % 4) * 120,
@@ -232,7 +257,7 @@ export class InstanceModelStorage {
                 }
 
                 this.createReference(containerInstanceId, containmentReferenceName, instance.id);
-            } else {
+            } else if (!bpmnPlacement) {
                 instanceModel.rootInstances.add(instance.id);
             }
 
@@ -252,16 +277,224 @@ export class InstanceModelStorage {
                 };
             }
 
+            if ((bpmnPlacement || defaultPath) && instance.eClassName !== 'SequenceFlow') {
+                this.expandDiagramContainersFor(instance);
+            }
             const constrained = this.constrainInstanceBounds(instance.id, instance.position, instance.size);
             instance.position = constrained.position;
             instance.size = constrained.size;
         } catch (error) {
             this.deleteInstance(instance.id);
+            createdContainers.reverse().forEach(id => this.deleteInstance(id));
             throw error;
         }
 
         console.log(`Created instance ${instance.id} of class ${eClassName}`);
         return instance;
+    }
+
+    private usesBpmnMetamodel(): boolean {
+        return !!this.metamodelRegistry.findEPackage(BPMN_COMMON_PACKAGE);
+    }
+
+    private getBpmnCreationPlacement(
+        className: string, selectedId?: string, graphicalClasses?: ReadonlySet<string>
+    ): { parent?: EcoreInstance } | undefined {
+        if (!this.usesBpmnMetamodel()) return undefined;
+        if (className === 'Participant') {
+            if (selectedId) throw new Error('Clear the selected container before creating a pool.');
+            return {};
+        }
+
+        const isLane = className === 'Lane';
+        if (!isLane && className !== 'SequenceFlow' && !this.isSubtypeOf(className, 'FlowNode')) return undefined;
+        const parent = selectedId ? this.getInstance(selectedId) : undefined;
+        const laneIsHidden = graphicalClasses ? !graphicalClasses.has('Lane') : false;
+        const parentClass = isLane || laneIsHidden ? 'Participant' : 'Lane';
+        if (!parent || parent.hidden || parent.eClassName !== parentClass) {
+            throw new Error(`Select a ${parentClass === 'Participant' ? 'pool' : 'lane'} before creating a ${className}.`);
+        }
+        if (parentClass === 'Lane' && !this.getBpmnPoolForLane(parent)) {
+            throw new Error('The selected lane must belong to a pool before adding flow elements.');
+        }
+        return { parent };
+    }
+
+    private attachBpmnInstance(
+        instance: EcoreInstance, parent: EcoreInstance | undefined, model: InstanceModel, created: string[]
+    ): void {
+        if (!parent) {
+            const otherPools = this.getAllInstances().filter(pool =>
+                pool.id !== instance.id && pool.eClassName === 'Participant' && !pool.hidden);
+            if (otherPools.length) {
+                instance.position = {
+                    x: instance.position?.x ?? 50,
+                    y: Math.max(...otherPools.map(pool =>
+                        (pool.position?.y ?? 0) + (pool.size?.height ?? this.getMappedSize(pool).height))) + 35
+                };
+            }
+            const collaboration = this.prepareDefaultContainer({
+                rootClass: 'Definitions',
+                steps: [{ referenceName: 'rootElements', className: 'Collaboration' }]
+            }, 'participants', 'Participant', model, created);
+            this.createReference(collaboration.id, 'participants', instance.id);
+            this.getOrCreateBpmnPoolProcess(instance, model, created);
+            return;
+        }
+
+        const siblings = this.getDiagramChildren(parent.id);
+        if (instance.eClassName === 'Lane') {
+            const laneSet = this.getOrCreateBpmnLaneSet(parent, model, created);
+            instance.position = {
+                x: 32,
+                y: siblings.reduce((bottom, lane) => Math.max(bottom, (lane.position?.y ?? 0) +
+                    (lane.size?.height ?? this.getMappedSize(lane).height) + 10), 10)
+            };
+            this.createReference(laneSet.id, 'lanes', instance.id);
+        } else {
+            let lane = parent;
+            if (parent.eClassName === 'Participant') {
+                const laneSet = this.getOrCreateBpmnLaneSet(parent, model, created);
+                lane = this.getReferenceTargets(laneSet, 'lanes').find(target => target.hidden)
+                    ?? this.createBpmnContainer('Lane', laneSet, 'lanes', model, created);
+            }
+            const process = this.getBpmnLaneProcess(lane);
+            if (!process) throw new Error('The lane must belong to a process.');
+            this.createReference(process.id, 'flowElements', instance.id);
+            if (instance.eClassName !== 'SequenceFlow') {
+                instance.position = {
+                    x: 36 + (siblings.length % 4) * 145,
+                    y: 20 + Math.floor(siblings.length / 4) * 85
+                };
+                this.createReference(lane.id, 'flowNodeRefs', instance.id);
+            }
+        }
+    }
+
+    private getOrCreateBpmnLaneSet(pool: EcoreInstance, model: InstanceModel, created: string[]): EcoreInstance {
+        const process = this.getOrCreateBpmnPoolProcess(pool, model, created);
+        return this.getReferenceTargets(process, 'laneSets').find(target => target.eClassName === 'LaneSet')
+            ?? this.createBpmnContainer('LaneSet', process, 'laneSets', model, created);
+    }
+
+    private getOrCreateBpmnPoolProcess(pool: EcoreInstance, model: InstanceModel, created: string[]): EcoreInstance {
+        const process = this.getReferenceTargets(pool, 'processRef').find(target => target.eClassName === 'Process');
+        if (process) return process;
+        const collaboration = this.getContainingInstance(pool.id);
+        const definitions = collaboration && this.getContainingInstance(collaboration.id);
+        if (definitions?.eClassName !== 'Definitions') {
+            throw new Error('The pool must belong to a collaboration in Definitions.');
+        }
+        const createdProcess = this.createBpmnContainer('Process', definitions, 'rootElements', model, created);
+        this.createReference(pool.id, 'processRef', createdProcess.id);
+        return createdProcess;
+    }
+
+    private createBpmnContainer(
+        className: string, parent: EcoreInstance, referenceName: string, model: InstanceModel, created: string[]
+    ): EcoreInstance {
+        const eClass = this.metamodelRegistry.findEClass(className);
+        if (!eClass) throw new Error(`The BPMN metamodel is missing '${className}'.`);
+        const instance = this.instanceFactory.createInstance(className, model.metamodelKey, { x: 0, y: 0 }, { hidden: true });
+        this.initializeAttributes(instance, eClass);
+        model.instances.set(instance.id, instance);
+        created.push(instance.id);
+        this.createReference(parent.id, referenceName, instance.id);
+        return instance;
+    }
+
+    private getReferenceTargets(instance: EcoreInstance, name: string): EcoreInstance[] {
+        const value = instance.references.get(name);
+        const ids = Array.isArray(value) ? value : value ? [value] : [];
+        return ids.map(id => this.getInstance(id)).filter((target): target is EcoreInstance => !!target);
+    }
+
+    private getBpmnLaneProcess(lane: EcoreInstance): EcoreInstance | undefined {
+        const laneSet = this.getContainingInstance(lane.id);
+        const process = laneSet?.eClassName === 'LaneSet' ? this.getContainingInstance(laneSet.id) : undefined;
+        return process?.eClassName === 'Process' ? process : undefined;
+    }
+
+    private getBpmnPoolForLane(lane: EcoreInstance): EcoreInstance | undefined {
+        const process = this.getBpmnLaneProcess(lane);
+        return process && this.getAllInstances().find(candidate =>
+            candidate.eClassName === 'Participant' && !candidate.hidden && candidate.references.get('processRef') === process.id
+        );
+    }
+
+    private getBpmnDiagramChildren(instance: EcoreInstance): EcoreInstance[] {
+        if (instance.eClassName === 'Participant') {
+            return this.getReferenceTargets(instance, 'processRef')
+                .flatMap(process => this.getReferenceTargets(process, 'laneSets'))
+                .flatMap(laneSet => this.getReferenceTargets(laneSet, 'lanes'))
+                .flatMap(lane => lane.hidden ? this.getBpmnDiagramChildren(lane) : [lane]);
+        }
+        return instance.eClassName === 'Lane' ? this.getReferenceTargets(instance, 'flowNodeRefs').filter(node => !node.hidden) : [];
+    }
+
+    private prepareDefaultContainer(
+        path: CreationContainerPath,
+        finalReference: string,
+        targetClass: string,
+        model: InstanceModel,
+        created: string[],
+        selectedContainer?: EcoreInstance
+    ): EcoreInstance {
+        if (typeof path.rootClass !== 'string' || !Array.isArray(path.steps) || path.steps.some(step =>
+            !step || typeof step.referenceName !== 'string' || typeof step.className !== 'string')) {
+            throw new Error('Invalid default container path.');
+        }
+
+        const classNames = [path.rootClass, ...path.steps.map(step => step.className)];
+        if (selectedContainer && selectedContainer.eClassName !== path.rootClass) {
+            throw new Error('The containment path must start at the selected container.');
+        }
+        if (new Set(classNames).size !== classNames.length) {
+            throw new Error('A default container path cannot repeat a class.');
+        }
+        const classes = classNames.map(className => {
+            const cls = this.metamodelRegistry.findEClass(className);
+            if (!cls || (cls.get?.('abstract') ?? cls.abstract) || (cls.get?.('interface') ?? cls.interface)) {
+                throw new Error(`Cannot create default container '${className}'.`);
+            }
+            return cls;
+        });
+        const links = [...path.steps, { referenceName: finalReference, className: targetClass }];
+        links.forEach(({ referenceName, className }, index) => {
+            const ref = this.collectAllStructuralFeatures(classes[index]).filter(isEReference).reverse()
+                .find(feature => (feature.get?.('name') ?? feature.name) === referenceName);
+            const type = ref?.get?.('eType') ?? ref?.eType;
+            const typeName = type?.get?.('name') ?? type?.name;
+            if (!(ref?.get?.('containment') ?? ref?.containment) ||
+                (ref?.get?.('upperBound') ?? ref?.upperBound) === 0 ||
+                !typeName || !this.isSubtypeOf(className, typeName)) {
+                throw new Error(`'${classNames[index]}.${referenceName}' cannot contain '${className}'.`);
+            }
+        });
+
+        const makeContainer = (index: number, isRoot: boolean): EcoreInstance => {
+            const container = this.instanceFactory.createInstance(classNames[index], model.metamodelKey, { x: 0, y: 0 }, { hidden: true, isRoot });
+            this.initializeAttributes(container, classes[index]);
+            model.instances.set(container.id, container);
+            created.push(container.id);
+            if (isRoot) model.rootInstances.add(container.id);
+            return container;
+        };
+        let container = selectedContainer ?? [...model.rootInstances].map(id => model.instances.get(id))
+            .find(instance => instance?.hidden && instance.eClassName === path.rootClass) ?? makeContainer(0, true);
+
+        path.steps.forEach((step, index) => {
+            const value = container.references.get(step.referenceName);
+            const ids = Array.isArray(value) ? value : value ? [value] : [];
+            let child = ids.map(id => model.instances.get(id))
+                .find(instance => instance?.hidden && instance.eClassName === step.className);
+            if (!child) {
+                child = makeContainer(index + 1, false);
+                this.createReference(container.id, step.referenceName, child.id);
+            }
+            container = child;
+        });
+        return container;
     }
 
     constrainInstanceBounds(
@@ -288,8 +521,8 @@ export class InstanceModelStorage {
             position = this.constrainToPlacementTarget(position, size, placement.target);
         }
 
-        const container = this.getContainingInstance(instanceId);
-        if (container && !container.hidden) {
+        const container = this.getDiagramParent(instanceId);
+        if (container) {
             const containerSize = this.getMappedSize(container);
             const width = container.size?.width ?? containerSize.width;
             const height = container.size?.height ?? containerSize.height;
@@ -301,7 +534,7 @@ export class InstanceModelStorage {
             position = this.constrainToPlacementTarget(position, size, container, { x: 0, y: 0 });
         }
 
-        const children = this.getContainedInstances(instanceId);
+        const children = this.getDiagramChildren(instanceId);
         for (const child of children) {
             const childSize = this.getMappedSize(child);
             const width = child.size?.width ?? childSize.width;
@@ -330,6 +563,72 @@ export class InstanceModelStorage {
         return undefined;
     }
 
+    getDiagramParent(instanceId: string): EcoreInstance | undefined {
+        const instance = this.getInstance(instanceId);
+        if (instance && this.usesBpmnMetamodel()) {
+            if (instance.eClassName === 'Lane') {
+                return this.getBpmnPoolForLane(instance);
+            }
+            if (this.isSubtypeOf(instance.eClassName, 'FlowNode')) {
+                const process = this.getContainingInstance(instanceId);
+                const lane = process && this.getAllInstances().find(candidate => candidate.eClassName === 'Lane' &&
+                    this.getReferenceTargets(candidate, 'flowNodeRefs').some(node => node.id === instanceId) &&
+                    this.getBpmnLaneProcess(candidate)?.id === process.id);
+                if (lane) return lane.hidden ? this.getBpmnPoolForLane(lane) : lane;
+            }
+        }
+        const visited = new Set([instanceId]);
+        let parent = this.getContainingInstance(instanceId);
+        while (parent?.hidden && !visited.has(parent.id)) {
+            visited.add(parent.id);
+            parent = this.getContainingInstance(parent.id);
+        }
+        return parent && !visited.has(parent.id) ? parent : undefined;
+    }
+
+    getDiagramChildren(containerId: string): EcoreInstance[] {
+        const container = this.getInstance(containerId);
+        if (!container) return [];
+        const projected = this.usesBpmnMetamodel() ? this.getBpmnDiagramChildren(container) : [];
+        const visited = new Set([containerId]);
+        const visible: EcoreInstance[] = [];
+        const visit = (parent: EcoreInstance): void => {
+            for (const child of this.getContainedInstances(parent.id)) {
+                if (visited.has(child.id)) continue;
+                visited.add(child.id);
+                if (child.hidden) visit(child);
+                else visible.push(child);
+            }
+        };
+        visit(container);
+        return [...new Map([...visible, ...projected]
+            .filter(child => this.getDiagramParent(child.id)?.id === containerId)
+            .map(child => [child.id, child] as const)).values()];
+    }
+
+    private expandDiagramContainersFor(instance: EcoreInstance): void {
+        const visited = new Set([instance.id]);
+        let child = instance;
+        let parent = this.getDiagramParent(child.id);
+        while (parent && !visited.has(parent.id)) {
+            visited.add(parent.id);
+            const childSize = child.size ?? this.getMappedSize(child);
+            const parentSize = parent.size ?? this.getMappedSize(parent);
+            parent.size = {
+                width: Math.max(parentSize.width, (child.position?.x ?? 0) + childSize.width),
+                height: Math.max(parentSize.height, (child.position?.y ?? 0) + childSize.height)
+            };
+            child = parent;
+            parent = this.getDiagramParent(child.id);
+        }
+    }
+
+    hasBpmnChildren(instanceId: string): boolean {
+        const instance = this.getInstance(instanceId);
+        if (!instance || !this.usesBpmnMetamodel()) return false;
+        return this.getBpmnDiagramChildren(instance).length > 0;
+    }
+
     private getContainedInstances(containerInstanceId: string): EcoreInstance[] {
         const container = this.getInstance(containerInstanceId);
         if (!container) return [];
@@ -344,7 +643,7 @@ export class InstanceModelStorage {
             if (typeof value === 'string') ids.add(value);
             else if (Array.isArray(value)) value.forEach(id => ids.add(id));
         }
-        return [...ids].map(id => this.getInstance(id)).filter((child): child is EcoreInstance => !!child && !child.hidden);
+        return [...ids].map(id => this.getInstance(id)).filter((child): child is EcoreInstance => !!child);
     }
 
     private getMappedSize(instance: EcoreInstance): { width: number; height: number } {
@@ -813,27 +1112,7 @@ export class InstanceModelStorage {
             throw new Error(`EClass '${sourceInstance.eClassName}' not found in metamodel`);
         }
 
-        let references: any[] = [];
-        const eStructuralFeatures = eClass.get ? eClass.get('eStructuralFeatures') : eClass.eStructuralFeatures;
-        const eReferences = eClass.get ? eClass.get('eReferences') : eClass.eReferences;
-        
-        if (eReferences) {
-            if (Array.isArray(eReferences)) {
-                references = eReferences;
-            } else if (eReferences.forEach) {
-                eReferences.forEach((f: any) => references.push(f));
-            }
-        }
-        
-        if (references.length === 0 && eStructuralFeatures) {
-            let structuralFeatures: any[] = [];
-            if (Array.isArray(eStructuralFeatures)) {
-                structuralFeatures = eStructuralFeatures;
-            } else if (eStructuralFeatures.forEach) {
-                eStructuralFeatures.forEach((f: any) => structuralFeatures.push(f));
-            }
-            references = structuralFeatures.filter(isEReference);
-        }
+        const references = this.collectAllStructuralFeatures(eClass).filter(isEReference).reverse();
         
         console.log(`Found ${references.length} references in class '${sourceInstance.eClassName}':`, references.map(r => {
             const name = r.get ? r.get('name') : r.name;
@@ -895,7 +1174,7 @@ export class InstanceModelStorage {
             const oppositeName = opposite.name || opposite.get?.('name');
             if (oppositeName) {
                 const targetEClass = this.metamodelRegistry.findEClass(targetInstance.eClassName);
-                const targetRefs = targetEClass?.eStructuralFeatures?.filter(isEReference) || [];
+                const targetRefs = targetEClass ? this.collectAllStructuralFeatures(targetEClass).filter(isEReference).reverse() : [];
                 const targetOppRef = targetRefs.find((r: any) => (r.name || r.get?.('name')) === oppositeName);
                 if (targetOppRef) {
                     const tUpper = targetOppRef.upperBound ?? targetOppRef.get?.('upperBound') ?? 1;
@@ -1189,6 +1468,7 @@ export class InstanceModelStorage {
                 }
 
                 instanceModel.instances.set(instance.id, instance);
+                this.instanceFactory.reserveId(instance.id);
             }
 
             if (parsed.rootInstances && Array.isArray(parsed.rootInstances)) {
