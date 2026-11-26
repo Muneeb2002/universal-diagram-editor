@@ -3,7 +3,7 @@
  */
 import { injectable, inject } from 'inversify';
 import { ActionHandler, ModelState, GModelFactory, GModelSerializer, GModelRoot } from '@eclipse-glsp/server';
-import { Action, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
+import { Action, MessageAction, UpdateModelAction } from '@eclipse-glsp/protocol';
 import { CreateInstanceReferenceAction } from '../ecore-actions';
 import { InstanceModelStorage } from '../instance-model-storage';
 
@@ -43,7 +43,7 @@ export class CreateInstanceReferenceActionHandler implements ActionHandler {
             const gmodel = this.modelState.get('gmodel') as GModelRoot;
             if (gmodel) {
                 return [
-                    SetModelAction.create(gmodel),
+                    UpdateModelAction.create(gmodel, { animate: false }),
                     MessageAction.create(
                         `Created reference ${action.referenceName} from ${action.sourceInstanceId} to ${action.targetInstanceId}`,
                         { severity: 'INFO' }

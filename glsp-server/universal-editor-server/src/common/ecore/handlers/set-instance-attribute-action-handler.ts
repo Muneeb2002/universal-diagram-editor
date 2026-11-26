@@ -3,7 +3,7 @@
  */
 import { injectable, inject } from 'inversify';
 import { ActionHandler, ModelState, GModelFactory, GModelSerializer, GModelRoot } from '@eclipse-glsp/server';
-import { Action, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
+import { Action, MessageAction, UpdateModelAction } from '@eclipse-glsp/protocol';
 import { SetInstanceAttributeAction } from '../ecore-actions';
 import { InstanceModelStorage } from '../instance-model-storage';
 
@@ -41,7 +41,7 @@ export class SetInstanceAttributeActionHandler implements ActionHandler {
             const gmodel = this.modelState.get('gmodel') as GModelRoot;
             if (gmodel) {
                 return [
-                    SetModelAction.create(gmodel),
+                    UpdateModelAction.create(gmodel, { animate: false }),
                     MessageAction.create(
                         `Set ${action.attributeName} = ${action.value}`,
                         { severity: 'INFO' }

@@ -3,7 +3,7 @@
  */
 import { injectable, inject } from 'inversify';
 import { ActionHandler, GModelFactory, GModelRoot, ModelState } from '@eclipse-glsp/server';
-import { Action, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
+import { Action, MessageAction, SetModelAction, UpdateModelAction } from '@eclipse-glsp/protocol';
 import { ApplyShapeMappingsAction } from '../ecore-actions';
 import { ShapeMappingStorage, ShapeMapping } from '../shape-mapping-storage';
 
@@ -32,9 +32,12 @@ export class ApplyShapeMappingsActionHandler implements ActionHandler {
             // Recreate the active graph so mapping changes appear without a mode switch or reload.
             this.gmodelFactory.createModel();
             const gmodel = this.modelState.get('gmodel') as GModelRoot;
-            return gmodel
-                ? [SetModelAction.create(gmodel), MessageAction.create('Shape mappings applied', { severity: 'INFO' })]
-                : [MessageAction.create('Shape mappings applied', { severity: 'INFO' })];
+            const message = MessageAction.create('Shape mappings applied', { severity: 'INFO' });
+            if (!gmodel) return [message];
+            const update = this.modelState.get('viewMode') === 'instance'
+                ? UpdateModelAction.create(gmodel, { animate: false })
+                : SetModelAction.create(gmodel);
+            return [update, message];
         } catch (error) {
             const message = error instanceof Error ? error.message : String(error);
             console.error('[ApplyShapeMappings] Failed to apply mappings:', error);

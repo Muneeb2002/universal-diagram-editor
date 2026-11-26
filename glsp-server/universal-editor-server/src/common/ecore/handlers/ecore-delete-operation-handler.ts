@@ -4,7 +4,7 @@
 import { injectable, inject } from 'inversify';
 import { ActionDispatcher, ModelState, GModelOperationHandler, Command, MaybePromise, GModelFactory, GModelSerializer } from '@eclipse-glsp/server';
 import { GModelRoot, GModelElement } from '@eclipse-glsp/server';
-import { DeleteElementOperation, Operation, GModelRootSchema, MessageAction, SetModelAction } from '@eclipse-glsp/protocol';
+import { DeleteElementOperation, Operation, GModelRootSchema, MessageAction, UpdateModelAction } from '@eclipse-glsp/protocol';
 import { DeleteEdgeAction } from '../ecore-actions';
 import { InstanceModelStorage } from '../instance-model-storage';
 import { AbstractRecordingCommand } from '@eclipse-glsp/server';
@@ -388,7 +388,6 @@ class SafeInstanceDeleteCommand extends AbstractRecordingCommand<GModelRootSchem
         const gmodel = this.modelState.get('gmodel') as GModelRoot;
         const modelToSend = gmodel || newRoot;
         
-        // Dispatch SetModelAction to update the client
-        this.actionDispatcher.dispatch(SetModelAction.create(modelToSend));
+        this.actionDispatcher.dispatch(UpdateModelAction.create(this.serializer.createSchema(modelToSend), { animate: false }));
     }
 }

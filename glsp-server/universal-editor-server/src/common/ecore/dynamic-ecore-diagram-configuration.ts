@@ -33,6 +33,9 @@ export class DynamicEcoreDiagramConfiguration implements DiagramConfiguration {
         mapping.set('comp:references', GCompartment);
         mapping.set('label:heading', GLabel);
         mapping.set('label:text', GLabel);
+        mapping.set('ecore:class', GNode);
+        mapping.set('ecore:datatype', GNode);
+        mapping.set('ecore:enum', GNode);
         mapping.set('ecore:instance', GNode);
         mapping.set('edge:ecore-reference', GEdge);
         mapping.set('edge:ecore-bidirectional', GEdge);

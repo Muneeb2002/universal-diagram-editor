@@ -5,6 +5,7 @@ import { injectable, inject } from 'inversify';
 import {
     GModelFactory,
     GModelRoot,
+    GModelSerializer,
     GNode,
     GEdge,
     GCompartment,
@@ -24,6 +25,9 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     @inject(ModelState)
     protected modelState: ModelState;
 
+    @inject(GModelSerializer)
+    protected serializer: GModelSerializer;
+
     @inject(MetamodelRegistry)
     protected metamodelRegistry: MetamodelRegistry;
 
@@ -36,8 +40,6 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     createModel(): void {
         const modelType = this.modelState.get('modelType') as string;
         const viewMode = this.modelState.get('viewMode') as string || 'metamodel';
-
-        this.modelState.set('gmodel', undefined);
 
         if (modelType === 'ecore') {
             if (viewMode === 'instance') {
@@ -79,7 +81,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         this.createEdgesFromEReferences(root, ecoreModel);
         this.createEdgesFromInheritance(root, ecoreModel);
 
-        this.modelState.set('gmodel', root);
+        this.publishModel(root);
     }
 
     private createInstanceModel(): void {
@@ -118,7 +120,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             }
         });
 
-        this.modelState.set('gmodel', root);
+        this.publishModel(root);
     }
 
     private getInstanceRenderArea(instance: EcoreInstance): number {
@@ -133,6 +135,14 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         root.type = 'graph';
         root.id = 'sprotty';
         root.revision = 0;
+        this.publishModel(root);
+    }
+
+    private publishModel(root: GModelRoot): void {
+        // GLSP indexes the active graph for operations and submits it after computing bounds.
+        // Keep the original, parent-free graph for handlers that send it directly over JSON-RPC.
+        root.revision = (this.modelState.root?.revision ?? -1) + 1;
+        this.modelState.updateRoot(this.serializer.createRoot(root));
         this.modelState.set('gmodel', root);
     }
 
@@ -715,6 +725,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         this.instanceStorage.getDiagramChildren(instance.id)
             .filter(child => !this.isArcInstance(child))
+            .sort((left, right) => this.getInstanceRenderArea(right) - this.getInstanceRenderArea(left))
             .forEach(child => node.children.push(this.createNodeForInstance(child)));
 
         const finalShapeConfig = (node as any).shapeConfig;
