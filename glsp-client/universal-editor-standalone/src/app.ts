@@ -27,13 +27,15 @@ import { EcoreToolbar } from './ecore-toolbar';
 import { EcoreEdgeContextMenu } from './edge-context-menu';
 import {
     createOpenClassPropertiesAction,
+    createCreateEPackageAction,
     createCreateEClassAction,
     createCreateEEnumAction,
     createAddAttributeAction,
     createDeleteAttributeAction,
     createRequestEnumNamesAction,
     EnumNamesResponse,
-    InstancesOverviewResponse
+    InstancesOverviewResponse,
+    PackageInfo
 } from './ecore-client-actions';
 import { RequestAction } from '@eclipse-glsp/protocol';
 import { setGlobalToolbar } from './handlers/load-metamodel-response-handler';
@@ -46,11 +48,13 @@ import { InstanceManagementPanel } from './instance-management-panel';
 
 let editorContextServiceRef: EditorContextService | undefined;
 let lastKnownModelRoot: GModelRoot | undefined;
+let currentMetamodelPackages: PackageInfo[] = [];
 
 declare global {
     interface Window {
         showEClassCreationDialog?: () => void;
         showEEnumCreationDialog?: () => void;
+        showEPackageCreationDialog?: () => void;
         globalGraphicalModelEditor?: GraphicalModelEditor;
         globalShapeMappingDialog?: ShapeMappingDialog;
         globalLeftSidebar?: LeftSidebar;
@@ -310,6 +314,10 @@ function handleTriggerAction(action: any): boolean {
         showEEnumCreationDialog();
         return true;
     }
+    if (action?.kind === 'triggerEPackageCreation') {
+        showEPackageCreationDialog();
+        return true;
+    }
     return false;
 }
 
@@ -333,6 +341,7 @@ function setupCustomActionHandling(): void {
 
     window.showEClassCreationDialog = showEClassCreationDialog;
     window.showEEnumCreationDialog = showEEnumCreationDialog;
+    window.showEPackageCreationDialog = showEPackageCreationDialog;
 
     const originalDispatch = actionDispatcher.dispatch.bind(actionDispatcher);
     const originalDispatchAll = (actionDispatcher as any).dispatchAll?.bind(actionDispatcher);
@@ -420,6 +429,18 @@ function setupCustomActionHandling(): void {
                                     return;
                                 }
 
+                                if (itemId && (itemId.includes('package') || itemId.includes('Package') ||
+                                    buttonToUse.textContent?.includes('EPackage'))) {
+                                    showEPackageCreationDialog();
+                                    return;
+                                }
+
+                                if (itemId && (itemId.includes('enum') || itemId.includes('Enum') ||
+                                    buttonToUse.textContent?.includes('EEnum'))) {
+                                    showEEnumCreationDialog();
+                                    return;
+                                }
+
                                 const buttonText = (buttonToUse.textContent?.toLowerCase() || '').trim();
                                 const isEdgeButton = itemId && (
                                     itemId.includes('edge') ||
@@ -478,6 +499,12 @@ function setupCustomActionHandling(): void {
             }
         }
         else if (action.kind === 'loadMetamodelResponse') {
+            if (action.responseId) {
+                return originalDispatch(action);
+            }
+            if (Array.isArray(action.packageInfo)) {
+                currentMetamodelPackages = action.packageInfo;
+            }
             pendingBoundsRetries = 0;
             const result = originalDispatch(action);
             result.then(() => {
@@ -491,10 +518,6 @@ function setupCustomActionHandling(): void {
                 metamodelAvailable = true;
                 setToolPaletteVisible(true);
                 leftSidebar.setVisualConfigurationAvailable(true);
-            } else {
-                metamodelAvailable = false;
-                setToolPaletteVisible(false);
-                leftSidebar.setVisualConfigurationAvailable(false);
             }
 
             try { await actionDispatcher.dispatch(createOpenClassPropertiesAction()); } catch { }
@@ -572,6 +595,128 @@ function setupCustomActionHandling(): void {
 }
 
 
+function appendPackageSelector(dialog: HTMLElement, labelText: string = 'Package:'): HTMLSelectElement {
+    const label = document.createElement('label');
+    label.textContent = labelText;
+    label.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold;';
+    dialog.appendChild(label);
+
+    const select = document.createElement('select');
+    select.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+    if (currentMetamodelPackages.length === 0) {
+        const option = document.createElement('option');
+        option.value = '';
+        option.textContent = 'Default package';
+        select.appendChild(option);
+    } else {
+        currentMetamodelPackages.forEach(pkg => {
+            const option = document.createElement('option');
+            option.value = pkg.nsURI;
+            option.textContent = `${'  '.repeat(pkg.depth)}${pkg.qualifiedName} (${pkg.nsURI})`;
+            select.appendChild(option);
+        });
+    }
+    dialog.appendChild(select);
+    return select;
+}
+
+function showEPackageCreationDialog(): void {
+    const dialog = document.createElement('div');
+    dialog.style.cssText = `
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        background: white; border: 1px solid #ccc; border-radius: 8px; padding: 20px;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15); z-index: 10000;
+        min-width: 360px; font-family: Arial, sans-serif;
+    `;
+
+    const title = document.createElement('h3');
+    title.textContent = 'Create EPackage';
+    title.style.cssText = 'margin: 0 0 15px 0; color: #333;';
+    dialog.appendChild(title);
+
+    const addInput = (labelText: string, placeholder: string): HTMLInputElement => {
+        const label = document.createElement('label');
+        label.textContent = labelText;
+        label.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold;';
+        dialog.appendChild(label);
+        const input = document.createElement('input');
+        input.type = 'text';
+        input.placeholder = placeholder;
+        input.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+        dialog.appendChild(input);
+        return input;
+    };
+
+    const nameInput = addInput('Package Name:', 'events');
+    const uriInput = addInput('Namespace URI:', 'http://example.org/bpmn/events');
+    const prefixInput = addInput('Namespace Prefix:', 'events');
+
+    const parentLabel = document.createElement('label');
+    parentLabel.textContent = 'Parent Package:';
+    parentLabel.style.cssText = 'display: block; margin-bottom: 5px; font-weight: bold;';
+    dialog.appendChild(parentLabel);
+    const parentSelect = document.createElement('select');
+    parentSelect.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
+    const rootOption = document.createElement('option');
+    rootOption.value = '';
+    rootOption.textContent = '(create as a root package)';
+    parentSelect.appendChild(rootOption);
+    currentMetamodelPackages.forEach(pkg => {
+        const option = document.createElement('option');
+        option.value = pkg.nsURI;
+        option.textContent = `${'  '.repeat(pkg.depth)}${pkg.qualifiedName}`;
+        parentSelect.appendChild(option);
+    });
+    if (currentMetamodelPackages.length === 1) {
+        parentSelect.value = currentMetamodelPackages[0].nsURI;
+    }
+    dialog.appendChild(parentSelect);
+
+    const backdrop = document.createElement('div');
+    backdrop.style.cssText = 'position: fixed; inset: 0; background: rgba(0,0,0,0.3); z-index: 9999;';
+    const close = () => {
+        dialog.remove();
+        backdrop.remove();
+    };
+    backdrop.addEventListener('click', close);
+
+    const buttons = document.createElement('div');
+    buttons.style.cssText = 'margin-top: 20px; text-align: right;';
+    const cancel = document.createElement('button');
+    cancel.textContent = 'Cancel';
+    cancel.style.cssText = 'padding: 8px 16px; margin-right: 10px; border: 1px solid #ccc; border-radius: 4px; background: white; cursor: pointer;';
+    cancel.addEventListener('click', close);
+    const create = document.createElement('button');
+    create.textContent = 'Create';
+    create.style.cssText = 'padding: 8px 16px; border: none; border-radius: 4px; background: #007acc; color: white; cursor: pointer;';
+    create.addEventListener('click', () => {
+        const packageName = nameInput.value.trim();
+        const nsURI = uriInput.value.trim();
+        const nsPrefix = prefixInput.value.trim();
+        if (!packageName || !nsURI || !nsPrefix) {
+            alert('Package name, namespace URI, and namespace prefix are required.');
+            return;
+        }
+        if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(packageName)) {
+            alert('Package name must be a valid identifier.');
+            return;
+        }
+        actionDispatcher?.dispatch(createCreateEPackageAction(
+            packageName,
+            nsURI,
+            nsPrefix,
+            parentSelect.value || undefined
+        ));
+        close();
+    });
+    buttons.appendChild(cancel);
+    buttons.appendChild(create);
+    dialog.appendChild(buttons);
+    document.body.appendChild(backdrop);
+    document.body.appendChild(dialog);
+    nameInput.focus();
+}
+
 function showEClassCreationDialog(): void {
 
     const dialog = document.createElement('div');
@@ -606,6 +751,8 @@ function showEClassCreationDialog(): void {
     nameInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
     dialog.appendChild(nameInput);
 
+    const packageSelect = appendPackageSelector(dialog);
+
     const buttonContainer = document.createElement('div');
     buttonContainer.style.cssText = 'margin-top: 20px; text-align: right;';
 
@@ -632,7 +779,7 @@ function showEClassCreationDialog(): void {
         }
 
         if (actionDispatcher) {
-            const action = createCreateEClassAction(className);
+            const action = createCreateEClassAction(className, undefined, packageSelect.value || undefined);
             actionDispatcher.dispatch(action);
         }
 
@@ -696,6 +843,8 @@ function showEEnumCreationDialog(): void {
     nameInput.placeholder = 'Enter enum name';
     nameInput.style.cssText = 'width: 100%; padding: 8px; border: 1px solid #ccc; border-radius: 4px; margin-bottom: 15px; box-sizing: border-box;';
     dialog.appendChild(nameInput);
+
+    const packageSelect = appendPackageSelector(dialog);
 
     const literalsLabel = document.createElement('label');
     literalsLabel.textContent = 'Enum Literals (Values):';
@@ -793,7 +942,12 @@ function showEEnumCreationDialog(): void {
         });
 
         if (actionDispatcher) {
-            const action = createCreateEEnumAction(enumName, undefined, enumLiterals.length > 0 ? enumLiterals : undefined);
+            const action = createCreateEEnumAction(
+                enumName,
+                undefined,
+                enumLiterals.length > 0 ? enumLiterals : undefined,
+                packageSelect.value || undefined
+            );
             actionDispatcher.dispatch(action);
         }
 

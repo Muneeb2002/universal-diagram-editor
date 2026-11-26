@@ -1,0 +1,65 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmi:version="2.0" name="events" nsURI="http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/events" nsPrefix="bpmn.events">
+  <eClassifiers xsi:type="ecore:EClass" name="BoundaryEvent" eSuperTypes="#//CatchEvent">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="cancelActivity" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="attachedToRef" ordered="false" lowerBound="1" eType="activities.ecore#//Activity" eOpposite="activities.ecore#//Activity/boundaryEventRefs" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CatchEvent" abstract="true" eSuperTypes="#//Event">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="parallelMultiple" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outputSet" ordered="false" eType="data.ecore#//OutputSet" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="eventDefinitionRefs" ordered="false" upperBound="-1" eType="#//EventDefinition" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataOutputAssociation" ordered="false" upperBound="-1" eType="data.ecore#//DataOutputAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataOutputs" ordered="false" upperBound="-1" eType="data.ecore#//DataOutput" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="eventDefinitions" ordered="false" upperBound="-1" eType="#//EventDefinition" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Event" abstract="true" eSuperTypes="common.ecore#//FlowNode collaboration.ecore#//InteractionNode">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="properties" ordered="false" upperBound="-1" eType="data.ecore#//Property" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="EventDefinition" abstract="true" eSuperTypes="common.ecore#//RootElement" />
+  <eClassifiers xsi:type="ecore:EClass" name="IntermediateCatchEvent" eSuperTypes="#//CatchEvent" />
+  <eClassifiers xsi:type="ecore:EClass" name="IntermediateThrowEvent" eSuperTypes="#//ThrowEvent" />
+  <eClassifiers xsi:type="ecore:EClass" name="ThrowEvent" abstract="true" eSuperTypes="#//Event">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="inputSet" ordered="false" eType="data.ecore#//InputSet" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="eventDefinitionRefs" ordered="false" upperBound="-1" eType="#//EventDefinition" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataInputAssociation" ordered="false" upperBound="-1" eType="data.ecore#//DataInputAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataInputs" ordered="false" upperBound="-1" eType="data.ecore#//DataInput" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="eventDefinitions" ordered="false" upperBound="-1" eType="#//EventDefinition" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="EndEvent" eSuperTypes="#//ThrowEvent" />
+  <eClassifiers xsi:type="ecore:EClass" name="StartEvent" eSuperTypes="#//CatchEvent">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isInterrupting" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CancelEventDefinition" eSuperTypes="#//EventDefinition" />
+  <eClassifiers xsi:type="ecore:EClass" name="ErrorEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="errorRef" ordered="false" eType="data.ecore#//Error" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="TerminateEventDefinition" eSuperTypes="#//EventDefinition" />
+  <eClassifiers xsi:type="ecore:EClass" name="EscalationEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="escalationRef" ordered="false" eType="data.ecore#//Escalation" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CompensateEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="waitForCompletion" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="activityRef" ordered="false" eType="activities.ecore#//Activity" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="TimerEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="timeDate" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="timeCycle" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="timeDuration" ordered="false" eType="common.ecore#//Expression" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="LinkEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="target" ordered="false" eType="#//LinkEventDefinition" eOpposite="#//LinkEventDefinition/source" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="source" ordered="false" upperBound="-1" eType="#//LinkEventDefinition" eOpposite="#//LinkEventDefinition/target" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="MessageEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageRef" ordered="false" eType="data.ecore#//Message" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="operationRef" ordered="false" eType="common.ecore#//Operation" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ConditionalEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="condition" ordered="false" lowerBound="1" eType="common.ecore#//Expression" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SignalEventDefinition" eSuperTypes="#//EventDefinition">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="signalRef" ordered="false" eType="data.ecore#//Signal" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ImplicitThrowEvent" eSuperTypes="#//ThrowEvent" />
+</ecore:EPackage>

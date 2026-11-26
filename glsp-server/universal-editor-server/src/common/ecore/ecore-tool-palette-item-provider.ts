@@ -23,6 +23,7 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
         const relationshipItems: PaletteItem[] = [];
 
         metamodelItems.push(
+            this.createEPackagePaletteItem(),
             this.createEClassPaletteItem(),
             this.createEEnumPaletteItem()
         );
@@ -72,6 +73,16 @@ export class EcoreToolPaletteItemProvider extends ToolPaletteItemProvider {
             }],
             icon: 'symbol-class',
             sortString: 'EClass'
+        };
+    }
+
+    private createEPackagePaletteItem(): PaletteItem {
+        return {
+            id: 'palette-item-create-package',
+            label: 'EPackage',
+            actions: [{ kind: 'triggerEPackageCreation' }],
+            icon: 'package',
+            sortString: 'EPackage'
         };
     }
 

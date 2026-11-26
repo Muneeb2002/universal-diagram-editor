@@ -2,8 +2,17 @@
  * @author Abigail Sotomayor <s205720@dtu.dk>
  */
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
-import { createSaveMetamodelAction, createSwitchModeAction, SaveInstanceAction, LoadInstanceAction } from './ecore-client-actions';
+import { createSaveMetamodelAction, createSwitchModeAction, SaveInstanceAction, LoadInstanceAction, LoadMetamodelResponse } from './ecore-client-actions';
+import { RequestAction } from '@eclipse-glsp/protocol';
 import { CreateMetamodelDialog } from './ui/dialogs/create-metamodel-dialog';
+
+type StoredMetamodel = { name: string; content: string; files?: Array<{ filename: string; content: string }> };
+type MetamodelUploadResponse = LoadMetamodelResponse & { responseId: string };
+interface MetamodelUploadRequest extends RequestAction<MetamodelUploadResponse> {
+    filename: string;
+    content: string;
+    files?: StoredMetamodel['files'];
+}
 
 export class LeftSidebar {
     private sidebar: HTMLDivElement;
@@ -77,7 +86,8 @@ export class LeftSidebar {
             cursor: pointer;
             font-size: 12px;
         `;
-        loadBtn.addEventListener('click', () => this.loadJSON());
+        loadBtn.title = 'Select one JSON metamodel or all related .ecore files together';
+        loadBtn.addEventListener('click', () => this.selectMetamodelFiles());
         this.sidebar.appendChild(loadBtn);
 
         const saveMetamodelBtn = document.createElement('button');
@@ -339,36 +349,34 @@ export class LeftSidebar {
         }
     }
 
-    private loadJSON(): void {
+    private selectMetamodelFiles(): void {
         if (!this.actionDispatcher) {
             console.warn('Action dispatcher not available');
             return;
         }
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.json';
+        fileInput.accept = '.json,.ecore';
+        fileInput.multiple = true;
         fileInput.style.display = 'none';
 
-        fileInput.addEventListener('change', async (event) => {
-            const target = event.target as HTMLInputElement;
-            const file = target.files?.[0];
-            if (!file) return;
+        fileInput.addEventListener('change', async () => {
+            const files = Array.from(fileInput.files ?? []);
+            if (files.length === 0) return;
             try {
-                const content = await file.text();
-                const action = {
-                    kind: 'loadMetamodel',
-                    content,
-                    filename: file.name,
-                    isJSON: true
-                } as any;
-                await this.actionDispatcher!.dispatch(action);
-                this.addLoadedMetamodel({ name: file.name, content });
-                this.metamodelLoadedInSession = true;
-                this.updateCreateMappingModelButtonState();
-                this.updateSaveMetamodelButtonVisibility();
+                if (files.length === 1) {
+                    await this.loadMetamodel({ name: files[0].name, content: await files[0].text() });
+                } else {
+                    if (files.some(file => !/\.ecore$/i.test(file.name))) {
+                        throw new Error('Select either one JSON file or a set of .ecore files.');
+                    }
+                    const parts = await Promise.all(files.map(async file => ({ filename: file.name, content: await file.text() })));
+                    const name = parts.map(file => file.filename).sort().join(', ');
+                    await this.loadMetamodel({ name, content: '', files: parts });
+                }
             } catch (e) {
                 console.error('Error loading metamodel:', e);
-                alert('Error loading metamodel: ' + e);
+                alert(`Error loading metamodel: ${e instanceof Error ? e.message : String(e)}`);
             }
         });
 
@@ -377,7 +385,38 @@ export class LeftSidebar {
         document.body.removeChild(fileInput);
     }
 
-    private addLoadedMetamodel(entry: { name: string; content: string }): void {
+    private async loadMetamodel(entry: StoredMetamodel): Promise<void> {
+        const dispatcher = this.actionDispatcher;
+        if (!dispatcher) return;
+
+        const request: MetamodelUploadRequest = {
+            kind: 'loadMetamodel',
+            requestId: RequestAction.generateRequestId(),
+            filename: entry.name,
+            content: entry.content,
+            files: entry.files
+        };
+        const response = await dispatcher.requestUntil(request, 30000);
+        if (!response) {
+            throw new Error('The server did not respond to the metamodel upload.');
+        }
+        if (response.kind !== 'loadMetamodelResponse') {
+            throw new Error('The server returned an unexpected reply to the metamodel upload.');
+        }
+        if (!response.success) {
+            throw new Error(response.message ?? 'The server rejected the metamodel upload.');
+        }
+        await dispatcher.dispatch({ ...response, responseId: '' } as MetamodelUploadResponse);
+        this.addLoadedMetamodel(entry);
+        this.metamodelLoadedInSession = true;
+        this.updateSaveMetamodelButtonVisibility();
+        this.updateCreateMappingModelButtonState();
+        if (response.warnings?.length) {
+            alert(response.warnings.join('\n'));
+        }
+    }
+
+    private addLoadedMetamodel(entry: StoredMetamodel): void {
         const current = this.getStoredMetamodels();
         const without = current.filter(e => e.name !== entry.name);
         const next = [entry, ...without].slice(0, LeftSidebar.MAX_STORED);
@@ -388,7 +427,7 @@ export class LeftSidebar {
         this.renderLoadedMetamodels();
     }
 
-    private getStoredMetamodels(): Array<{ name: string; content: string }> {
+    private getStoredMetamodels(): StoredMetamodel[] {
         try {
             const raw = localStorage.getItem(LeftSidebar.STORAGE_KEY);
             if (!raw) return [];
@@ -396,7 +435,7 @@ export class LeftSidebar {
             if (!Array.isArray(arr)) return [];
             return arr
                 .filter(x => x && typeof x.name === 'string' && typeof x.content === 'string')
-                .map(x => ({ name: x.name as string, content: x.content as string }));
+                .map(x => ({ name: x.name, content: x.content, files: x.files }));
         } catch {
             return [];
         }
@@ -419,6 +458,7 @@ export class LeftSidebar {
             row.style.cssText = 'display:flex; align-items:center; justify-content:space-between; gap:8px;';
             const text = document.createElement('span');
             text.textContent = name;
+            text.title = name;
             text.style.cssText = 'font-size: 12px; color:#333; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;';
             row.appendChild(text);
 
@@ -437,21 +477,11 @@ export class LeftSidebar {
         const items = this.getStoredMetamodels();
         const match = items.find(e => e.name === name);
         if (!match) return;
-        const action = {
-            kind: 'loadMetamodel',
-            content: match.content,
-            filename: match.name,
-            isJSON: true
-        } as any;
         try {
-            await this.actionDispatcher.dispatch(action);
-            this.addLoadedMetamodel({ name: match.name, content: match.content });
-            this.metamodelLoadedInSession = true;
-            this.updateSaveMetamodelButtonVisibility();
-            this.updateCreateMappingModelButtonState();
+            await this.loadMetamodel(match);
         } catch (e) {
             console.error('Error reloading metamodel:', e);
-            alert('Error reloading metamodel: ' + e);
+            alert(`Error reloading metamodel: ${e instanceof Error ? e.message : String(e)}`);
         }
     }
 

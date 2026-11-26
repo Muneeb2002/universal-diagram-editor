@@ -1,0 +1,31 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmi:version="2.0" name="gateways" nsURI="http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/gateways" nsPrefix="bpmn.gateways">
+  <eClassifiers xsi:type="ecore:EClass" name="Gateway" abstract="true" eSuperTypes="common.ecore#//FlowNode">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="gatewayDirection" ordered="false" lowerBound="1" eType="#//GatewayDirection" defaultValueLiteral="Unspecified" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="GatewayDirection">
+    <eLiterals name="Unspecified" />
+    <eLiterals name="Converging" value="1" />
+    <eLiterals name="Diverging" value="2" />
+    <eLiterals name="Mixed" value="3" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="EventBasedGateway" eSuperTypes="#//Gateway">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="instantiate" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="eventGatewayType" ordered="false" lowerBound="1" eType="#//EventBasedGatewayType" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="EventBasedGatewayType">
+    <eLiterals name="Parallel" />
+    <eLiterals name="Exclusive" value="1" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ComplexGateway" eSuperTypes="#//Gateway">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="activationCondition" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="default" ordered="false" eType="common.ecore#//SequenceFlow" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ExclusiveGateway" eSuperTypes="#//Gateway">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="default" ordered="false" eType="common.ecore#//SequenceFlow" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="InclusiveGateway" eSuperTypes="#//Gateway">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="default" ordered="false" eType="common.ecore#//SequenceFlow" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ParallelGateway" eSuperTypes="#//Gateway" />
+</ecore:EPackage>

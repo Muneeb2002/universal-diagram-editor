@@ -34,50 +34,59 @@ export class EcoreParser {
         }
 
         jsonObject.ePackages.forEach((pkg: any, index: number) => {
-            this.validateEPackage(pkg, index);
+            this.validateEPackage(pkg, `ePackages[${index}]`);
         });
     }
 
-    private validateEPackage(pkg: any, index: number): void {
+    private validateEPackage(pkg: any, path: string): void {
         if (!pkg.name || typeof pkg.name !== 'string') {
-            throw new Error(`ePackages[${index}]: Missing or invalid name`);
+            throw new Error(`${path}: Missing or invalid name`);
         }
 
         if (!pkg.nsURI || typeof pkg.nsURI !== 'string') {
-            throw new Error(`ePackages[${index}]: Missing or invalid nsURI`);
+            throw new Error(`${path}: Missing or invalid nsURI`);
         }
 
         if (!pkg.nsPrefix || typeof pkg.nsPrefix !== 'string') {
-            throw new Error(`ePackages[${index}]: Missing or invalid nsPrefix`);
+            throw new Error(`${path}: Missing or invalid nsPrefix`);
         }
 
         if (pkg.eClassifiers) {
             if (!Array.isArray(pkg.eClassifiers)) {
-                throw new Error(`ePackages[${index}]: eClassifiers must be an array`);
+                throw new Error(`${path}: eClassifiers must be an array`);
             }
 
             pkg.eClassifiers.forEach((classifier: any, cIndex: number) => {
-                this.validateEClassifier(classifier, index, cIndex);
+                this.validateEClassifier(classifier, path, cIndex);
+            });
+        }
+
+        if (pkg.eSubpackages) {
+            if (!Array.isArray(pkg.eSubpackages)) {
+                throw new Error(`${path}: eSubpackages must be an array`);
+            }
+            pkg.eSubpackages.forEach((subpackage: any, subpackageIndex: number) => {
+                this.validateEPackage(subpackage, `${path}.eSubpackages[${subpackageIndex}]`);
             });
         }
     }
 
-    private validateEClassifier(classifier: any, pkgIndex: number, cIndex: number): void {
+    private validateEClassifier(classifier: any, packagePath: string, cIndex: number): void {
         const isEnum = classifier.eClass === 'ecore:EEnum' || (classifier.eLiterals && Array.isArray(classifier.eLiterals));
         
         if (isEnum) {
             if (!classifier.name || typeof classifier.name !== 'string') {
-                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: EEnum missing or invalid name`);
+                throw new Error(`${packagePath}.eClassifiers[${cIndex}]: EEnum missing or invalid name`);
             }
             
             if (classifier.eLiterals) {
                 if (!Array.isArray(classifier.eLiterals)) {
-                    throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: eLiterals must be an array`);
+                    throw new Error(`${packagePath}.eClassifiers[${cIndex}]: eLiterals must be an array`);
                 }
                 
                 classifier.eLiterals.forEach((literal: any, lIndex: number) => {
                     if (!literal.name || typeof literal.name !== 'string') {
-                        throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eLiterals[${lIndex}]: Missing or invalid name`);
+                        throw new Error(`${packagePath}.eClassifiers[${cIndex}].eLiterals[${lIndex}]: Missing or invalid name`);
                     }
                 });
             }
@@ -85,68 +94,68 @@ export class EcoreParser {
         }
         
         if (!classifier.name || typeof classifier.name !== 'string') {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: Missing or invalid name`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}]: Missing or invalid name`);
         }
 
         if (classifier.eAttributes) {
             if (!Array.isArray(classifier.eAttributes)) {
-                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: eAttributes must be an array`);
+                throw new Error(`${packagePath}.eClassifiers[${cIndex}]: eAttributes must be an array`);
             }
 
             classifier.eAttributes.forEach((attr: any, aIndex: number) => {
-                this.validateEAttribute(attr, pkgIndex, cIndex, aIndex);
+                this.validateEAttribute(attr, packagePath, cIndex, aIndex);
             });
         }
 
         if (classifier.eReferences) {
             if (!Array.isArray(classifier.eReferences)) {
-                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}]: eReferences must be an array`);
+                throw new Error(`${packagePath}.eClassifiers[${cIndex}]: eReferences must be an array`);
             }
 
             classifier.eReferences.forEach((ref: any, rIndex: number) => {
-                this.validateEReference(ref, pkgIndex, cIndex, rIndex);
+                this.validateEReference(ref, packagePath, cIndex, rIndex);
             });
         }
     }
 
-    private validateEAttribute(attr: any, pkgIndex: number, cIndex: number, aIndex: number): void {
+    private validateEAttribute(attr: any, packagePath: string, cIndex: number, aIndex: number): void {
         if (!attr.name || typeof attr.name !== 'string') {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eAttributes[${aIndex}]: Missing or invalid name`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eAttributes[${aIndex}]: Missing or invalid name`);
         }
 
         if (!attr.eType) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eAttributes[${aIndex}]: Missing eType`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eAttributes[${aIndex}]: Missing eType`);
         }
 
         if (typeof attr.lowerBound !== 'number' || attr.lowerBound < 0) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eAttributes[${aIndex}]: Invalid lowerBound`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eAttributes[${aIndex}]: Invalid lowerBound`);
         }
 
         if (typeof attr.upperBound !== 'number' || (attr.upperBound < -1 && attr.upperBound !== -1)) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eAttributes[${aIndex}]: Invalid upperBound`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eAttributes[${aIndex}]: Invalid upperBound`);
         }
     }
 
-    private validateEReference(ref: any, pkgIndex: number, cIndex: number, rIndex: number): void {
+    private validateEReference(ref: any, packagePath: string, cIndex: number, rIndex: number): void {
         if (!ref.name || typeof ref.name !== 'string') {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: Missing or invalid name`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eReferences[${rIndex}]: Missing or invalid name`);
         }
 
         if (!ref.eType) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: Missing eType`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eReferences[${rIndex}]: Missing eType`);
         }
 
         if (typeof ref.lowerBound !== 'number' || ref.lowerBound < 0) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: Invalid lowerBound`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eReferences[${rIndex}]: Invalid lowerBound`);
         }
 
         if (typeof ref.upperBound !== 'number' || (ref.upperBound < -1 && ref.upperBound !== -1)) {
-            throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: Invalid upperBound`);
+            throw new Error(`${packagePath}.eClassifiers[${cIndex}].eReferences[${rIndex}]: Invalid upperBound`);
         }
 
         if (ref.eOpposite) {
             if (!ref.eOpposite.name || typeof ref.eOpposite.name !== 'string') {
-                throw new Error(`ePackages[${pkgIndex}].eClassifiers[${cIndex}].eReferences[${rIndex}]: eOpposite must have a valid name`);
+                throw new Error(`${packagePath}.eClassifiers[${cIndex}].eReferences[${rIndex}]: eOpposite must have a valid name`);
             }
         }
     }
@@ -156,41 +165,62 @@ export class EcoreParser {
             ePackages: []
         };
 
+        const classifierMap = new Map<string, any>();
+        const classifiersToResolve: Array<{ eclassifier: any; original: any }> = [];
+
         if (jsonObject.ePackages && Array.isArray(jsonObject.ePackages)) {
-            ecoreModel.ePackages = jsonObject.ePackages.map((pkg: any) => this.convertJsonToEPackage(pkg));
+            ecoreModel.ePackages = jsonObject.ePackages.map((pkg: any) =>
+                this.convertJsonToEPackage(pkg, classifierMap, classifiersToResolve)
+            );
         }
+
+        classifiersToResolve.forEach(({ eclassifier, original }) =>
+            this.resolveTypeReferences(eclassifier, original, classifierMap)
+        );
+        this.resolveEOppositeRelationships(classifierMap);
 
         return ecoreModel;
     }
 
-    private convertJsonToEPackage(pkg: any): any {
+    private convertJsonToEPackage(
+        pkg: any,
+        classifierMap: Map<string, any>,
+        classifiersToResolve: Array<{ eclassifier: any; original: any }>
+    ): any {
         const epackage = EPackage.create({
             name: pkg.name || '',
             nsURI: pkg.nsURI || '',
             nsPrefix: pkg.nsPrefix || ''
         });
 
-        const classifierMap = new Map<string, any>();
         if (pkg.eClassifiers && Array.isArray(pkg.eClassifiers)) {
             pkg.eClassifiers.forEach((classifier: any) => {
+                if (classifierMap.has(classifier.name)) {
+                    throw new Error(
+                        `Classifier name '${classifier.name}' is used in more than one package. ` +
+                        'Classifier names must currently be unique across the complete metamodel.'
+                    );
+                }
                 const eclassifier = this.convertJsonToEClassifier(classifier, classifierMap);
                 if (eclassifier) {
                     classifierMap.set(classifier.name, eclassifier);
+                    classifiersToResolve.push({ eclassifier, original: classifier });
                     (epackage as any).get('eClassifiers').add(eclassifier);
                 }
             });
         }
 
-        if (pkg.eClassifiers && Array.isArray(pkg.eClassifiers)) {
-            pkg.eClassifiers.forEach((classifier: any) => {
-                const eclassifier = classifierMap.get(classifier.name);
-                if (eclassifier) {
-                    this.resolveTypeReferences(eclassifier, classifier, classifierMap);
+        if (pkg.eSubpackages && Array.isArray(pkg.eSubpackages)) {
+            // ecore-ts uses eSubPackages internally, while the JSON format uses the
+            // standard serialized spelling eSubpackages.
+            const eSubpackages = (epackage as any).get('eSubpackages') || (epackage as any).get('eSubPackages');
+            pkg.eSubpackages.forEach((subpackage: any) => {
+                const convertedSubpackage = this.convertJsonToEPackage(subpackage, classifierMap, classifiersToResolve);
+                if (eSubpackages && typeof eSubpackages.add === 'function') {
+                    eSubpackages.add(convertedSubpackage);
                 }
             });
         }
-
-        this.resolveEOppositeRelationships(classifierMap);
 
         return epackage;
     }

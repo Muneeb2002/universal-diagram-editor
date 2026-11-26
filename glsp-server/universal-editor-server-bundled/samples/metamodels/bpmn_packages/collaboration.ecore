@@ -1,0 +1,109 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmi:version="2.0" name="collaboration" nsURI="http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/collaboration" nsPrefix="bpmn.collaboration">
+  <eClassifiers xsi:type="ecore:EClass" name="Collaboration" eSuperTypes="common.ecore#//RootElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isClosed" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="choreographyRef" ordered="false" upperBound="-1" eType="#//Choreography" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="artifacts" ordered="false" upperBound="-1" eType="common.ecore#//Artifact" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantAssociations" ordered="false" upperBound="-1" eType="#//ParticipantAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageFlowAssociations" ordered="false" upperBound="-1" eType="#//MessageFlowAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="conversationAssociations" ordered="false" eType="#//ConversationAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participants" ordered="false" upperBound="-1" eType="#//Participant" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageFlows" ordered="false" upperBound="-1" eType="#//MessageFlow" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="correlationKeys" ordered="false" upperBound="-1" eType="common.ecore#//CorrelationKey" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="conversations" ordered="false" upperBound="-1" eType="#//ConversationNode" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="conversationLinks" ordered="false" upperBound="-1" eType="#//ConversationLink" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Choreography" eSuperTypes="#//Collaboration common.ecore#//FlowElementsContainer" />
+  <eClassifiers xsi:type="ecore:EClass" name="ParticipantAssociation" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="innerParticipantRef" ordered="false" lowerBound="1" eType="#//Participant" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outerParticipantRef" ordered="false" lowerBound="1" eType="#//Participant" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Participant" eSuperTypes="common.ecore#//BaseElement #//InteractionNode">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="interfaceRefs" ordered="false" upperBound="-1" eType="common.ecore#//Interface" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantMultiplicity" ordered="false" eType="#//ParticipantMultiplicity" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="endPointRefs" ordered="false" upperBound="-1" eType="common.ecore#//EndPoint" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="processRef" ordered="false" eType="processes.ecore#//Process" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="InteractionNode" abstract="true">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="incomingConversationLinks" ordered="false" upperBound="-1" eType="#//ConversationLink" changeable="false" transient="true" derived="true" eOpposite="#//ConversationLink/targetRef" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outgoingConversationLinks" ordered="false" upperBound="-1" eType="#//ConversationLink" changeable="false" transient="true" derived="true" eOpposite="#//ConversationLink/sourceRef" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ConversationLink" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sourceRef" ordered="false" lowerBound="1" eType="#//InteractionNode" transient="true" eOpposite="#//InteractionNode/outgoingConversationLinks" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="targetRef" ordered="false" lowerBound="1" eType="#//InteractionNode" transient="true" eOpposite="#//InteractionNode/incomingConversationLinks" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ParticipantMultiplicity">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="minimum" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="0" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="maximum" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="1" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="id" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" iD="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="MessageFlowAssociation" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="innerMessageFlowRef" ordered="false" lowerBound="1" eType="#//MessageFlow" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outerMessageFlowRef" ordered="false" lowerBound="1" eType="#//MessageFlow" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="MessageFlow" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="sourceRef" ordered="false" eType="#//InteractionNode" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="targetRef" ordered="false" eType="#//InteractionNode" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageRef" ordered="false" eType="data.ecore#//Message" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ConversationAssociation" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="innerConversationNodeRef" ordered="false" lowerBound="1" eType="#//ConversationNode" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outerConversationNodeRef" ordered="false" lowerBound="1" eType="#//ConversationNode" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ConversationNode" abstract="true" eSuperTypes="common.ecore#//BaseElement #//InteractionNode">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantRefs" ordered="false" lowerBound="2" upperBound="-1" eType="#//Participant" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageFlowRefs" ordered="false" upperBound="-1" eType="#//MessageFlow" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="correlationKeys" ordered="false" upperBound="-1" eType="common.ecore#//CorrelationKey" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CorrelationPropertyRetrievalExpression" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messagePath" ordered="false" lowerBound="1" eType="common.ecore#//FormalExpression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageRef" ordered="false" lowerBound="1" eType="data.ecore#//Message" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CallConversation" eSuperTypes="#//ConversationNode">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="calledCollaborationRef" ordered="false" eType="#//Collaboration" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantAssociations" ordered="false" upperBound="-1" eType="#//ParticipantAssociation" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Conversation" eSuperTypes="#//ConversationNode" />
+  <eClassifiers xsi:type="ecore:EClass" name="SubConversation" eSuperTypes="#//ConversationNode">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="conversationNodes" ordered="false" upperBound="-1" eType="#//ConversationNode" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalConversation" eSuperTypes="#//Collaboration" />
+  <eClassifiers xsi:type="ecore:EClass" name="PartnerEntity" eSuperTypes="common.ecore#//RootElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantRef" ordered="false" upperBound="-1" eType="#//Participant" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="PartnerRole" eSuperTypes="common.ecore#//RootElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantRef" ordered="false" upperBound="-1" eType="#//Participant" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ChoreographyActivity" abstract="true" eSuperTypes="common.ecore#//FlowNode">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantRefs" ordered="false" upperBound="-1" eType="#//Participant" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="initiatingParticipantRef" ordered="false" eType="#//Participant" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="correlationKeys" ordered="false" upperBound="-1" eType="common.ecore#//CorrelationKey" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="loopType" ordered="false" lowerBound="1" eType="#//ChoreographyLoopType" defaultValueLiteral="None" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="ChoreographyLoopType">
+    <eLiterals name="None" />
+    <eLiterals name="Standard" value="1" />
+    <eLiterals name="MultiInstanceSequential" value="2" />
+    <eLiterals name="MultiInstanceParallel" value="3" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CallChoreography" eSuperTypes="#//ChoreographyActivity">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="calledChoreographyRef" ordered="false" eType="#//Choreography" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="participantAssociations" ordered="false" upperBound="-1" eType="#//ParticipantAssociation" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SubChoreography" eSuperTypes="#//ChoreographyActivity common.ecore#//FlowElementsContainer">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="artifacts" ordered="false" upperBound="-1" eType="common.ecore#//Artifact" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ChoreographyTask" eSuperTypes="#//ChoreographyActivity">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageFlowRef" ordered="false" upperBound="2" eType="#//MessageFlow" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalChoreographyTask" eSuperTypes="#//Choreography">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="initiatingParticipantRef" ordered="false" lowerBound="1" eType="#//Participant" />
+  </eClassifiers>
+</ecore:EPackage>

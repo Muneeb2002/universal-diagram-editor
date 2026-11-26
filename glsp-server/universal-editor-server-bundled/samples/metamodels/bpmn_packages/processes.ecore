@@ -1,0 +1,66 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmi:version="2.0" name="processes" nsURI="http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/processes" nsPrefix="bpmn.processes">
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalTask" eSuperTypes="#//CallableElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resources" ordered="false" upperBound="-1" eType="#//ResourceRole" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CallableElement" abstract="true" eSuperTypes="common.ecore#//RootElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="ioSpecification" ordered="false" eType="data.ecore#//InputOutputSpecification" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="supportedInterfaceRefs" ordered="false" upperBound="-1" eType="common.ecore#//Interface" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="ioBinding" ordered="false" upperBound="-1" eType="data.ecore#//InputOutputBinding" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ResourceRole" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resourceRef" ordered="false" eType="#//Resource" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resourceParameterBindings" ordered="false" upperBound="-1" eType="#//ResourceParameterBinding" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resourceAssignmentExpression" ordered="false" eType="data.ecore#//ResourceAssignmentExpression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Resource" eSuperTypes="common.ecore#//RootElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resourceParameters" ordered="false" upperBound="-1" eType="#//ResourceParameter" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ResourceParameter" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isRequired" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="type" ordered="false" eType="data.ecore#//ItemDefinition" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ResourceParameterBinding">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="expression" ordered="false" lowerBound="1" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="parameterRef" ordered="false" lowerBound="1" eType="#//ResourceParameter" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="id" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" iD="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Performer" eSuperTypes="#//ResourceRole" />
+  <eClassifiers xsi:type="ecore:EClass" name="Process" eSuperTypes="#//CallableElement common.ecore#//FlowElementsContainer">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="processType" ordered="false" lowerBound="1" eType="#//ProcessType" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isClosed" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="auditing" ordered="false" eType="common.ecore#//Auditing" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="monitoring" ordered="false" eType="common.ecore#//Monitoring" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="properties" ordered="false" upperBound="-1" eType="data.ecore#//Property" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="supports" ordered="false" upperBound="-1" eType="#//Process" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="definitionalCollaborationRef" ordered="false" eType="collaboration.ecore#//Collaboration" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isExecutable" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resources" ordered="false" upperBound="-1" eType="#//ResourceRole" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="artifacts" ordered="false" upperBound="-1" eType="common.ecore#//Artifact" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="correlationSubscriptions" ordered="false" upperBound="-1" eType="common.ecore#//CorrelationSubscription" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="decomposedBy" upperBound="-1" eType="#//Process" containment="true" eOpposite="#//Process/decomposes" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="decomposes" eType="#//Process" eOpposite="#//Process/decomposedBy" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="LaneSet" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="lanes" ordered="false" upperBound="-1" eType="#//Lane" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Lane" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="name" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="childLaneSet" ordered="false" eType="#//LaneSet" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="partitionElementRef" ordered="false" eType="common.ecore#//BaseElement" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="flowNodeRefs" ordered="false" upperBound="-1" eType="common.ecore#//FlowNode" resolveProxies="false" eOpposite="common.ecore#//FlowNode/lanes" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="partitionElement" ordered="false" eType="common.ecore#//BaseElement" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="ProcessType">
+    <eLiterals name="None" />
+    <eLiterals name="Public" value="1" />
+    <eLiterals name="Private" value="2" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="HumanPerformer" eSuperTypes="#//Performer" />
+  <eClassifiers xsi:type="ecore:EClass" name="PotentialOwner" eSuperTypes="#//HumanPerformer" />
+</ecore:EPackage>

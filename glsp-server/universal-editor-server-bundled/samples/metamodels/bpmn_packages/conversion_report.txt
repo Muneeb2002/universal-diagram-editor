@@ -1,0 +1,12 @@
+Input: BPMN20.ecore
+Output directory: bpmn_packages
+Classifiers: 146
+Internal references processed: 389
+Packages:
+  common.ecore: 33
+  processes.ecore: 13
+  activities.ecore: 24
+  events.ecore: 20
+  gateways.ecore: 8
+  collaboration.ecore: 24
+  data.ecore: 24

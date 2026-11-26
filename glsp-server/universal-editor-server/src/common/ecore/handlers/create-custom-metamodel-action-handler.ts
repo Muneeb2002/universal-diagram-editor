@@ -8,6 +8,7 @@ import { SetModelAction } from '@eclipse-glsp/protocol';
 import { MetamodelRegistry } from '../metamodel-registry';
 import { 
     CreateCustomMetamodelAction,
+    CreateEPackageAction,
     CreateEClassAction,
     CreateEEnumAction,
     LoadMetamodelResponse,
@@ -19,6 +20,7 @@ import {
 export class CreateCustomMetamodelActionHandler implements ActionHandler {
     actionKinds = [
         CreateCustomMetamodelAction.KIND,
+        CreateEPackageAction.KIND,
         CreateEClassAction.KIND,
         CreateEEnumAction.KIND
     ];
@@ -42,6 +44,9 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
 
             if (CreateCustomMetamodelAction.is(action)) {
                 const result = await this.handleCreateCustomMetamodel(action);
+                success = result.success;
+            } else if (CreateEPackageAction.is(action)) {
+                const result = await this.handleCreateEPackage(action);
                 success = result.success;
             } else if (CreateEClassAction.is(action)) {
                 const result = await this.handleCreateEClass(action);
@@ -229,7 +234,8 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                             `Successfully updated metamodel with ${classNames.length} classes`,
                             classNames,
                             classInfo,
-                            enumNames
+                            enumNames,
+                            this.metamodelRegistry.getPackageInfo()
                         )
                     ];
                 }
@@ -278,7 +284,8 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
         try {
             const result = this.metamodelRegistry.createEClass(
                 action.className,
-                action.position
+                action.position,
+                action.packageURI
             );
 
             if (result.success) {
@@ -311,7 +318,8 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
             const result = this.metamodelRegistry.createEEnum(
                 action.enumName,
                 action.position,
-                action.enumLiterals
+                action.enumLiterals,
+                action.packageURI
             );
 
             if (result.success) {
@@ -337,5 +345,24 @@ export class CreateCustomMetamodelActionHandler implements ActionHandler {
                 message: `Failed to create EEnum: ${error instanceof Error ? error.message : String(error)}`
             };
         }
+    }
+
+    private async handleCreateEPackage(action: CreateEPackageAction): Promise<{ success: boolean; message: string }> {
+        const result = this.metamodelRegistry.createEPackage(
+            action.packageName,
+            action.nsURI,
+            action.nsPrefix,
+            action.parentPackageURI
+        );
+        if (result.success) {
+            const activeMetamodel = this.metamodelRegistry.getActiveMetamodel();
+            if (activeMetamodel) {
+                this.modelState.set('ecoreModel', activeMetamodel);
+            }
+        }
+        return {
+            success: result.success,
+            message: result.message || (result.success ? 'Successfully created EPackage' : 'Failed to create EPackage')
+        };
     }
 }

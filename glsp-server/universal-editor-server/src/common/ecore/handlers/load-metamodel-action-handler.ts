@@ -8,6 +8,8 @@ import { LoadMetamodelAction, LoadMetamodelResponse, ClassInfo } from '../ecore-
 import { EcoreParser } from '../ecore-parser';
 import { MetamodelRegistry } from '../metamodel-registry';
 import { DiagramPositionStorage } from '../diagram-position-storage';
+import { importEcoreFiles } from '../ecore-xmi-import';
+import { isEAttribute, isEReference } from '../ecore-types';
 
 @injectable()
 export class LoadMetamodelActionHandler implements ActionHandler {
@@ -33,11 +35,16 @@ export class LoadMetamodelActionHandler implements ActionHandler {
 
     async execute(action: LoadMetamodelAction): Promise<Action[]> {
         try {
-            // Parse the JSON content to check for diagram positions
-            const jsonObject = JSON.parse(action.content);
-            
-            // Use reliable parser for JSON parsing with validation
-            const ecoreModel = await this.ecoreParser.parseEcoreJson(action.content);
+            const files = action.files ?? [{ filename: action.filename, content: action.content }];
+            const first = files[0];
+            if (!first) {
+                throw new Error('Select at least one metamodel file');
+            }
+            const isXml = files.length > 1 || first.content.trimStart().startsWith('<');
+            const jsonObject = isXml ? undefined : JSON.parse(first.content);
+            const { model: ecoreModel, warnings } = isXml
+                ? importEcoreFiles(files)
+                : { model: await this.ecoreParser.parseEcoreJson(first.content), warnings: [] };
             
             // Restore diagram positions if they exist in the loaded file
             if (jsonObject && typeof jsonObject === 'object' && 'diagramPositions' in jsonObject) {
@@ -52,8 +59,11 @@ export class LoadMetamodelActionHandler implements ActionHandler {
             }
 
             // Generate a key for the metamodel (use filename or nsURI)
-            let metamodelKey = action.filename.replace(/\.json$/, ''); // Remove extension
-            if (ecoreModel.ePackages.length > 0 && ecoreModel.ePackages[0].nsURI) {
+            let metamodelKey = action.filename.replace(/\.(json|ecore)$/i, '');
+            if (isXml) {
+                const nsURIs = ecoreModel.ePackages.map(pkg => pkg.get('nsURI')).sort();
+                metamodelKey = nsURIs.length === 1 ? nsURIs[0] : `ecore:${JSON.stringify(nsURIs)}`;
+            } else if (ecoreModel.ePackages[0]?.nsURI) {
                 metamodelKey = ecoreModel.ePackages[0].nsURI;
             }
 
@@ -192,10 +202,7 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                         const containment = feature.get ? feature.get('containment') : feature.containment;
                         const container = feature.get ? feature.get('container') : feature.container;
                         
-                        // Determine if it's an attribute or reference based on type
-                        const isPrimitive = typeName.startsWith('E') && ['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate'].includes(typeName);
-                        
-                        if (isPrimitive) {
+                        if (isEAttribute(feature)) {
                             attributes.push({
                                 name,
                                 type: typeName,
@@ -204,7 +211,7 @@ export class LoadMetamodelActionHandler implements ActionHandler {
                                 unique: unique !== false,
                                 ordered: ordered === true
                             });
-                        } else {
+                        } else if (isEReference(feature)) {
                             references.push({
                                 name,
                                 type: typeName,
@@ -246,32 +253,31 @@ export class LoadMetamodelActionHandler implements ActionHandler {
             // Get the created model
             const gmodel = this.modelState.get('gmodel') as GModelRoot;
             if (gmodel) {
-                // Return SetModelAction to update the client and LoadMetamodelResponse for feedback
-                return [
-                    SetModelAction.create(gmodel),
-                    LoadMetamodelResponse.create(
-                        true,
-                        metamodelKey,
-                        `Successfully loaded JSON metamodel '${metamodelKey}' with ${classNames.length} classes`,
-                        classNames,
-                        classInfo,
-                        enumNames
-                    )
-                ];
+                const response = LoadMetamodelResponse.create(
+                    true,
+                    metamodelKey,
+                    `Loaded '${action.filename}' with ${classInfo.length} classes`,
+                    classNames,
+                    classInfo,
+                    enumNames,
+                    this.metamodelRegistry.getPackageInfo()
+                );
+                response.responseId = action.requestId;
+                response.warnings = warnings;
+                // A SetModel with a string responseId would also be correlated with the upload request by GLSP.
+                const modelUpdate = SetModelAction.create(gmodel, { responseId: undefined });
+                return [modelUpdate, response];
             } else {
                 throw new Error('Failed to create GModel');
             }
         } catch (error) {
-            return [
-                LoadMetamodelResponse.create(
-                    false,
-                    '',
-                    `Error loading metamodel: ${error instanceof Error ? error.message : String(error)}`,
-                    undefined,
-                    undefined,
-                    []
-                )
-            ];
+            const response = LoadMetamodelResponse.create(
+                false,
+                '',
+                error instanceof Error ? error.message : String(error)
+            );
+            response.responseId = action.requestId;
+            return [response];
         }
     }
 }

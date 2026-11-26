@@ -1,0 +1,206 @@
+{
+  "version": "1.0",
+  "mappings": [
+    {
+      "className": "StartEvent",
+      "shapeId": "bpmn-start-event",
+      "shapeName": "Start Event",
+      "shapeConfig": {
+        "name": "Start Event",
+        "type": "circle",
+        "width": 36,
+        "height": 36,
+        "resizeHorizontal": false,
+        "resizeVertical": false,
+        "color": "#252525",
+        "fillColor": "#ffffff",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "EndEvent",
+      "shapeId": "bpmn-end-event",
+      "shapeName": "End Event",
+      "shapeConfig": {
+        "name": "End Event",
+        "type": "circle",
+        "width": 36,
+        "height": 36,
+        "resizeHorizontal": false,
+        "resizeVertical": false,
+        "color": "#252525",
+        "fillColor": "#ffffff",
+        "filled": true,
+        "lineThickness": 4,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "Task",
+      "shapeId": "bpmn-task",
+      "shapeName": "Task",
+      "shapeConfig": {
+        "name": "Task",
+        "type": "rectangle",
+        "width": 124,
+        "height": 62,
+        "resizeHorizontal": true,
+        "resizeVertical": true,
+        "color": "#252525",
+        "fillColor": "#ffffff",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid"
+      }
+    },
+    {
+      "className": "ExclusiveGateway",
+      "shapeId": "bpmn-exclusive-gateway",
+      "shapeName": "Exclusive Gateway",
+      "shapeConfig": {
+        "name": "Exclusive Gateway",
+        "type": "custom-svg",
+        "width": 54,
+        "height": 54,
+        "resizeHorizontal": false,
+        "resizeVertical": false,
+        "color": "#252525",
+        "fillColor": "#ffffff",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "svgContent": "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 54 54\"><path d=\"M27 2 52 27 27 52 2 27Z\" fill=\"#fff\" stroke=\"#252525\" stroke-width=\"2\" stroke-linejoin=\"round\"/><path d=\"m20 20 14 14m0-14L20 34\" fill=\"none\" stroke=\"#252525\" stroke-width=\"3\" stroke-linecap=\"round\"/></svg>"
+      }
+    },
+    {
+      "className": "SequenceFlow",
+      "shapeId": "bpmn-sequence-flow",
+      "shapeName": "Sequence Flow",
+      "shapeConfig": {
+        "name": "Sequence Flow",
+        "type": "arrow",
+        "width": 110,
+        "height": 24,
+        "resizeHorizontal": false,
+        "resizeVertical": false,
+        "color": "#252525",
+        "fillColor": "#252525",
+        "filled": true,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "arrowType": "filled-triangle"
+      },
+      "sourceReferenceName": "sourceRef",
+      "targetReferenceName": "targetRef",
+      "sourceClass": "FlowNode",
+      "targetClass": "FlowNode",
+      "sourceTargetPairs": []
+    },
+    {
+      "className": "Participant",
+      "shapeId": "bpmn-participant",
+      "shapeName": "Participant (Pool)",
+      "shapeConfig": {
+        "name": "Participant (Pool)",
+        "type": "composite",
+        "width": 556,
+        "height": 178,
+        "resizeHorizontal": true,
+        "resizeVertical": true,
+        "color": "#252525",
+        "fillColor": "transparent",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "components": [
+          {
+            "id": "bpmn-participant-frame",
+            "name": "Frame",
+            "type": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 556,
+            "height": 178,
+            "resizeHorizontal": true,
+            "resizeVertical": true,
+            "color": "#252525",
+            "fillColor": "transparent",
+            "filled": false,
+            "lineThickness": 2,
+            "lineStyle": "solid"
+          },
+          {
+            "id": "bpmn-participant-header",
+            "name": "Name band",
+            "type": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 38,
+            "height": 178,
+            "resizeHorizontal": false,
+            "resizeVertical": true,
+            "color": "#252525",
+            "fillColor": "#f0f0f0",
+            "filled": true,
+            "lineThickness": 2,
+            "lineStyle": "solid"
+          }
+        ]
+      }
+    },
+    {
+      "className": "Lane",
+      "shapeId": "bpmn-lane",
+      "shapeName": "Lane",
+      "shapeConfig": {
+        "name": "Lane",
+        "type": "composite",
+        "width": 556,
+        "height": 104,
+        "resizeHorizontal": true,
+        "resizeVertical": true,
+        "color": "#252525",
+        "fillColor": "transparent",
+        "filled": false,
+        "lineThickness": 2,
+        "lineStyle": "solid",
+        "components": [
+          {
+            "id": "bpmn-lane-frame",
+            "name": "Frame",
+            "type": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 556,
+            "height": 104,
+            "resizeHorizontal": true,
+            "resizeVertical": true,
+            "color": "#252525",
+            "fillColor": "transparent",
+            "filled": false,
+            "lineThickness": 2,
+            "lineStyle": "solid"
+          },
+          {
+            "id": "bpmn-lane-header",
+            "name": "Name band",
+            "type": "rectangle",
+            "x": 0,
+            "y": 0,
+            "width": 30,
+            "height": 104,
+            "resizeHorizontal": false,
+            "resizeVertical": true,
+            "color": "#252525",
+            "fillColor": "#f0f0f0",
+            "filled": true,
+            "lineThickness": 2,
+            "lineStyle": "solid"
+          }
+        ]
+      }
+    }
+  ]
+}

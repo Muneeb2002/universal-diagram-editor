@@ -1,0 +1,106 @@
+<?xml version='1.0' encoding='utf-8'?>
+<ecore:EPackage xmlns:ecore="http://www.eclipse.org/emf/2002/Ecore" xmlns:xmi="http://www.omg.org/XMI" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmi:version="2.0" name="activities" nsURI="http://www.omg.org/spec/BPMN/20100524/MODEL-XMI/activities" nsPrefix="bpmn.activities">
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalManualTask" eSuperTypes="processes.ecore#//GlobalTask" />
+  <eClassifiers xsi:type="ecore:EClass" name="ManualTask" eSuperTypes="#//Task" />
+  <eClassifiers xsi:type="ecore:EClass" name="Task" eSuperTypes="#//Activity" />
+  <eClassifiers xsi:type="ecore:EClass" name="Activity" abstract="true" eSuperTypes="common.ecore#//FlowNode collaboration.ecore#//InteractionNode">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isForCompensation" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopCharacteristics" ordered="false" eType="#//LoopCharacteristics" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="resources" ordered="false" upperBound="-1" eType="processes.ecore#//ResourceRole" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="default" ordered="false" eType="common.ecore#//SequenceFlow" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="properties" ordered="false" upperBound="-1" eType="data.ecore#//Property" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="ioSpecification" ordered="false" eType="data.ecore#//InputOutputSpecification" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="boundaryEventRefs" ordered="false" upperBound="-1" eType="events.ecore#//BoundaryEvent" eOpposite="events.ecore#//BoundaryEvent/attachedToRef" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataInputAssociations" ordered="false" upperBound="-1" eType="data.ecore#//DataInputAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="dataOutputAssociations" ordered="false" upperBound="-1" eType="data.ecore#//DataOutputAssociation" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="startQuantity" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="1" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="completionQuantity" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EInt" defaultValueLiteral="1" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="LoopCharacteristics" abstract="true" eSuperTypes="common.ecore#//BaseElement" />
+  <eClassifiers xsi:type="ecore:EClass" name="UserTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="renderings" ordered="false" upperBound="-1" eType="#//Rendering" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Rendering" eSuperTypes="common.ecore#//BaseElement" />
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalUserTask" eSuperTypes="processes.ecore#//GlobalTask">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="renderings" ordered="false" upperBound="-1" eType="#//Rendering" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ServiceTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="operationRef" ordered="false" eType="common.ecore#//Operation" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SubProcess" eSuperTypes="#//Activity common.ecore#//FlowElementsContainer">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="triggeredByEvent" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="artifacts" ordered="false" upperBound="-1" eType="common.ecore#//Artifact" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="MultiInstanceBehavior">
+    <eLiterals name="None" />
+    <eLiterals name="One" value="1" />
+    <eLiterals name="All" value="2" />
+    <eLiterals name="Complex" value="3" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="MultiInstanceLoopCharacteristics" eSuperTypes="#//LoopCharacteristics">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="isSequential" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="behavior" ordered="false" lowerBound="1" eType="#//MultiInstanceBehavior" defaultValueLiteral="All" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopCardinality" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopDataInputRef" ordered="false" eType="data.ecore#//ItemAwareElement" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopDataOutputRef" ordered="false" eType="data.ecore#//ItemAwareElement" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="inputDataItem" ordered="false" eType="data.ecore#//DataInput" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="outputDataItem" ordered="false" eType="data.ecore#//DataOutput" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="completionCondition" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="complexBehaviorDefinition" ordered="false" upperBound="-1" eType="#//ComplexBehaviorDefinition" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="oneBehaviorEventRef" ordered="false" eType="events.ecore#//EventDefinition" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="noneBehaviorEventRef" ordered="false" eType="events.ecore#//EventDefinition" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ComplexBehaviorDefinition" eSuperTypes="common.ecore#//BaseElement">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="condition" ordered="false" lowerBound="1" eType="common.ecore#//FormalExpression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="event" ordered="false" eType="events.ecore#//ImplicitThrowEvent" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="StandardLoopCharacteristics" eSuperTypes="#//LoopCharacteristics">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="testBefore" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopCondition" ordered="false" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="loopMaximum" ordered="false" eType="common.ecore#//Expression" containment="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="CallActivity" eSuperTypes="#//Activity">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="calledElementRef" ordered="false" eType="processes.ecore#//CallableElement" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="SendTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="operationRef" ordered="false" eType="common.ecore#//Operation" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageRef" ordered="false" eType="data.ecore#//Message" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ReceiveTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="instantiate" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="false" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="operationRef" ordered="false" eType="common.ecore#//Operation" />
+    <eStructuralFeatures xsi:type="ecore:EReference" name="messageRef" ordered="false" eType="data.ecore#//Message" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="ScriptTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="scriptFormat" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="script" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="BusinessRuleTask" eSuperTypes="#//Task">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="AdHocSubProcess" eSuperTypes="#//SubProcess">
+    <eStructuralFeatures xsi:type="ecore:EReference" name="completionCondition" ordered="false" lowerBound="1" eType="common.ecore#//Expression" containment="true" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="ordering" ordered="false" lowerBound="1" eType="#//AdHocOrdering" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="cancelRemainingInstances" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EBoolean" defaultValueLiteral="true" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EEnum" name="AdHocOrdering">
+    <eLiterals name="Parallel" />
+    <eLiterals name="Sequential" value="1" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="Transaction" eSuperTypes="#//SubProcess">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="protocol" ordered="false" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="method" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalScriptTask" eSuperTypes="processes.ecore#//GlobalTask">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="scriptLanguage" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="script" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+  <eClassifiers xsi:type="ecore:EClass" name="GlobalBusinessRuleTask" eSuperTypes="processes.ecore#//GlobalTask">
+    <eStructuralFeatures xsi:type="ecore:EAttribute" name="implementation" ordered="false" lowerBound="1" eType="ecore:EDataType http://www.eclipse.org/emf/2002/Ecore#//EString" />
+  </eClassifiers>
+</ecore:EPackage>

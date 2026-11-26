@@ -40,6 +40,15 @@ export interface ClassInfo {
     }>;
 }
 
+export interface PackageInfo {
+    name: string;
+    nsURI: string;
+    nsPrefix: string;
+    qualifiedName: string;
+    parentNsURI?: string;
+    depth: number;
+}
+
 export interface LoadMetamodelResponse {
     kind: 'loadMetamodelResponse';
     success: boolean;
@@ -48,6 +57,8 @@ export interface LoadMetamodelResponse {
     classNames?: string[];
     classInfo?: ClassInfo[];
     enumNames?: string[];
+    packageInfo?: PackageInfo[];
+    warnings?: string[];
 }
 
 export interface SwitchModeAction {
@@ -567,6 +578,7 @@ export interface CreateEClassAction {
     kind: 'createEClass';
     className: string;
     position?: { x: number; y: number };
+    packageURI?: string;
 }
 
 export function createCreateCustomMetamodelAction(
@@ -584,12 +596,14 @@ export function createCreateCustomMetamodelAction(
 
 export function createCreateEClassAction(
     className: string,
-    position?: { x: number; y: number }
+    position?: { x: number; y: number },
+    packageURI?: string
 ): CreateEClassAction {
     return {
         kind: 'createEClass',
         className,
-        position
+        position,
+        packageURI
     };
 }
 
@@ -598,19 +612,39 @@ export interface CreateEEnumAction {
     enumName: string;
     position?: { x: number; y: number };
     enumLiterals?: Array<{ name: string; value?: number }>;
+    packageURI?: string;
 }
 
 export function createCreateEEnumAction(
     enumName: string,
     position?: { x: number; y: number },
-    enumLiterals?: Array<{ name: string; value?: number }>
+    enumLiterals?: Array<{ name: string; value?: number }>,
+    packageURI?: string
 ): CreateEEnumAction {
     return {
         kind: 'createEEnum',
         enumName,
         position,
-        enumLiterals
+        enumLiterals,
+        packageURI
     };
+}
+
+export interface CreateEPackageAction {
+    kind: 'createEPackage';
+    packageName: string;
+    nsURI: string;
+    nsPrefix: string;
+    parentPackageURI?: string;
+}
+
+export function createCreateEPackageAction(
+    packageName: string,
+    nsURI: string,
+    nsPrefix: string,
+    parentPackageURI?: string
+): CreateEPackageAction {
+    return { kind: 'createEPackage', packageName, nsURI, nsPrefix, parentPackageURI };
 }
 
 export interface AddAttributeAction extends Action {

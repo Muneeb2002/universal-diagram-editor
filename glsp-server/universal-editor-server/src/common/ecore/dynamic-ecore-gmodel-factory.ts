@@ -159,7 +159,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
         let nodeCount = 0;
 
-        ecoreModel.ePackages.forEach(pkg => {
+        this.getAllPackages(ecoreModel).forEach(pkg => {
             const classifiersRaw = this.getProp(pkg, 'eClassifiers') as any;
             const classifiers = this.toArray(classifiersRaw);
 
@@ -416,7 +416,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     }
 
     private createEdgesFromEReferences(root: GModelRoot, ecoreModel: EcoreModel): void {
-        ecoreModel.ePackages.forEach(pkg => {
+        const nodeIds = new Set(root.children.map(node => node.id));
+        this.getAllPackages(ecoreModel).forEach(pkg => {
             const classifiers = this.toArray(this.getProp<any>(pkg, 'eClassifiers'));
 
             classifiers.forEach((classifier: any) => {
@@ -429,7 +430,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
 
                     references.forEach((eRef: any) => {
                         const edge = this.createEdgeForEReference(eRef, classifier);
-                        if (edge) {
+                        if (edge && nodeIds.has(edge.targetId)) {
                             root.children.push(edge);
                         }
                     });
@@ -503,7 +504,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
     }
 
     private createEdgesFromInheritance(root: GModelRoot, ecoreModel: EcoreModel): void {
-        ecoreModel.ePackages.forEach(pkg => {
+        this.getAllPackages(ecoreModel).forEach(pkg => {
             const classifiers = this.toArray(this.getProp<any>(pkg, 'eClassifiers'));
 
             classifiers.forEach((classifier: any) => {
@@ -578,36 +579,8 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
                 (eType.get && eType.get('name'));
 
             if (typeName && !['EString', 'EInt', 'EBoolean', 'EDouble', 'EFloat', 'ELong', 'EDate', 'Unknown'].includes(typeName)) {
-                const metamodel = this.modelState.get('ecoreModel') as EcoreModel;
-                if (metamodel && metamodel.ePackages) {
-                    for (const pkg of metamodel.ePackages) {
-                        const classifiers = this.getProp<any>(pkg, 'eClassifiers');
-                        if (classifiers) {
-                            let classifierArray: any[] = [];
-                            if (Array.isArray(classifiers)) {
-                                classifierArray = classifiers;
-                            } else if (typeof classifiers.forEach === 'function') {
-                                classifiers.forEach((item: any) => {
-                                    if (item) classifierArray.push(item);
-                                });
-                            } else {
-                                try {
-                                    classifierArray = Array.from(classifiers);
-                                } catch {
-                                    classifierArray = [];
-                                }
-                            }
-
-                            for (const classifier of classifierArray) {
-                                if (isEEnum(classifier)) {
-                                    const name = this.getProp<string>(classifier, 'name') || classifier.name;
-                                    if (name === typeName) {
-                                        return typeName;
-                                    }
-                                }
-                            }
-                        }
-                    }
+                if (this.metamodelRegistry.findEEnum(typeName)) {
+                    return typeName;
                 }
             }
 
@@ -756,7 +729,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         if (eClass) {
-            const eReferences = this.getProp<any[]>(eClass, 'eReferences') ?? [];
+            const allFeatures = this.getProp(eClass, 'eAllStructuralFeatures');
+            const eReferences = allFeatures
+                ? this.toArray(allFeatures).filter(isEReference)
+                : this.toArray(this.getProp(eClass, 'eReferences'));
             eReferences.forEach((eRef: any) => {
                 const isContainment = this.getProp<boolean>(eRef, 'containment') === true;
                 if (isContainment) {
@@ -766,7 +742,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
                         childInstanceIds.forEach((childId, index) => {
                             const instanceModel = this.instanceStorage.getActiveInstanceModel();
                             const childInstance = instanceModel?.instances.get(childId);
-                            if (childInstance && !childInstance.hidden) {
+                            if (childInstance && !childInstance.hidden && !this.isArcInstance(childInstance)) {
                                 const childNode = this.createNodeForInstance(childInstance);
                                 if (childInstance.position) {
                                     childNode.position = {
@@ -977,12 +953,11 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         const srcRefName = mapping?.sourceReferenceName;
         const tgtRefName = mapping?.targetReferenceName;
 
-        if (srcRefName && tgtRefName && instance.references.has(srcRefName) && instance.references.has(tgtRefName)) {
-            const sourceId = this.extractReferenceValue(instance.references.get(srcRefName));
-            const targetId = this.extractReferenceValue(instance.references.get(tgtRefName));
-            if (sourceId && targetId) {
-                return { sourceId, targetId };
-            }
+        if (srcRefName && tgtRefName) {
+            return {
+                sourceId: this.extractReferenceValue(instance.references.get(srcRefName)),
+                targetId: this.extractReferenceValue(instance.references.get(tgtRefName))
+            };
         }
 
         let sourceId: string | undefined;
@@ -1061,6 +1036,10 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         if (!className) {
             return false;
         }
+        const mapping = this.shapeMappingStorage.getMapping(className);
+        if (mapping?.sourceReferenceName && mapping.targetReferenceName) {
+            return true;
+        }
         if (className.toLowerCase() === 'arc') {
             return true;
         }
@@ -1096,6 +1075,17 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             return Array.from(collection);
         }
         return result;
+    }
+
+    private getAllPackages(ecoreModel: EcoreModel): any[] {
+        const packages: any[] = [];
+        const visit = (pkg: any): void => {
+            packages.push(pkg);
+            const subpackages = this.getProp<any>(pkg, 'eSubpackages') || this.getProp<any>(pkg, 'eSubPackages');
+            this.toArray(subpackages).forEach(visit);
+        };
+        (ecoreModel.ePackages || []).forEach(visit);
+        return packages;
     }
 
     private getProp<T>(obj: any, key: string): T | undefined {

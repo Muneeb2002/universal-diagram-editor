@@ -2,12 +2,15 @@
  * @author Abigail Sotomayor <s205720@dtu.dk>
  */
 import { Action, RequestAction, ResponseAction, hasStringProp, hasBooleanProp } from '@eclipse-glsp/protocol';
+import type { EcoreUploadFile } from './ecore-xmi-import';
 
 export interface LoadMetamodelAction extends Action {
     kind: typeof LoadMetamodelAction.KIND;
     content: string;
     filename: string;
     setAsActive?: boolean;
+    files?: EcoreUploadFile[];
+    requestId?: string;
 }
 
 export namespace LoadMetamodelAction {
@@ -52,6 +55,15 @@ export interface ClassInfo {
     }>;
 }
 
+export interface PackageInfo {
+    name: string;
+    nsURI: string;
+    nsPrefix: string;
+    qualifiedName: string;
+    parentNsURI?: string;
+    depth: number;
+}
+
 export interface LoadMetamodelResponse extends Action {
     kind: typeof LoadMetamodelResponse.KIND;
     success: boolean;
@@ -60,6 +72,9 @@ export interface LoadMetamodelResponse extends Action {
     classNames?: string[];
     classInfo?: ClassInfo[];
     enumNames?: string[];
+    packageInfo?: PackageInfo[];
+    responseId?: string;
+    warnings?: string[];
 }
 
 export namespace LoadMetamodelResponse {
@@ -69,7 +84,15 @@ export namespace LoadMetamodelResponse {
         return Action.hasKind(object, KIND) && hasBooleanProp(object, 'success') && hasStringProp(object, 'metamodelKey');
     }
 
-    export function create(success: boolean, metamodelKey: string, message?: string, classNames?: string[], classInfo?: ClassInfo[], enumNames?: string[]): LoadMetamodelResponse {
+    export function create(
+        success: boolean,
+        metamodelKey: string,
+        message?: string,
+        classNames?: string[],
+        classInfo?: ClassInfo[],
+        enumNames?: string[],
+        packageInfo?: PackageInfo[]
+    ): LoadMetamodelResponse {
         return {
             kind: KIND,
             success,
@@ -77,7 +100,8 @@ export namespace LoadMetamodelResponse {
             message,
             classNames,
             classInfo,
-            enumNames
+            enumNames,
+            packageInfo
         };
     }
 }
@@ -643,6 +667,7 @@ export interface CreateEClassAction extends Action {
     kind: typeof CreateEClassAction.KIND;
     className: string;
     position?: { x: number; y: number };
+    packageURI?: string;
 }
 
 export namespace CreateEClassAction {
@@ -655,12 +680,14 @@ export namespace CreateEClassAction {
 
     export function create(
         className: string,
-        position?: { x: number; y: number }
+        position?: { x: number; y: number },
+        packageURI?: string
     ): CreateEClassAction {
         return {
             kind: KIND,
             className,
-            position
+            position,
+            packageURI
         };
     }
 }
@@ -706,6 +733,7 @@ export interface CreateEEnumAction extends Action {
     enumName: string;
     position?: { x: number; y: number };
     enumLiterals?: Array<{ name: string; value?: number }>;
+    packageURI?: string;
 }
 
 export namespace CreateEEnumAction {
@@ -719,14 +747,44 @@ export namespace CreateEEnumAction {
     export function create(
         enumName: string,
         position?: { x: number; y: number },
-        enumLiterals?: Array<{ name: string; value?: number }>
+        enumLiterals?: Array<{ name: string; value?: number }>,
+        packageURI?: string
     ): CreateEEnumAction {
         return {
             kind: KIND,
             enumName,
             position,
-            enumLiterals
+            enumLiterals,
+            packageURI
         };
+    }
+}
+
+export interface CreateEPackageAction extends Action {
+    kind: typeof CreateEPackageAction.KIND;
+    packageName: string;
+    nsURI: string;
+    nsPrefix: string;
+    parentPackageURI?: string;
+}
+
+export namespace CreateEPackageAction {
+    export const KIND = 'createEPackage';
+
+    export function is(object: any): object is CreateEPackageAction {
+        return Action.hasKind(object, KIND) &&
+            hasStringProp(object, 'packageName') &&
+            hasStringProp(object, 'nsURI') &&
+            hasStringProp(object, 'nsPrefix');
+    }
+
+    export function create(
+        packageName: string,
+        nsURI: string,
+        nsPrefix: string,
+        parentPackageURI?: string
+    ): CreateEPackageAction {
+        return { kind: KIND, packageName, nsURI, nsPrefix, parentPackageURI };
     }
 }
 

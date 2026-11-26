@@ -2,7 +2,7 @@
  * @author Abigail Sotomayor <s205720@dtu.dk>
  */
 import { injectable } from 'inversify';
-import { EcoreModel, isEClass, isEAttribute, isEReference, isEEnum, EClass, EAttribute, EReference, EString, EEnum } from './ecore-types';
+import { EcoreModel, isEClass, isEAttribute, isEReference, isEEnum, EPackage, EClass, EAttribute, EReference, EString, EEnum } from './ecore-types';
 import * as fs from 'fs';
 import * as path from 'path';
 
@@ -50,6 +50,18 @@ function toArray(collection: any): any[] {
     return [];
 }
 
+function readProperty(object: any, key: string): any {
+    return typeof object?.get === 'function' ? object.get(key) : object?.[key];
+}
+
+function writeProperty(object: any, key: string, value: any): void {
+    if (typeof object?.set === 'function') {
+        object.set(key, value);
+    } else if (object) {
+        object[key] = value;
+    }
+}
+
 /**
  * Registry for storing and managing loaded Ecore metamodels.
  * This is a singleton service that maintains all metamodels loaded during the session.
@@ -58,6 +70,66 @@ function toArray(collection: any): any[] {
 export class MetamodelRegistry {
     private metamodels: Map<string, EcoreModel> = new Map();
     private activeMetamodelKey: string | null = null;
+
+    private getDirectSubpackages(pkg: any): any[] {
+        // ecore-ts currently exposes this Ecore feature as eSubPackages (capital P),
+        // while serialized Ecore JSON conventionally uses eSubpackages.
+        return toArray(readProperty(pkg, 'eSubpackages') || readProperty(pkg, 'eSubPackages'))
+            .filter(item => item != null);
+    }
+
+    private getPackageEntries(metamodel: EcoreModel): Array<{ pkg: any; parent?: any; depth: number }> {
+        const entries: Array<{ pkg: any; parent?: any; depth: number }> = [];
+        const visit = (pkg: any, parent: any | undefined, depth: number): void => {
+            entries.push({ pkg, parent, depth });
+            this.getDirectSubpackages(pkg).forEach(child => visit(child, pkg, depth + 1));
+        };
+        (metamodel.ePackages || []).forEach(pkg => visit(pkg, undefined, 0));
+        return entries;
+    }
+
+    private getPackagesForModel(metamodel: EcoreModel): any[] {
+        return this.getPackageEntries(metamodel).map(entry => entry.pkg);
+    }
+
+    findEPackage(packageURIOrName: string): any | undefined {
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            return undefined;
+        }
+        return this.getPackagesForModel(activeMetamodel).find(pkg =>
+            readProperty(pkg, 'nsURI') === packageURIOrName || readProperty(pkg, 'name') === packageURIOrName
+        );
+    }
+
+    getPackageInfo(): Array<{
+        name: string;
+        nsURI: string;
+        nsPrefix: string;
+        qualifiedName: string;
+        parentNsURI?: string;
+        depth: number;
+    }> {
+        const activeMetamodel = this.getActiveMetamodel();
+        if (!activeMetamodel) {
+            return [];
+        }
+        const qualifiedNames = new Map<any, string>();
+        return this.getPackageEntries(activeMetamodel).map(({ pkg, parent, depth }) => {
+            const name = readProperty(pkg, 'name') || '';
+            const parentQualifiedName = parent ? qualifiedNames.get(parent) : undefined;
+            const qualifiedName = parentQualifiedName ? `${parentQualifiedName}.${name}` : name;
+            qualifiedNames.set(pkg, qualifiedName);
+            return {
+                name,
+                nsURI: readProperty(pkg, 'nsURI') || '',
+                nsPrefix: readProperty(pkg, 'nsPrefix') || '',
+                qualifiedName,
+                parentNsURI: parent ? readProperty(parent, 'nsURI') : undefined,
+                depth
+            };
+        });
+    }
 
     /**
      * Registers a new metamodel in the registry.
@@ -166,13 +238,13 @@ export class MetamodelRegistry {
             return undefined;
         }
 
-        for (const pkg of activeMetamodel.ePackages) {
-            const classifiers = pkg.get('eClassifiers') as any;
+        for (const pkg of this.getPackagesForModel(activeMetamodel)) {
+            const classifiers = readProperty(pkg, 'eClassifiers') as any;
             const classifierArray = toArray(classifiers).filter(item => item != null);
 
             for (const classifier of classifierArray) {
                 if (isEClass(classifier)) {
-                    const name = classifier.get('name');
+                    const name = readProperty(classifier, 'name');
                     if (name === className) {
                         return classifier;
                     }
@@ -195,10 +267,10 @@ export class MetamodelRegistry {
             return undefined;
         }
 
-        for (const pkg of metamodel.ePackages) {
-            const classifiers = pkg.get('eClassifiers') as any;
+        for (const pkg of this.getPackagesForModel(metamodel)) {
+            const classifiers = readProperty(pkg, 'eClassifiers') as any;
             for (const classifier of toArray(classifiers)) {
-                if (isEClass(classifier) && classifier.get('name') === className) {
+                if (isEClass(classifier) && readProperty(classifier, 'name') === className) {
                     return classifier;
                 }
             }
@@ -218,7 +290,7 @@ export class MetamodelRegistry {
         }
 
         const eClasses: any[] = [];
-        for (const pkg of activeMetamodel.ePackages) {
+        for (const pkg of this.getPackagesForModel(activeMetamodel)) {
             // Handle both ecore-ts objects (with .get()) and plain JS objects
             let classifiers: any;
             if (typeof (pkg as any).get === 'function') {
@@ -260,7 +332,7 @@ export class MetamodelRegistry {
             return [];
         }
 
-        return activeMetamodel.ePackages;
+        return this.getPackagesForModel(activeMetamodel);
     }
 
     /**
@@ -581,11 +653,11 @@ export class MetamodelRegistry {
 
             if (metamodel.ePackages.length > 0) {
                 const firstPackage = metamodel.ePackages[0];
-                nsURI = firstPackage.nsURI;
-                name = firstPackage.name;
+                nsURI = readProperty(firstPackage, 'nsURI') || '';
+                name = readProperty(firstPackage, 'name') || '';
 
-                for (const pkg of metamodel.ePackages) {
-                    classCount += pkg.eClassifiers.filter(isEClass).length;
+                for (const pkg of this.getPackagesForModel(metamodel)) {
+                    classCount += toArray(readProperty(pkg, 'eClassifiers')).filter(isEClass).length;
                 }
             }
 
@@ -624,8 +696,8 @@ export class MetamodelRegistry {
         }
 
         // Iterate through all packages in the metamodel
-        for (const pkg of activeMetamodel.ePackages) {
-            const eClassifiers = pkg.get('eClassifiers') as any;
+        for (const pkg of this.getPackagesForModel(activeMetamodel)) {
+            const eClassifiers = readProperty(pkg, 'eClassifiers') as any;
             if (!eClassifiers) {
                 continue;
             }
@@ -1088,7 +1160,7 @@ export class MetamodelRegistry {
                 throw new Error('No active metamodel found');
             }
 
-            for (const pkg of activeMetamodel.ePackages) {
+            for (const pkg of this.getPackagesForModel(activeMetamodel)) {
                 // Handle both ecore-ts objects (with .get()) and plain JS objects
                 let eClassifiers: any;
                 const isEcoreTs = typeof (pkg as any).get === 'function';
@@ -1239,6 +1311,7 @@ export class MetamodelRegistry {
                 nsURI: nsURI,
                 nsPrefix: nsPrefix,
                 eClassifiers: [] as any[],
+                eSubpackages: [] as any[],
                 get: function(key: string) {
                     return (this as any)[key];
                 }
@@ -1265,6 +1338,96 @@ export class MetamodelRegistry {
             return {
                 success: false,
                 message: `Failed to create custom metamodel: ${error instanceof Error ? error.message : String(error)}`
+            };
+        }
+    }
+
+    /**
+     * Creates either a root package or a nested package in the active metamodel.
+     */
+    createEPackage(
+        packageName: string,
+        nsURI: string,
+        nsPrefix: string,
+        parentPackageURI?: string
+    ): { success: boolean; message?: string } {
+        try {
+            const activeMetamodel = this.getActiveMetamodel();
+            if (!activeMetamodel) {
+                return { success: false, message: 'No active metamodel found. Please create a metamodel first.' };
+            }
+
+            this.validateName(packageName);
+            if (!nsURI?.trim()) {
+                return { success: false, message: 'Package nsURI cannot be empty' };
+            }
+            if (!nsPrefix?.trim()) {
+                return { success: false, message: 'Package nsPrefix cannot be empty' };
+            }
+
+            const duplicate = this.getPackagesForModel(activeMetamodel).find(pkg =>
+                readProperty(pkg, 'name') === packageName || readProperty(pkg, 'nsURI') === nsURI
+            );
+            if (duplicate) {
+                return {
+                    success: false,
+                    message: `A package named '${packageName}' or using nsURI '${nsURI}' already exists`
+                };
+            }
+
+            const parent = parentPackageURI ? this.findEPackage(parentPackageURI) : undefined;
+            if (parentPackageURI && !parent) {
+                return { success: false, message: `Parent package '${parentPackageURI}' was not found` };
+            }
+
+            let newPackage: any;
+            const targetCollection = parent
+                ? (readProperty(parent, 'eSubpackages') || readProperty(parent, 'eSubPackages'))
+                : activeMetamodel.ePackages;
+            const firstRootClassifiers = activeMetamodel.ePackages.length > 0
+                ? readProperty(activeMetamodel.ePackages[0], 'eClassifiers')
+                : undefined;
+            const useEcoreTs = (targetCollection && typeof targetCollection.add === 'function') ||
+                (!parent && firstRootClassifiers && typeof firstRootClassifiers.add === 'function');
+            if (useEcoreTs) {
+                newPackage = EPackage.create({ name: packageName, nsURI, nsPrefix });
+                if (targetCollection && typeof targetCollection.add === 'function') {
+                    targetCollection.add(newPackage);
+                } else {
+                    activeMetamodel.ePackages.push(newPackage);
+                }
+            } else {
+                newPackage = {
+                    name: packageName,
+                    nsURI,
+                    nsPrefix,
+                    eClassifiers: [] as any[],
+                    eSubpackages: [] as any[],
+                    get: function(key: string) { return (this as any)[key]; },
+                    set: function(key: string, value: any) { (this as any)[key] = value; }
+                };
+                if (parent) {
+                    const subpackages = readProperty(parent, 'eSubpackages') || readProperty(parent, 'eSubPackages');
+                    if (Array.isArray(subpackages)) {
+                        subpackages.push(newPackage);
+                    } else {
+                        writeProperty(parent, 'eSubpackages', [newPackage]);
+                    }
+                } else {
+                    activeMetamodel.ePackages.push(newPackage);
+                }
+            }
+
+            return {
+                success: true,
+                message: parent
+                    ? `Successfully created package '${packageName}' inside '${readProperty(parent, 'name')}'`
+                    : `Successfully created root package '${packageName}'`
+            };
+        } catch (error) {
+            return {
+                success: false,
+                message: `Failed to create EPackage: ${error instanceof Error ? error.message : String(error)}`
             };
         }
     }
@@ -1333,7 +1496,7 @@ export class MetamodelRegistry {
     /**
      * Creates a new EClass in the active custom metamodel.
      */
-    createEClass(className: string, position?: { x: number; y: number }): { success: boolean; message?: string } {
+    createEClass(className: string, position?: { x: number; y: number }, packageURI?: string): { success: boolean; message?: string } {
         try {
             const activeMetamodel = this.getActiveMetamodel();
             if (!activeMetamodel) {
@@ -1347,17 +1510,21 @@ export class MetamodelRegistry {
             this.validateName(className);
 
             // Check if class already exists
-            const existingClass = this.findEClass(className);
-            if (existingClass) {
+            const existingClassifier = this.findEClass(className) || this.findEEnum(className);
+            if (existingClassifier) {
                 return {
                     success: false,
-                    message: `Class '${className}' already exists in the metamodel`
+                    message: `Classifier '${className}' already exists in the metamodel. Classifier names must be unique across packages.`
                 };
             }
 
-            // Add the class to the first package
-            if (activeMetamodel.ePackages.length > 0) {
-                const pkg = activeMetamodel.ePackages[0];
+            const pkg = packageURI ? this.findEPackage(packageURI) : activeMetamodel.ePackages[0];
+            if (!pkg) {
+                return { success: false, message: `Package '${packageURI || '(default)'}' was not found` };
+            }
+
+            // Add the class to the selected package (the first root remains the backwards-compatible default).
+            if (pkg) {
                 let eClass: any;
                 
                 if (typeof (pkg as any).get === 'function' && typeof (pkg as any).get('eClassifiers').add === 'function') {
@@ -1401,7 +1568,12 @@ export class MetamodelRegistry {
         }
     }
 
-    createEEnum(enumName: string, position?: { x: number; y: number }, enumLiterals?: Array<{ name: string; value?: number }>): { success: boolean; message?: string } {
+    createEEnum(
+        enumName: string,
+        position?: { x: number; y: number },
+        enumLiterals?: Array<{ name: string; value?: number }>,
+        packageURI?: string
+    ): { success: boolean; message?: string } {
         try {
             const activeMetamodel = this.getActiveMetamodel();
             if (!activeMetamodel) {
@@ -1415,17 +1587,21 @@ export class MetamodelRegistry {
             this.validateName(enumName);
 
             // Check if enum already exists
-            const existingEnum = this.findEEnum(enumName);
-            if (existingEnum) {
+            const existingClassifier = this.findEEnum(enumName) || this.findEClass(enumName);
+            if (existingClassifier) {
                 return {
                     success: false,
-                    message: `Enum '${enumName}' already exists in the metamodel`
+                    message: `Classifier '${enumName}' already exists in the metamodel. Classifier names must be unique across packages.`
                 };
             }
 
-            // Add the enum to the first package
-            if (activeMetamodel.ePackages.length > 0) {
-                const pkg = activeMetamodel.ePackages[0];
+            const pkg = packageURI ? this.findEPackage(packageURI) : activeMetamodel.ePackages[0];
+            if (!pkg) {
+                return { success: false, message: `Package '${packageURI || '(default)'}' was not found` };
+            }
+
+            // Add the enum to the selected package (the first root remains the backwards-compatible default).
+            if (pkg) {
                 let eEnum: any;
                 
                 if (typeof (pkg as any).get === 'function' && typeof (pkg as any).get('eClassifiers').add === 'function') {
@@ -1525,7 +1701,7 @@ export class MetamodelRegistry {
             return null;
         }
 
-        for (const pkg of activeMetamodel.ePackages) {
+        for (const pkg of this.getPackagesForModel(activeMetamodel)) {
             // Use the same method as findEClass - check for ecore-ts objects first
             const classifiersRaw = typeof (pkg as any).get === 'function' 
                 ? (pkg as any).get('eClassifiers') 
@@ -1937,7 +2113,7 @@ export class MetamodelRegistry {
         }
 
         const enums: any[] = [];
-        for (const pkg of activeMetamodel.ePackages) {
+        for (const pkg of this.getPackagesForModel(activeMetamodel)) {
             // Handle both ecore-ts EList and plain arrays
             let classifiers: any[];
             if (typeof (pkg as any).get === 'function') {
@@ -2085,14 +2261,27 @@ export class MetamodelRegistry {
         const globalEnumNames = new Set<string>();
 
         try {
-            // Extract packages - use direct property access instead of .get()
+            this.getPackagesForModel(metamodel).forEach(pkg => {
+                toArray(readProperty(pkg, 'eClassifiers')).forEach(classifier => {
+                    if (isEEnum(classifier)) {
+                        const enumName = readProperty(classifier, 'name');
+                        if (enumName) {
+                            globalEnumNames.add(enumName);
+                        }
+                    }
+                });
+            });
+
+            // Serialize all packages in pre-order so subpackages can be attached to their serialized parent.
             if (metamodel.ePackages) {
-                for (const pkg of metamodel.ePackages) {
+                const serializedPackages = new Map<any, any>();
+                for (const { pkg, parent } of this.getPackageEntries(metamodel)) {
                     const packageData: any = {
                         name: pkg.name || pkg.get?.('name'),
                         nsURI: pkg.nsURI || pkg.get?.('nsURI'),
                         nsPrefix: pkg.nsPrefix || pkg.get?.('nsPrefix'),
-                        eClassifiers: []
+                        eClassifiers: [],
+                        eSubpackages: []
                     };
 
                     // Extract classifiers - handle both array and EList
@@ -2425,7 +2614,12 @@ export class MetamodelRegistry {
                         
                     }
 
-                    simplified.ePackages.push(packageData);
+                    serializedPackages.set(pkg, packageData);
+                    if (parent) {
+                        serializedPackages.get(parent)?.eSubpackages.push(packageData);
+                    } else {
+                        simplified.ePackages.push(packageData);
+                    }
                 }
             }
 
