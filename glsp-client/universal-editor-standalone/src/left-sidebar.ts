@@ -1134,7 +1134,7 @@ export class LeftSidebar {
     private openGraphicalModelEditor(mode: 'create' | 'edit' = 'edit'): void {
         const editor = (window as any).globalGraphicalModelEditor;
         if (editor) {
-            editor.show(mode);
+            editor.show(mode, mode === 'edit' ? this.ecoreGraphicalModel : undefined);
             if (mode === 'edit') {
                 this.graphicalModelLoadedInSession = true;
                 this.updateEditGraphicalModelButtonVisibility();
@@ -1149,7 +1149,7 @@ export class LeftSidebar {
     private updateEditGraphicalModelButtonVisibility(): void {
         const editBtn = (this as any).editGraphicalModelBtn as HTMLButtonElement | undefined;
         if (!editBtn) return;
-        if (this.graphicalModelLoadedInSession) {
+        if (this.graphicalModelLoadedInSession || this.ecoreGraphicalModel) {
             editBtn.style.display = 'block';
         } else {
             editBtn.style.display = 'none';
@@ -1167,6 +1167,7 @@ export class LeftSidebar {
     }
 
     private updateCreateMappingModelButtonState(): void {
+        this.updateEditGraphicalModelButtonVisibility();
         const shouldShow = this.metamodelLoadedInSession;
         const ecoreMode = this.isEcoreWorkspace;
         const model = this.ecoreGraphicalModel;
@@ -1206,6 +1207,16 @@ export class LeftSidebar {
             this.savedMappingModelsContainer.style.display = mappingReady ? 'flex' : 'none';
         }
         this.updateEditMappingButtonVisibility();
+    }
+
+    public applyEditedGraphicalProfile(name: string, content: string): boolean {
+        const workspace = this.ecoreSourceName;
+        if (!workspace || this.ecoreGraphicalModel?.name !== name) return false;
+        this.ecoreGraphicalModel = this.readEcoreGraphicalModel({ name, content });
+        this.cancelEcoreDraftSave();
+        this.addLoadedMetamodel(this.createEcoreDraft(workspace));
+        this.updateCreateMappingModelButtonState();
+        return true;
     }
 
     public markGraphicalModelLoaded(): void {

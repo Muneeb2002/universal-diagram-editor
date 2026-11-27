@@ -30,13 +30,18 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
 
     override async createCommand(operation: ChangeBoundsOperation): Promise<Command | undefined> {
         if (operation.newBounds.some(bound => bound.elementId.includes('::component::'))) {
-            this.updateInstanceModelDirectly(operation);
-            return undefined;
+            return this.createDirectUpdateCommand(operation);
         }
 
-        const constraintsChanged = (this.modelState.get('viewMode') as string) === 'instance'
-            ? this.constrainInstanceBounds(operation)
-            : false;
+        const instanceMode = this.modelState.get('viewMode') === 'instance';
+        const constraintsChanged = instanceMode && this.constrainInstanceBounds(operation);
+        if (instanceMode && operation.newBounds.some(bound => {
+            const instance = this.instanceStorage.getInstance(bound.elementId);
+            return instance && this.instanceStorage.getStackedBpmnPool(instance);
+        })) {
+            // A divider can resize its neighbor, so submit the graph rebuilt from all saved bounds.
+            return this.createDirectUpdateCommand(operation);
+        }
 
         const root = this.modelState.root;
         const hasValidRoot = root && root.children !== undefined;
@@ -102,7 +107,7 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
         let changed = false;
         for (const bound of operation.newBounds) {
             const instance = this.instanceStorage.getInstance(bound.elementId);
-            if (!instance) continue;
+            if (!instance || this.instanceStorage.getStackedBpmnPool(instance)) continue;
 
             const requestedPosition = bound.newPosition ? { ...bound.newPosition } : undefined;
             const requestedSize = bound.newSize ? { ...bound.newSize } : undefined;
@@ -140,8 +145,7 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
             execute,
             redo: execute,
             undo: () => undefined,
-            // This command only synchronizes rejected client feedback with the unchanged
-            // authoritative model, so it should not create an undo-stack entry.
+            // Direct synchronization has no undo patch.
             canUndo: () => false
         };
     }
@@ -184,6 +188,7 @@ export class EcoreChangeBoundsOperationHandler extends GModelChangeBoundsOperati
             for (const element of operation.newBounds) {
                 const instance = this.instanceStorage.getInstance(element.elementId);
                 if (instance) {
+                    if (this.instanceStorage.applyStackedBpmnBounds(instance, element.newPosition, element.newSize)) continue;
                     if (element.newPosition) {
                         instance.position = { x: element.newPosition.x, y: element.newPosition.y };
                     }

@@ -47,6 +47,9 @@ export class EcoreChangeBoundsManager extends ChangeBoundsManager {
         if (!isBoundsAware(element) || element.type !== 'ecore:instance') {
             return snapped;
         }
+        if ((element as { stackedBpmnLane?: boolean }).stackedBpmnLane) {
+            return { x: element.bounds.x, y: element.bounds.y };
+        }
 
         const parent = (element as any).parent;
         const config = parent?.shapeConfig as BindingShape | undefined;

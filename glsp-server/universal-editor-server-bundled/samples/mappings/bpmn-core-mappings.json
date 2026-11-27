@@ -104,6 +104,8 @@
       "shapeName": "Participant (Pool)",
       "shapeConfig": {
         "name": "Participant (Pool)",
+        "laneLayout": "stack",
+        "laneLayoutBand": "bpmn-participant-header",
         "type": "composite",
         "width": 556,
         "height": 178,
@@ -117,6 +119,7 @@
         "components": [
           {
             "id": "bpmn-participant-frame",
+            "heightResizeGroup": "pool-height",
             "name": "Frame",
             "type": "rectangle",
             "x": 0,
@@ -133,6 +136,7 @@
           },
           {
             "id": "bpmn-participant-header",
+            "heightResizeGroup": "pool-height",
             "name": "Name band",
             "type": "rectangle",
             "x": 0,
@@ -169,6 +173,7 @@
         "components": [
           {
             "id": "bpmn-lane-frame",
+            "heightResizeGroup": "lane-height",
             "name": "Frame",
             "type": "rectangle",
             "x": 0,
@@ -185,6 +190,7 @@
           },
           {
             "id": "bpmn-lane-header",
+            "heightResizeGroup": "lane-height",
             "name": "Name band",
             "type": "rectangle",
             "x": 0,

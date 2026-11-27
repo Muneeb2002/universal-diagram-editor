@@ -6,7 +6,8 @@ const XSI_NS = 'http://www.w3.org/2001/XMLSchema-instance';
 const MODEL = 'urn:universal-diagram-editor:graphical-model';
 const SHAPE = 'urn:universal-diagram-editor:shape';
 const COMPONENT = 'urn:universal-diagram-editor:component';
-const TEXT_FIELDS = ['id', 'name', 'type', 'color', 'fillColor', 'lineStyle', 'arrowType', 'childBinding', 'svgContent'] as const;
+const TEXT_FIELDS = ['id', 'name', 'type', 'color', 'fillColor', 'lineStyle', 'arrowType', 'childBinding', 'svgContent',
+    'widthResizeGroup', 'heightResizeGroup', 'laneLayout', 'laneLayoutBand'] as const;
 const NUMBER_FIELDS = ['x', 'y', 'width', 'height', 'lineThickness', 'rotation'] as const;
 const BOOLEAN_FIELDS = ['filled', 'resizeHorizontal', 'resizeVertical'] as const;
 

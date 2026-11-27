@@ -102,6 +102,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             instance.position = constrained.position;
             instance.size = constrained.size;
         });
+        this.instanceStorage.layoutBpmnLanes();
 
         // SVG uses paint order for hit testing. Render larger nodes first so small nodes remain
         // visible and clickable when their bounds overlap a larger node.
@@ -702,6 +703,18 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             node.size = { width: 120, height: 60 };
         }
 
+        const stackedPool = this.instanceStorage.getStackedBpmnPool(instance);
+        if (stackedPool) {
+            const isLane = stackedPool !== instance;
+            if (isLane) {
+                (node as GNode & { stackedBpmnLane?: boolean }).stackedBpmnLane = true;
+                node.resizeLocations = [GResizeLocation.Bottom];
+            }
+            if (shapeMapping?.shapeConfig.components) {
+                this.fitStackedShape(node, shapeMapping);
+            }
+        }
+
         // The client-side vbox layouter otherwise recomputes a newly created node from its
         // labels and can collapse a mapped composite below its graphical-model default size.
         node.layoutOptions = {
@@ -719,7 +732,7 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
             nameLabel.type = 'label:text';
             nameLabel.id = `${instance.id}_name_label`;
             nameLabel.text = String(nameValue);
-            nameLabel.position = { x: 0, y: -15 };
+            nameLabel.position = stackedPool && stackedPool !== instance ? { x: 4, y: 14 } : { x: 0, y: -15 };
             node.children.push(nameLabel);
         }
 
@@ -734,6 +747,28 @@ export class DynamicEcoreGModelFactory implements GModelFactory {
         }
 
         return node;
+    }
+
+    private fitStackedShape(node: GNode, mapping: ShapeMapping): void {
+        const config = mapping.shapeConfig;
+        const rendered = (node as GNode & { shapeConfig?: ShapeMapping['shapeConfig'] }).shapeConfig;
+        rendered?.components?.forEach((component, index) => {
+            const original = config.components?.[index];
+            if (!original) return;
+            const unrotated = (original.rotation ?? 0) % 360 === 0;
+            const isBand = !!config.laneLayoutBand && original.id === config.laneLayoutBand;
+            // Stretch the mapped outer frame and full-height name band with the instance bounds.
+            if (!isBand && unrotated && original.x === 0 && original.width === config.width) {
+                component.x = 0;
+                component.width = node.size.width;
+                component.resizeHorizontal = false;
+            }
+            if (unrotated && (isBand || (original.y === 0 && original.height === config.height))) {
+                component.y = 0;
+                component.height = node.size.height;
+                component.resizeVertical = false;
+            }
+        });
     }
 
     private applyShapeMapping(

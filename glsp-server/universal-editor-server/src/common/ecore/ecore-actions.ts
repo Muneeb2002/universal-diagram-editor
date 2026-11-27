@@ -246,11 +246,19 @@ export namespace RequestInstancesOverviewAction {
     }
 }
 
+export interface InstanceOverviewEntry {
+    id: string;
+    className: string;
+    hidden?: boolean;
+    attributes?: Record<string, any>;
+    laneOrder?: { index: number; count: number };
+}
+
 export interface InstancesOverviewResponse extends Action {
     kind: typeof InstancesOverviewResponse.KIND;
     requestId: string;
     success: boolean;
-    instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>;
+    instances: InstanceOverviewEntry[];
     message?: string;
 }
 
@@ -264,7 +272,7 @@ export namespace InstancesOverviewResponse {
     export function create(
         requestId: string,
         success: boolean,
-        instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }> = [],
+        instances: InstanceOverviewEntry[] = [],
         message?: string
     ): InstancesOverviewResponse {
         return {

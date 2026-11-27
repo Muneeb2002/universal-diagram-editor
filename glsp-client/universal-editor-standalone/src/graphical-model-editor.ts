@@ -4,12 +4,13 @@
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { createSaveGraphicalModelAction } from './ecore-client-actions';
 import { parseGraphicalModel, serializeGraphicalEcore } from './graphical-model-format';
+import { getVisualSize, isQuarterTurn, resizeGroupProperty, resizeLinkedComponents, ResizeDimension, ResizeLinks } from './composite-resize';
 
 export const SUPPORTED_SHAPE_TYPES = ['rectangle', 'circle', 'line', 'arrow', 'custom-svg', 'composite'] as const;
 export type SupportedShapeType = typeof SUPPORTED_SHAPE_TYPES[number];
 export type ChildBindingMode = 'none' | 'inside' | 'on' | 'both';
 
-export interface GraphicalElement {
+export interface GraphicalElement extends ResizeLinks {
     id: string;
     name: string;
     type: string; 
@@ -20,6 +21,8 @@ export interface GraphicalElement {
     resizeHorizontal?: boolean;
     resizeVertical?: boolean;
     childBinding?: ChildBindingMode;
+    laneLayout?: 'stack';
+    laneLayoutBand?: string;
     color: string;
     fillColor: string;
     filled?: boolean;
@@ -56,6 +59,7 @@ export class GraphicalModelEditor {
     private cachedSavedShapes: Map<string, GraphicalElement> = new Map();
     private mappableClasses?: string[];
     private creationContainers?: string;
+    private editedProfileName?: string;
     private static readonly ACTIVE_GRAPHICAL_MODEL_STORAGE_KEY = 'activeGraphicalShapes';
 
     constructor(actionDispatcher: GLSPActionDispatcher) {
@@ -92,8 +96,11 @@ export class GraphicalModelEditor {
         return normalized;
     }
 
-    public show(mode: 'create' | 'edit' = 'edit'): void {
-        if (mode === 'edit') {
+    public show(mode: 'create' | 'edit' = 'edit', profile?: { name: string; content: string }): void {
+        this.editedProfileName = profile?.name;
+        if (profile) {
+            this.elements.clear();
+        } else if (mode === 'edit') {
             const shapes = this.loadActiveGraphicalModel() ?? this.loadShapesFromStorage();
             this.elements.clear();
             shapes.forEach(shape => this.elements.set(shape.id, { ...shape, selected: false }));
@@ -108,7 +115,11 @@ export class GraphicalModelEditor {
         this.createDialog();
         document.body.appendChild(this.backdrop!);
         document.body.appendChild(this.dialog!);
-        this.renderAllElements();
+        if (profile) {
+            this.loadFromContent(profile.content);
+        } else {
+            this.renderAllElements();
+        }
     }
 
     private parseStoredShapes(key: string): GraphicalElement[] {
@@ -969,8 +980,8 @@ export class GraphicalModelEditor {
                 ...element,
                 x: element.x - minX,
                 y: element.y - minY,
-                resizeHorizontal: isDefaultLineResize ? !this.isQuarterTurn(element.rotation) : element.resizeHorizontal,
-                resizeVertical: isDefaultLineResize ? this.isQuarterTurn(element.rotation) : element.resizeVertical,
+                resizeHorizontal: isDefaultLineResize ? !isQuarterTurn(element.rotation) : element.resizeHorizontal,
+                resizeVertical: isDefaultLineResize ? isQuarterTurn(element.rotation) : element.resizeVertical,
                 selected: false,
                 components: element.components?.map(component => ({ ...component }))
             };
@@ -1035,6 +1046,17 @@ export class GraphicalModelEditor {
                     <input type="text" value="${element.type === 'custom-svg' ? 'Custom SVG' : element.type}" disabled style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px; background: #f5f5f5;">
                 </div>
                 ${element.type !== 'composite' ? this.renderChildBindingSelect(element) : ''}
+                <label style="display: block; font-size: 12px; color: #555;">Lane layout
+                    <select id="propLaneLayout" style="box-sizing: border-box; width: 100%; margin-top: 4px; padding: 6px;">
+                        <option value="">Free placement</option>
+                        <option value="stack" ${element.laneLayout === 'stack' ? 'selected' : ''}>Stack lanes to fill pool</option>
+                    </select>
+                </label>
+                <label id="propLaneLayoutBandLabel" hidden style="font-size: 12px; color: #555;">Pool name band
+                    <select id="propLaneLayoutBand" style="box-sizing: border-box; width: 100%; margin-top: 4px; padding: 6px;">
+                        <option value="">None</option>
+                    </select>
+                </label>
                 <div>
                     <label style="display: block; margin-bottom: 5px; font-weight: 500; color: #555;">Default Width:</label>
                     <input type="number" id="propWidth" value="${element.width}" min="20" max="500" style="width: 100%; padding: 6px; border: 1px solid #ddd; border-radius: 4px; font-size: 14px;">
@@ -1119,6 +1141,18 @@ export class GraphicalModelEditor {
         // Setup property change listeners
         const nameInput = this.propertiesPanel.querySelector('#propName') as HTMLInputElement;
         const childBindingSelect = this.propertiesPanel.querySelector('#propChildBinding') as HTMLSelectElement | null;
+        const laneLayout = this.propertiesPanel.querySelector<HTMLSelectElement>('#propLaneLayout')!;
+        const bandLabel = this.propertiesPanel.querySelector<HTMLLabelElement>('#propLaneLayoutBandLabel')!;
+        const band = this.propertiesPanel.querySelector<HTMLSelectElement>('#propLaneLayoutBand')!;
+        const components = element.components ?? [];
+        for (const component of components) band.add(new Option(component.name, component.id));
+        band.value = element.laneLayoutBand ?? '';
+        bandLabel.hidden = !element.laneLayout || components.length === 0;
+        laneLayout.addEventListener('change', () => {
+            element.laneLayout = laneLayout.value === 'stack' ? 'stack' : undefined;
+            bandLabel.hidden = !element.laneLayout || components.length === 0;
+        });
+        band.addEventListener('change', () => { element.laneLayoutBand = band.value || undefined; });
         const widthInput = this.propertiesPanel.querySelector('#propWidth') as HTMLInputElement;
         const heightInput = this.propertiesPanel.querySelector('#propHeight') as HTMLInputElement;
         const resizeHorizontalButton = this.propertiesPanel.querySelector('#propResizeHorizontal') as HTMLButtonElement;
@@ -1233,7 +1267,7 @@ export class GraphicalModelEditor {
                 <div style="font-weight: 600; color: #444; margin-bottom: 9px;">Subcomponents (${components.length})</div>
                 <div style="display: flex; flex-direction: column; gap: 10px;">
                     ${components.map((component, index) => {
-                        const visualSize = this.getComponentVisualSize(component);
+                        const visualSize = getVisualSize(component);
                         return `
                         <div style="padding: 10px; border: 1px solid #d7d7d7; border-radius: 5px; background: white;">
                             <div style="font-weight: 600; color: #333; margin-bottom: 8px;">${component.name || `Component ${index + 1}`} <span style="font-weight: 400; color: #777;">(${component.type})</span></div>
@@ -1248,6 +1282,8 @@ export class GraphicalModelEditor {
                                 ${this.renderComponentResizeButton(index, 'vertical', component.resizeVertical !== false)}
                             </div>
                             <div style="margin-top: 8px;">
+                                ${this.renderResizeLink(index, 'width')}
+                                ${this.renderResizeLink(index, 'height')}
                                 ${this.renderChildBindingSelect(component, index)}
                             </div>
                         </div>
@@ -1301,18 +1337,16 @@ export class GraphicalModelEditor {
         return `<button type="button" data-component-resize="${direction}" data-component-index="${index}" aria-pressed="${enabled}" style="padding: 6px 4px; border: 1px solid ${enabled ? '#007acc' : '#bbb'}; border-radius: 3px; cursor: pointer; background: ${enabled ? '#007acc' : '#f5f5f5'}; color: ${enabled ? 'white' : '#444'}; font-size: 11px;">${icon} ${label}</button>`;
     }
 
-    private isQuarterTurn(rotation = 0): boolean {
-        return Math.abs(Math.round(rotation / 90)) % 2 === 1;
-    }
-
-    private getComponentVisualSize(component: GraphicalElement): { width: number; height: number } {
-        return this.isQuarterTurn(component.rotation)
-            ? { width: component.height, height: component.width }
-            : { width: component.width, height: component.height };
+    private renderResizeLink(index: number, dimension: ResizeDimension): string {
+        return `<label style="display: block; margin-bottom: 8px; font-size: 11px; font-weight: 500; color: #555;">Match ${dimension} with
+            <select data-resize-link="${dimension}" data-component-index="${index}" style="box-sizing: border-box; width: 100%; margin-top: 4px; padding: 6px; border: 1px solid #ccc; border-radius: 3px; font-size: 12px;">
+                <option value="">None</option>
+            </select>
+        </label>`;
     }
 
     private getComponentVisualBounds(component: GraphicalElement): { left: number; top: number; right: number; bottom: number } {
-        const size = this.getComponentVisualSize(component);
+        const size = getVisualSize(component);
         const centerX = component.x + component.width / 2;
         const centerY = component.y + component.height / 2;
         return {
@@ -1324,18 +1358,44 @@ export class GraphicalModelEditor {
     }
 
     private setupCompositePropertyListeners(element: GraphicalElement, widthInput: HTMLInputElement, heightInput: HTMLInputElement): void {
-        if (element.type !== 'composite' || !element.components || !this.propertiesPanel) return;
+        const components = element.components;
+        if (element.type !== 'composite' || !components || !this.propertiesPanel) return;
+        const inputs = this.propertiesPanel.querySelectorAll<HTMLInputElement>('input[data-component-property]');
+        const linkSelects = this.propertiesPanel.querySelectorAll<HTMLSelectElement>('select[data-resize-link]');
 
-        const resizeCompositeBounds = (): void => {
-            const bounds = element.components!.map(component => this.getComponentVisualBounds(component));
+        const updateLinkSelections = (): void => {
+            linkSelects.forEach(select => {
+                const index = Number(select.dataset.componentIndex);
+                const property = resizeGroupProperty[select.dataset.resizeLink as ResizeDimension];
+                const group = components[index][property];
+                const sibling = group ? components.findIndex((candidate, candidateIndex) =>
+                    candidateIndex !== index && candidate[property] === group) : -1;
+                select.value = sibling >= 0 ? String(sibling) : '';
+            });
+        };
+
+        const resizeCompositeBounds = (activeInput?: HTMLInputElement): void => {
+            const bounds = components.map(component => this.getComponentVisualBounds(component));
             element.width = Math.max(20, ...bounds.map(bound => bound.right));
             element.height = Math.max(20, ...bounds.map(bound => bound.bottom));
             widthInput.value = String(element.width);
             heightInput.value = String(element.height);
+            inputs.forEach(input => {
+                if (input === activeInput) return;
+                const component = components[Number(input.dataset.componentIndex)];
+                const property = input.dataset.componentProperty as 'x' | 'y' | ResizeDimension;
+                input.value = String(property === 'x' || property === 'y' ? component[property] : getVisualSize(component)[property]);
+            });
             this.renderElement(element);
         };
 
-        this.propertiesPanel.querySelectorAll<HTMLInputElement>('input[data-component-property]').forEach(input => {
+        const resize = (index: number, dimension: ResizeDimension, size: number): void => {
+            for (const [componentIndex, bounds] of Object.entries(resizeLinkedComponents(components, index, dimension, size))) {
+                Object.assign(components[Number(componentIndex)], bounds);
+            }
+        };
+
+        inputs.forEach(input => {
             input.addEventListener('input', () => {
                 const index = Number(input.dataset.componentIndex);
                 const property = input.dataset.componentProperty as 'x' | 'y' | 'width' | 'height';
@@ -1343,14 +1403,43 @@ export class GraphicalModelEditor {
                 if (!component || !property) return;
                 const minimum = property === 'width' || property === 'height' ? 1 : 0;
                 const value = Math.max(minimum, Number(input.value) || minimum);
-                if (this.isQuarterTurn(component.rotation) && (property === 'width' || property === 'height')) {
-                    component[property === 'width' ? 'height' : 'width'] = value;
+                if (property === 'width' || property === 'height') {
+                    resize(index, property, value);
                 } else {
                     component[property] = value;
                 }
+                resizeCompositeBounds(input);
+            });
+        });
+
+        linkSelects.forEach(select => {
+            const index = Number(select.dataset.componentIndex);
+            const dimension = select.dataset.resizeLink as ResizeDimension;
+            const property = resizeGroupProperty[dimension];
+            components.forEach((component, sibling) => {
+                if (sibling !== index) select.add(new Option(component.name || `Component ${sibling + 1}`, String(sibling)));
+            });
+            select.disabled = components.length < 2;
+            select.addEventListener('change', () => {
+                if (select.value === '') {
+                    delete components[index][property];
+                } else {
+                    const sibling = Number(select.value);
+                    const target = components[sibling];
+                    let group = target[property];
+                    if (!group) {
+                        group = target.id;
+                        while (components.some(component => component[property] === group)) group += '_';
+                    }
+                    target[property] = group;
+                    components[index][property] = group;
+                    resize(sibling, dimension, Math.max(1, getVisualSize(target)[dimension]));
+                }
+                updateLinkSelections();
                 resizeCompositeBounds();
             });
         });
+        updateLinkSelections();
 
         this.propertiesPanel.querySelectorAll<HTMLButtonElement>('button[data-component-resize]').forEach(button => {
             button.addEventListener('click', () => {
@@ -1549,6 +1638,7 @@ export class GraphicalModelEditor {
     private async applyGraphicalModel(): Promise<void> {
         this.updateCachedShapesFromElements();
         this.setActiveGraphicalModel();
+        const appliedProfile = this.applySelectedProfile();
         const sidebar = (window as any).globalLeftSidebar;
         if (sidebar && sidebar.markGraphicalModelLoaded) {
             sidebar.markGraphicalModelLoaded();
@@ -1556,13 +1646,20 @@ export class GraphicalModelEditor {
 
         const mappingDialog = (window as any).globalShapeMappingDialog;
         const refreshedMappings = mappingDialog?.refreshShapeConfigs
-            ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes())
+            ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes(), appliedProfile)
             : 0;
 
         const mappingMessage = refreshedMappings > 0
             ? ` Updated ${refreshedMappings} mapped shape(s) in the instance diagram.`
             : '';
         alert(`Graphical model applied to the client session.${mappingMessage}`);
+    }
+
+    private applySelectedProfile(): boolean {
+        const name = this.editedProfileName;
+        if (!name) return false;
+        const content = serializeGraphicalEcore([...this.elements.values()], this.mappableClasses, name, this.creationContainers);
+        return window.globalLeftSidebar?.applyEditedGraphicalProfile(name, content) ?? false;
     }
 
     private async saveGraphicalModel(): Promise<void> {
@@ -1600,10 +1697,11 @@ export class GraphicalModelEditor {
             await this.actionDispatcher.dispatch(createSaveGraphicalModelAction(filename, content));
             this.updateCachedShapesFromElements();
             this.setActiveGraphicalModel();
+            const appliedProfile = this.applySelectedProfile();
 
             const mappingDialog = (window as any).globalShapeMappingDialog;
             const refreshedMappings = mappingDialog?.refreshShapeConfigs
-                ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes())
+                ? await mappingDialog.refreshShapeConfigs(this.getSavedShapes(), appliedProfile)
                 : 0;
             const mappingMessage = refreshedMappings > 0
                 ? ` Updated ${refreshedMappings} mapped shape(s) in the instance diagram.`
@@ -1778,7 +1876,11 @@ export class GraphicalModelEditor {
             height: Number.isFinite(raw?.height) ? raw.height : 80,
             resizeHorizontal: typeof raw?.resizeHorizontal === 'boolean' ? raw.resizeHorizontal : true,
             resizeVertical: typeof raw?.resizeVertical === 'boolean' ? raw.resizeVertical : true,
+            widthResizeGroup: typeof raw?.widthResizeGroup === 'string' ? raw.widthResizeGroup || undefined : undefined,
+            heightResizeGroup: typeof raw?.heightResizeGroup === 'string' ? raw.heightResizeGroup || undefined : undefined,
             childBinding,
+            laneLayout: raw?.laneLayout === 'stack' ? 'stack' : undefined,
+            laneLayoutBand: typeof raw?.laneLayoutBand === 'string' ? raw.laneLayoutBand : undefined,
             color: typeof raw?.color === 'string' ? raw.color : '#333333',
             fillColor: typeof raw?.fillColor === 'string' ? raw.fillColor : '#E3F2FD',
             filled: typeof raw?.filled === 'boolean' ? raw.filled : false,

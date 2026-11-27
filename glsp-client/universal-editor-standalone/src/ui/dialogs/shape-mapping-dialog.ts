@@ -1091,11 +1091,9 @@ export class ShapeMappingDialog {
      * them to the running server. Mappings keep a shapeConfig snapshot because the
      * server does not load the graphical-model file directly.
      */
-    public async refreshShapeConfigs(savedShapes: Map<string, GraphicalElement>): Promise<number> {
-        if (this.scope) {
-            return 0;
-        }
-        this.savedShapes = new Map(savedShapes);
+    public async refreshShapeConfigs(savedShapes: Map<string, GraphicalElement>, appliedProfile = false): Promise<number> {
+        if (this.scope && !appliedProfile) return 0;
+        this.savedShapes = new Map(this.scope?.shapes ?? savedShapes);
         let refreshed = 0;
 
         this.mappings.forEach((mapping, key) => {
@@ -1113,7 +1111,15 @@ export class ShapeMappingDialog {
         });
 
         if (refreshed > 0) {
-            await this.syncMappingsWithServer();
+            const content = this.serializeMappings();
+            if (this.scope) {
+                try {
+                    localStorage.setItem(this.mappingStorageKey, content);
+                } catch (error) {
+                    console.warn('Could not store the updated graphical profile mappings:', error);
+                }
+            }
+            await this.syncMappingsWithServer(content);
         }
         return refreshed;
     }
@@ -1215,6 +1221,8 @@ export class ShapeMappingDialog {
             resizeHorizontal: shape.resizeHorizontal !== false,
             resizeVertical: shape.resizeVertical !== false,
             childBinding: shape.childBinding,
+            laneLayout: shape.laneLayout,
+            laneLayoutBand: shape.laneLayoutBand,
             color: shape.color,
             fillColor: shape.fillColor,
             filled: shape.filled,

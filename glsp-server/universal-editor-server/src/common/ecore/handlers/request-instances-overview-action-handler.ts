@@ -58,7 +58,8 @@ export class RequestInstancesOverviewActionHandler implements ActionHandler {
                     id: instance.id,
                     className: instance.eClassName,
                     hidden: instance.hidden,
-                    attributes: attrsObj
+                    attributes: attrsObj,
+                    laneOrder: this.instanceStorage.getStackedLaneOrder(instance)
                 };
             });
 

@@ -3,7 +3,13 @@
  */
 import { GLSPActionDispatcher } from '@eclipse-glsp/client';
 import { DeleteElementOperation } from '@eclipse-glsp/protocol';
-import { createRequestInstancesOverviewAction, InstancesOverviewResponse, createSetInstanceAttributeAction } from './ecore-client-actions';
+import {
+    createRequestInstancesOverviewAction,
+    InstanceOverviewEntry,
+    InstancesOverviewResponse,
+    createSetInstanceAttributeAction,
+    moveStackedLaneAction
+} from './ecore-client-actions';
 
 export class InstanceManagementPanel {
     private root: HTMLDivElement | null = null;
@@ -12,10 +18,10 @@ export class InstanceManagementPanel {
     private resizeDrag?: AbortController;
     private height = 350;
     private readonly onViewportResize = (): void => this.setHeight(this.height);
-    private instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }> = [];
+    private instances: InstanceOverviewEntry[] = [];
     private requestCounter = 0;
     private pendingRequests: Map<string, {
-        resolve: (instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>) => void;
+        resolve: (instances: InstanceOverviewEntry[]) => void;
         reject: (error: any) => void;
         timeoutHandle: number;
     }> = new Map();
@@ -57,7 +63,7 @@ export class InstanceManagementPanel {
     public refreshInstances(): void {
         const requestId = `instances-${++this.requestCounter}`;
         
-        const promise = new Promise<Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>>((resolve, reject) => {
+        const promise = new Promise<InstanceOverviewEntry[]>((resolve, reject) => {
             const timeoutHandle = window.setTimeout(() => {
                 this.pendingRequests.delete(requestId);
                 reject(new Error('Timed out waiting for instances overview response'));
@@ -98,13 +104,7 @@ export class InstanceManagementPanel {
         this.pendingRequests.delete(response.requestId);
 
         if (response.success && response.instances) {
-            const instancesWithAttrs = response.instances.map(inst => ({
-                id: inst.id,
-                className: inst.className,
-                hidden: inst.hidden,
-                attributes: (inst as any).attributes
-            }));
-            pending.resolve(instancesWithAttrs);
+            pending.resolve(response.instances);
         } else {
             if (response.message === 'No active instance model') {
                 pending.resolve([]);
@@ -286,7 +286,7 @@ export class InstanceManagementPanel {
         return allAttrs;
     }
 
-    private createInstanceCard(instance: { id: string; className: string; attributes?: Record<string, any> }): HTMLDivElement {
+    private createInstanceCard(instance: InstanceOverviewEntry): HTMLDivElement {
         const card = document.createElement('div');
         card.style.cssText = `
             background: #f9f9f9;
@@ -327,7 +327,25 @@ export class InstanceManagementPanel {
         header.appendChild(instanceInfo);
 
         const actionButtons = document.createElement('div');
-        actionButtons.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+        actionButtons.style.cssText = 'display: flex; gap: 6px; flex-wrap: wrap; align-items: center;';
+
+        const order = instance.laneOrder;
+        if (order && order.count > 1) {
+            const lanePosition = document.createElement('span');
+            lanePosition.textContent = `Lane ${order.index + 1} of ${order.count}`;
+            lanePosition.style.fontSize = '12px';
+            actionButtons.appendChild(lanePosition);
+            for (const direction of ['up', 'down'] as const) {
+                const moveButton = document.createElement('button');
+                moveButton.type = 'button';
+                moveButton.textContent = direction === 'up' ? 'Move lane up' : 'Move lane down';
+                moveButton.disabled = direction === 'up' ? order.index === 0 : order.index === order.count - 1;
+                moveButton.addEventListener('click', () => {
+                    void this.dispatcher.dispatch(moveStackedLaneAction(instance.id, direction));
+                });
+                actionButtons.appendChild(moveButton);
+            }
+        }
 
         const setContainerBtn = document.createElement('button');
         setContainerBtn.textContent = 'Set Container';

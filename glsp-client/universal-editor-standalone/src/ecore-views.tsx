@@ -22,6 +22,8 @@ import {
 } from '@eclipse-glsp/sprotty';
 import { ChangeBoundsOperation } from '@eclipse-glsp/client';
 import { SetCompositeComponentAction } from './composite-component-actions';
+import { getVisualSize, resizeLinkedComponents } from './composite-resize';
+import type { ComponentBounds, ResizableComponent } from './composite-resize';
 import type { EcoreInstanceNode } from './metamodel-diagram-module';
 
 interface NodeShapeConfig {
@@ -40,11 +42,7 @@ interface NodeShapeConfig {
     components?: NodeShapeComponent[];
 }
 
-interface NodeShapeComponent extends NodeShapeConfig {
-    x: number;
-    y: number;
-    rotation?: number;
-}
+interface NodeShapeComponent extends NodeShapeConfig, ResizableComponent {}
 
 interface ShapeRenderStyle {
     fill?: string;
@@ -484,16 +482,16 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
                                         pointer-events="none"
                                     />
                                     {component.resizeHorizontal !== false
-                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'left', selectionLeft, centerY)
+                                        ? this.renderComponentResizeHandle(node, componentIndex, 'left', selectionLeft, centerY)
                                         : undefined}
                                     {component.resizeHorizontal !== false
-                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'right', selectionLeft + visualWidth, centerY)
+                                        ? this.renderComponentResizeHandle(node, componentIndex, 'right', selectionLeft + visualWidth, centerY)
                                         : undefined}
                                     {component.resizeVertical !== false
-                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'top', centerX, selectionTop)
+                                        ? this.renderComponentResizeHandle(node, componentIndex, 'top', centerX, selectionTop)
                                         : undefined}
                                     {component.resizeVertical !== false
-                                        ? this.renderComponentResizeHandle(node, componentIndex, component, 'bottom', centerX, selectionTop + visualHeight)
+                                        ? this.renderComponentResizeHandle(node, componentIndex, 'bottom', centerX, selectionTop + visualHeight)
                                         : undefined}
                                 </g>
                             ) : undefined}
@@ -518,7 +516,6 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
     private renderComponentResizeHandle(
         node: Readonly<GNode & Hoverable & Selectable>,
         componentIndex: number,
-        component: NodeShapeComponent,
         direction: 'left' | 'right' | 'top' | 'bottom',
         x: number,
         y: number
@@ -533,7 +530,7 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
             />
         );
         setAttr(handle, 'data-component-resize-handle', direction);
-        on(handle, 'mousedown', event => this.startComponentResize(event as MouseEvent, node, componentIndex, component, direction));
+        on(handle, 'mousedown', event => this.startComponentResize(event as MouseEvent, node, componentIndex, direction));
         return handle;
     }
 
@@ -541,62 +538,37 @@ export class EcoreInstanceNodeView extends RectangularNodeView {
         event: MouseEvent,
         node: Readonly<GNode & Hoverable & Selectable>,
         componentIndex: number,
-        component: NodeShapeComponent,
         direction: 'left' | 'right' | 'top' | 'bottom'
     ): void {
         event.preventDefault();
         event.stopPropagation();
-        const startX = event.clientX;
-        const startY = event.clientY;
-        const rotation = component.rotation ?? 0;
-        const quarterTurn = Math.abs(Math.round(rotation / 90)) % 2 === 1;
-        const initialVisualWidth = quarterTurn ? component.height : component.width;
-        const initialVisualHeight = quarterTurn ? component.width : component.height;
-        const initialCenterX = component.x + component.width / 2;
-        const initialCenterY = component.y + component.height / 2;
-        const visualLeft = initialCenterX - initialVisualWidth / 2;
-        const visualTop = initialCenterY - initialVisualHeight / 2;
+        // The preview updates the live components, so keep the drag origin separate.
+        const components = this.getShapeConfig(node)?.components?.map(component => ({ ...component }));
+        if (!components?.[componentIndex]) return;
+        const dimension = direction === 'left' || direction === 'right' ? 'width' : 'height';
+        const fromStart = direction === 'left' || direction === 'top';
+        const initialSize = getVisualSize(components[componentIndex])[dimension];
+        const coordinate = dimension === 'width' ? 'clientX' : 'clientY';
+        const origin = event[coordinate];
         const rootZoom = Math.max(0.01, Number((node.root as any).zoom) || 1);
-        let latest = { x: component.x, y: component.y, width: component.width, height: component.height };
+        let latest: Record<number, ComponentBounds> | undefined;
 
         const onMouseMove = (moveEvent: MouseEvent): void => {
-            const visualWidth = direction === 'right'
-                ? Math.max(1, initialVisualWidth + (moveEvent.clientX - startX) / rootZoom)
-                : direction === 'left'
-                    ? Math.max(1, initialVisualWidth + (startX - moveEvent.clientX) / rootZoom)
-                    : initialVisualWidth;
-            const visualHeight = direction === 'bottom'
-                ? Math.max(1, initialVisualHeight + (moveEvent.clientY - startY) / rootZoom)
-                : direction === 'top'
-                    ? Math.max(1, initialVisualHeight + (startY - moveEvent.clientY) / rootZoom)
-                    : initialVisualHeight;
-            const nextVisualLeft = direction === 'left'
-                ? visualLeft + initialVisualWidth - visualWidth
-                : visualLeft;
-            const nextVisualTop = direction === 'top'
-                ? visualTop + initialVisualHeight - visualHeight
-                : visualTop;
-            const localWidth = quarterTurn ? visualHeight : visualWidth;
-            const localHeight = quarterTurn ? visualWidth : visualHeight;
-            const centerX = nextVisualLeft + visualWidth / 2;
-            const centerY = nextVisualTop + visualHeight / 2;
-            latest = {
-                x: centerX - localWidth / 2,
-                y: centerY - localHeight / 2,
-                width: localWidth,
-                height: localHeight
-            };
+            const delta = (moveEvent[coordinate] - origin) / rootZoom;
+            const size = Math.max(1, initialSize + (fromStart ? -delta : delta));
+            latest = resizeLinkedComponents(components, componentIndex, dimension, size, fromStart);
             this.actionDispatcher.dispatch(SetCompositeComponentAction.create(node.id, componentIndex, latest));
         };
 
         const onMouseUp = (): void => {
             document.removeEventListener('mousemove', onMouseMove);
             document.removeEventListener('mouseup', onMouseUp);
-            this.actionDispatcher.dispatch(ChangeBoundsOperation.create([{
-                elementId: `${node.id}::component::${componentIndex}`,
-                newPosition: { x: latest.x, y: latest.y },
-                newSize: { width: latest.width, height: latest.height }
-            }]));
+            if (!latest) return;
+            this.actionDispatcher.dispatch(ChangeBoundsOperation.create(Object.entries(latest).map(([index, bounds]) => ({
+                elementId: `${node.id}::component::${index}`,
+                newPosition: { x: bounds.x, y: bounds.y },
+                newSize: { width: bounds.width, height: bounds.height }
+            }))));
         };
 
         document.addEventListener('mousemove', onMouseMove);

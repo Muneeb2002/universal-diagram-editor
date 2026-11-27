@@ -10,6 +10,8 @@ export interface ShapeConfig {
     resizeHorizontal?: boolean;
     resizeVertical?: boolean;
     childBinding?: 'none' | 'inside' | 'on' | 'both';
+    laneLayout?: 'stack';
+    laneLayoutBand?: string;
     color: string;
     fillColor: string;
     filled?: boolean;
@@ -26,6 +28,8 @@ export interface ShapeComponent extends ShapeConfig {
     x: number;
     y: number;
     rotation?: number;
+    widthResizeGroup?: string;
+    heightResizeGroup?: string;
 }
 
 export interface ShapeMapping {

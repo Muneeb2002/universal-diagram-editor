@@ -277,7 +277,11 @@ export class InstanceModelStorage {
                 };
             }
 
-            if ((bpmnPlacement || defaultPath) && instance.eClassName !== 'SequenceFlow') {
+            const stackedPool = instance.eClassName === 'Lane' && bpmnPlacement?.parent &&
+                this.getStackedBpmnPool(instance);
+            if (stackedPool) {
+                this.layoutStackedPool(stackedPool, this.getStackedLanes(stackedPool));
+            } else if ((bpmnPlacement || defaultPath) && instance.eClassName !== 'SequenceFlow') {
                 this.expandDiagramContainersFor(instance);
             }
             const constrained = this.constrainInstanceBounds(instance.id, instance.position, instance.size);
@@ -345,10 +349,11 @@ export class InstanceModelStorage {
         const siblings = this.getDiagramChildren(parent.id);
         if (instance.eClassName === 'Lane') {
             const laneSet = this.getOrCreateBpmnLaneSet(parent, model, created);
+            const padding = this.getStackedBpmnPool(parent) ? 0 : 10;
             instance.position = {
-                x: 32,
+                x: padding ? 32 : this.getPoolBandWidth(parent),
                 y: siblings.reduce((bottom, lane) => Math.max(bottom, (lane.position?.y ?? 0) +
-                    (lane.size?.height ?? this.getMappedSize(lane).height) + 10), 10)
+                    (lane.size?.height ?? this.getMappedSize(lane).height) + padding), padding)
             };
             this.createReference(laneSet.id, 'lanes', instance.id);
         } else {
@@ -430,6 +435,128 @@ export class InstanceModelStorage {
                 .flatMap(lane => lane.hidden ? this.getBpmnDiagramChildren(lane) : [lane]);
         }
         return instance.eClassName === 'Lane' ? this.getReferenceTargets(instance, 'flowNodeRefs').filter(node => !node.hidden) : [];
+    }
+
+    getStackedBpmnPool(instance: EcoreInstance): EcoreInstance | undefined {
+        if (instance.hidden || (instance.eClassName !== 'Lane' && instance.eClassName !== 'Participant') ||
+            !this.usesBpmnMetamodel()) return undefined;
+        const pool = instance.eClassName === 'Lane' ? this.getBpmnPoolForLane(instance) : instance;
+        return pool && this.shapeMappingStorage.getMapping(pool.eClassName)?.shapeConfig.laneLayout === 'stack' ? pool : undefined;
+    }
+
+    private getStackedLanes(pool: EcoreInstance): EcoreInstance[] {
+        return this.getBpmnDiagramChildren(pool)
+            .filter(child => child.eClassName === 'Lane' && this.getBpmnPoolForLane(child)?.id === pool.id)
+            .sort((a, b) => (a.position?.y ?? 0) - (b.position?.y ?? 0));
+    }
+
+    private getPoolBandWidth(pool: EcoreInstance): number {
+        const config = this.shapeMappingStorage.getMapping(pool.eClassName)?.shapeConfig;
+        const index = config?.components?.findIndex(component => component.id === config.laneLayoutBand) ?? -1;
+        const band = config?.components?.[index];
+        if (!band || !config?.laneLayoutBand) return 0;
+        const bounds = pool.componentBounds?.[index] ?? band;
+        return Math.max(0, bounds.x + bounds.width);
+    }
+
+    private getLaneMinimumSize(lane: EcoreInstance): { width: number; height: number } {
+        let width = 1;
+        let height = 24;
+        for (const child of this.getDiagramChildren(lane.id)) {
+            const size = child.size ?? this.getMappedSize(child);
+            width = Math.max(width, (child.position?.x ?? 0) + size.width);
+            height = Math.max(height, (child.position?.y ?? 0) + size.height);
+        }
+        return { width, height };
+    }
+
+    private layoutStackedPool(pool: EcoreInstance, lanes: readonly EcoreInstance[]): void {
+        if (!lanes.length) return;
+        const bandWidth = this.getPoolBandWidth(pool);
+        const poolSize = pool.size ?? this.getMappedSize(pool);
+        const minimums = lanes.map(lane => this.getLaneMinimumSize(lane));
+        const width = Math.max(poolSize.width - bandWidth, ...minimums.map(size => size.width));
+        const heights = lanes.map((lane, index) =>
+            Math.max(minimums[index].height, lane.size?.height ?? this.getMappedSize(lane).height));
+        const totalHeight = heights.reduce((sum, height) => sum + height, 0);
+        heights[heights.length - 1] += Math.max(0, poolSize.height - totalHeight);
+        let y = 0;
+        lanes.forEach((lane, index) => {
+            const height = heights[index];
+            lane.position = { x: bandWidth, y };
+            lane.size = { width, height };
+            y += height;
+        });
+        pool.size = { width: bandWidth + width, height: y };
+    }
+
+    layoutBpmnLanes(): void {
+        for (const instance of this.getAllInstances()) {
+            if (instance.eClassName === 'Participant' && this.getStackedBpmnPool(instance)) {
+                this.layoutStackedPool(instance, this.getStackedLanes(instance));
+            }
+        }
+    }
+
+    getStackedLaneOrder(instance: EcoreInstance): { index: number; count: number } | undefined {
+        if (instance.eClassName !== 'Lane') return undefined;
+        const pool = this.getStackedBpmnPool(instance);
+        if (!pool) return undefined;
+        const lanes = this.getStackedLanes(pool);
+        const index = lanes.findIndex(lane => lane.id === instance.id);
+        return index >= 0 ? { index, count: lanes.length } : undefined;
+    }
+
+    moveStackedLane(id: string, direction: 'up' | 'down'): boolean {
+        const lane = this.getInstance(id);
+        if (!lane || lane.eClassName !== 'Lane') return false;
+        const pool = this.getStackedBpmnPool(lane);
+        if (!pool) return false;
+        const lanes = this.getStackedLanes(pool);
+        const index = lanes.findIndex(candidate => candidate.id === id);
+        const destination = index + (direction === 'up' ? -1 : 1);
+        if (index < 0 || !lanes[destination]) return false;
+        [lanes[index], lanes[destination]] = [lanes[destination], lanes[index]];
+        this.layoutStackedPool(pool, lanes);
+        return true;
+    }
+
+    applyStackedBpmnBounds(
+        instance: EcoreInstance,
+        position?: { x: number; y: number },
+        size?: { width: number; height: number }
+    ): boolean {
+        const pool = this.getStackedBpmnPool(instance);
+        if (!pool) return false;
+        const lanes = this.getStackedLanes(pool);
+        if (!lanes.length) return false;
+        const poolSize = pool.size ?? this.getMappedSize(pool);
+        if (pool === instance) {
+            if (position) pool.position = position;
+            if (size) {
+                pool.size = { ...size };
+                let reduction = poolSize.height - size.height;
+                for (const lane of [...lanes].reverse()) {
+                    if (reduction <= 0 || !lane.size) break;
+                    const amount = Math.min(reduction, Math.max(0, lane.size.height - this.getLaneMinimumSize(lane).height));
+                    lane.size = { ...lane.size, height: lane.size.height - amount };
+                    reduction -= amount;
+                }
+            }
+        } else if (size && instance.size) {
+            const index = lanes.findIndex(lane => lane.id === instance.id);
+            if (index < 0) return false;
+            const next = lanes[index + 1];
+            const oldHeight = instance.size.height;
+            const minimumDelta = this.getLaneMinimumSize(instance).height - oldHeight;
+            const maximumDelta = next?.size ? next.size.height - this.getLaneMinimumSize(next).height : Infinity;
+            const delta = Math.max(minimumDelta, Math.min(maximumDelta, size.height - oldHeight));
+            instance.size = { ...instance.size, height: oldHeight + delta };
+            if (next?.size) next.size = { ...next.size, height: next.size.height - delta };
+            else pool.size = { ...poolSize, height: poolSize.height + delta };
+        }
+        this.layoutStackedPool(pool, lanes);
+        return true;
     }
 
     private prepareDefaultContainer(
@@ -522,7 +649,7 @@ export class InstanceModelStorage {
         }
 
         const container = this.getDiagramParent(instanceId);
-        if (container) {
+        if (container && !(instance.eClassName === 'Lane' && this.getStackedBpmnPool(instance))) {
             const containerSize = this.getMappedSize(container);
             const width = container.size?.width ?? containerSize.width;
             const height = container.size?.height ?? containerSize.height;

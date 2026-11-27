@@ -109,6 +109,8 @@
         "height": 173,
         "resizeHorizontal": true,
         "resizeVertical": true,
+        "laneLayout": "stack",
+        "laneLayoutBand": "bpmn-participant-band",
         "color": "#232833",
         "fillColor": "#E3F2FD",
         "filled": false,
@@ -125,6 +127,7 @@
             "height": 173,
             "resizeHorizontal": true,
             "resizeVertical": true,
+            "heightResizeGroup": "pool-height",
             "color": "#232833",
             "fillColor": "#ffffff",
             "filled": false,
@@ -143,6 +146,7 @@
             "height": 173,
             "resizeHorizontal": false,
             "resizeVertical": true,
+            "heightResizeGroup": "pool-height",
             "color": "#232833",
             "fillColor": "#f4f5f7",
             "filled": true,
@@ -181,6 +185,7 @@
             "height": 106,
             "resizeHorizontal": true,
             "resizeVertical": true,
+            "heightResizeGroup": "lane-height",
             "color": "#232833",
             "fillColor": "#ffffff",
             "filled": false,
@@ -199,6 +204,7 @@
             "height": 106,
             "resizeHorizontal": false,
             "resizeVertical": true,
+            "heightResizeGroup": "lane-height",
             "color": "#232833",
             "fillColor": "#f4f5f7",
             "filled": true,
@@ -211,5 +217,5 @@
       }
     }
   ],
-  "savedAt": "2026-11-26T23:53:38.713Z"
+  "savedAt": "2026-11-27T00:27:22.054Z"
 }

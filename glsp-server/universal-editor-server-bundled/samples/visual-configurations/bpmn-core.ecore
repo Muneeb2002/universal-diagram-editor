@@ -95,6 +95,8 @@
   <eClassifiers xsi:type="ecore:EClass" name="ParticipantShape">
     <eAnnotations source="urn:universal-diagram-editor:shape">
       <details key="id" value="bpmn-participant"/>
+      <details key="laneLayout" value="stack"/>
+      <details key="laneLayoutBand" value="bpmn-participant-band"/>
       <details key="name" value="Participant pool"/>
       <details key="type" value="composite"/>
       <details key="x" value="54"/>
@@ -107,6 +109,7 @@
       <details key="resizeVertical" value="true"/>
       <eAnnotations source="urn:universal-diagram-editor:component">
         <details key="id" value="bpmn-participant-frame"/>
+        <details key="heightResizeGroup" value="pool-height"/>
         <details key="name" value="Pool frame"/>
         <details key="type" value="rectangle"/>
         <details key="x" value="0"/>
@@ -120,6 +123,7 @@
       </eAnnotations>
       <eAnnotations source="urn:universal-diagram-editor:component">
         <details key="id" value="bpmn-participant-band"/>
+        <details key="heightResizeGroup" value="pool-height"/>
         <details key="name" value="Pool name band"/>
         <details key="type" value="rectangle"/>
         <details key="x" value="0"/>
@@ -150,6 +154,7 @@
       <details key="resizeVertical" value="true"/>
       <eAnnotations source="urn:universal-diagram-editor:component">
         <details key="id" value="bpmn-lane-frame"/>
+        <details key="heightResizeGroup" value="lane-height"/>
         <details key="name" value="Lane frame"/>
         <details key="type" value="rectangle"/>
         <details key="x" value="0"/>
@@ -163,6 +168,7 @@
       </eAnnotations>
       <eAnnotations source="urn:universal-diagram-editor:component">
         <details key="id" value="bpmn-lane-band"/>
+        <details key="heightResizeGroup" value="lane-height"/>
         <details key="name" value="Lane name band"/>
         <details key="type" value="rectangle"/>
         <details key="x" value="0"/>

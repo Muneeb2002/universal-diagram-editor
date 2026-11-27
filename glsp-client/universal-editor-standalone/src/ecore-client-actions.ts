@@ -103,12 +103,24 @@ export interface RequestInstancesOverviewAction {
     classNames?: string[];
 }
 
+export interface InstanceOverviewEntry {
+    id: string;
+    className: string;
+    hidden?: boolean;
+    attributes?: Record<string, any>;
+    laneOrder?: { index: number; count: number };
+}
+
 export interface InstancesOverviewResponse extends Action {
     kind: 'instancesOverviewResponse';
     requestId: string;
     success: boolean;
-    instances: Array<{ id: string; className: string; hidden?: boolean; attributes?: Record<string, any> }>;
+    instances: InstanceOverviewEntry[];
     message?: string;
+}
+
+export function moveStackedLaneAction(laneId: string, direction: 'up' | 'down'): Action & { laneId: string; direction: 'up' | 'down' } {
+    return { kind: 'moveStackedLane', laneId, direction };
 }
 
 export interface RequestEnumNamesAction extends RequestAction<EnumNamesResponse> {

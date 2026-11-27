@@ -1,12 +1,13 @@
 import { Action, CommandExecutionContext, CommandReturn, TYPES } from '@eclipse-glsp/sprotty';
 import { inject, injectable } from 'inversify';
 import { FeedbackCommand, GNode, addResizeHandles, removeResizeHandles } from '@eclipse-glsp/client';
+import type { ComponentBounds, ResizableComponent } from './composite-resize';
 
 export interface SetCompositeComponentAction extends Action {
     kind: typeof SetCompositeComponentAction.KIND;
     nodeId: string;
     componentIndex: number;
-    bounds?: { x: number; y: number; width: number; height: number };
+    bounds?: Record<number, ComponentBounds>;
 }
 
 export namespace SetCompositeComponentAction {
@@ -15,7 +16,7 @@ export namespace SetCompositeComponentAction {
     export function create(
         nodeId: string,
         componentIndex: number,
-        bounds?: { x: number; y: number; width: number; height: number }
+        bounds?: Record<number, ComponentBounds>
     ): SetCompositeComponentAction {
         return { kind: KIND, nodeId, componentIndex, bounds };
     }
@@ -37,9 +38,12 @@ export class SetCompositeComponentCommand extends FeedbackCommand {
         } else {
             addResizeHandles(node, (node as any).resizeLocations);
         }
-        const component = (node as any).shapeConfig?.components?.[this.action.componentIndex];
-        if (component && this.action.bounds) {
-            Object.assign(component, this.action.bounds);
+        const components = (node as GNode & { shapeConfig?: { components?: ResizableComponent[] } }).shapeConfig?.components;
+        if (components && this.action.bounds) {
+            for (const [index, bounds] of Object.entries(this.action.bounds)) {
+                const component = components[Number(index)];
+                if (component) Object.assign(component, bounds);
+            }
         }
         return context.root;
     }

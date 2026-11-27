@@ -43,6 +43,7 @@ import { CreateInstanceReferenceActionHandler } from './handlers/create-instance
 import { LoadMetamodelResponseHandler } from './handlers/load-metamodel-response-handler';
 import { OpenClassPropertiesActionHandler } from './handlers/open-class-properties-action-handler';
 import { RequestInstancesOverviewActionHandler } from './handlers/request-instances-overview-action-handler';
+import { MoveStackedLaneActionHandler } from './handlers/move-stacked-lane-action-handler';
 import { RequestEnumNamesActionHandler } from './handlers/request-enum-names-action-handler';
 import { SaveGraphicalModelActionHandler } from './handlers/save-graphical-model-action-handler';
 import { SaveShapeMappingsActionHandler } from './handlers/save-shape-mappings-action-handler';
@@ -97,6 +98,7 @@ export class EcoreDiagramModule extends GModelDiagramModule {
         binding.add(ApplyShapeMappingsActionHandler);
         binding.add(OpenClassPropertiesActionHandler);
         binding.add(RequestInstancesOverviewActionHandler);
+        binding.add(MoveStackedLaneActionHandler);
         binding.add(RequestEnumNamesActionHandler);
         binding.add(EditMetamodelActionHandler);
         binding.add(DeleteEdgeActionHandler);
